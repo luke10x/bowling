@@ -18,3 +18,23 @@ TEST_CASE("Campaign completion flow keeps finished campaigns out of ordinary lev
         Campaign_ResumeFlowForState(false, true) == CampaignResumeFlow::PostgameFreeplay
     );
 }
+
+TEST_CASE("First Level 13 clear celebrates before its normal results screen")
+{
+    CHECK(Campaign_FinalResultFlowForState(true, false, 13, 13, false) ==
+          CampaignFinaleFlow::CelebrationThenResult);
+    CHECK(Campaign_FinalResultFlowForState(true, false, 13, 13, true) ==
+          CampaignFinaleFlow::NormalResult);
+    CHECK(Campaign_FinalResultFlowForState(false, false, 13, 13, false) ==
+          CampaignFinaleFlow::NormalResult);
+    CHECK(Campaign_FinalResultFlowForState(true, true, 13, 13, false) ==
+          CampaignFinaleFlow::NormalResult);
+}
+
+TEST_CASE("First-clear finale keeps results between celebration and Angel greeting")
+{
+    CHECK(Campaign_FinaleCloseFlowForState(true) == CampaignFinaleFlow::NormalResult);
+    CHECK(Campaign_ResultDismissFlowForState(true) == CampaignFinaleFlow::AngelGreeting);
+    CHECK(Campaign_FinaleCloseFlowForState(false) == CampaignFinaleFlow::AngelGreeting);
+    CHECK(Campaign_ResultDismissFlowForState(false) == CampaignFinaleFlow::NoTransition);
+}

@@ -7,6 +7,46 @@ enum class CampaignResumeFlow
     PostgameFreeplay = 2,
 };
 
+// The first clear of the final chapter has a deliberately distinct sequence:
+// celebration, ordinary match results, then the Angel greeting.  Keeping these
+// choices here makes the state-machine contract testable without the renderer.
+enum class CampaignFinaleFlow
+{
+    NormalResult = 0,
+    CelebrationThenResult = 1,
+    AngelGreeting = 2,
+    NoTransition = 3,
+};
+
+static inline CampaignFinaleFlow Campaign_FinalResultFlowForState(
+    bool playerWon,
+    bool postgameFreeplayActive,
+    int levelNumber,
+    int finalLevelNumber,
+    bool campaignCompleted)
+{
+    return playerWon &&
+           !postgameFreeplayActive &&
+           levelNumber == finalLevelNumber &&
+           !campaignCompleted
+        ? CampaignFinaleFlow::CelebrationThenResult
+        : CampaignFinaleFlow::NormalResult;
+}
+
+static inline CampaignFinaleFlow Campaign_FinaleCloseFlowForState(bool awaitingResultDismissal)
+{
+    return awaitingResultDismissal
+        ? CampaignFinaleFlow::NormalResult
+        : CampaignFinaleFlow::AngelGreeting;
+}
+
+static inline CampaignFinaleFlow Campaign_ResultDismissFlowForState(bool awaitingResultDismissal)
+{
+    return awaitingResultDismissal
+        ? CampaignFinaleFlow::AngelGreeting
+        : CampaignFinaleFlow::NoTransition;
+}
+
 static inline CampaignResumeFlow Campaign_ResumeFlowForState(bool campaignCompleted, bool campaignPostgameFreeplayActive)
 {
     if (campaignPostgameFreeplayActive)

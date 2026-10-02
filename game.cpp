@@ -875,6 +875,9 @@ struct UserContext
     bool pendingCampaignBotPlayerWon = false;
     bool pendingCampaignEndgameSummaryWindow = false;
     bool pendingCampaignPostgameChoiceDialog = false;
+    // Set only for the first-ever Level 13 clear: show results between the
+    // campaign-complete modal and the post-campaign Angel greeting.
+    bool campaignEndgameAwaitingResultDismissal = false;
     bool campaignCompleted = false;
     float campaignClearTime = 0.0f;
     float campaignEndgameConfettiNextS = -1.0f;
@@ -11536,6 +11539,7 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     usr->pendingCampaignEndStoryId = 0;
     usr->pendingCampaignEndgameSummaryWindow = false;
     usr->pendingCampaignPostgameChoiceDialog = false;
+    usr->campaignEndgameAwaitingResultDismissal = false;
     if (resetInventory)
     {
         usr->carousel.bank = 20.0f;
@@ -13089,7 +13093,11 @@ static inline void Campaign_AdvanceIfWon(UserContext *usr, const CampaignLevelCo
         return;
 
     Campaign_RecordWinForCurrentLevel(usr);
-    MiniGame_QueueCampaignVictoryBonus(usr, cfg.biome, Campaign_BonusMiniGameForVictory(cfg));
+    // The final chapter goes straight to the campaign-complete celebration.
+    // A queued bonus modal would otherwise postpone that screen (and the
+    // requested result-screen-to-Angel sequence) until after a bonus game.
+    if (cfg.levelNumber < kCampaignLevelCount)
+        MiniGame_QueueCampaignVictoryBonus(usr, cfg.biome, Campaign_BonusMiniGameForVictory(cfg));
     usr->carousel.bank += (float)glm::max(0, cfg.rewardBank);
     if (kCampaignBallRewardsEnabled && cfg.unlockBallId >= 0)
         UnlockMask_AddBall(usr, cfg.unlockBallId);
@@ -19672,7 +19680,13 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->windowStack.campaignEndgameClosedRequested)
                 {
                     usr->windowStack.campaignEndgameClosedRequested = false;
-                    usr->pendingCampaignPostgameChoiceDialog = true;
+                    // On the first clear, the normal bowling result is deliberately
+                    // visible after the celebration. Its Continue button opens the
+                    // Angel greeting; do not skip straight to it here.
+                    if (Campaign_FinaleCloseFlowForState(
+                            usr->campaignEndgameAwaitingResultDismissal) ==
+                        CampaignFinaleFlow::AngelGreeting)
+                        usr->pendingCampaignPostgameChoiceDialog = true;
                 }
                 if (usr->windowStack.settingsCheckUpdateRequested)
                 {
@@ -21406,6 +21420,16 @@ void vtx::loop(vtx::VertexContext *ctx)
 	    if (usr->windowStack.playAgainRequested)
 	    {
 	        usr->windowStack.playAgainRequested = false;
+        if (Campaign_ResultDismissFlowForState(
+                usr->campaignEndgameAwaitingResultDismissal) ==
+            CampaignFinaleFlow::AngelGreeting)
+        {
+            usr->campaignEndgameAwaitingResultDismissal = false;
+            usr->pendingCampaignPostgameChoiceDialog = true;
+            // Stay in RESULT so the post-campaign fireworks remain visible behind
+            // the final result until the Angel greeting takes over.
+            return;
+        }
         LogToIdle(usr, "PLAY_AGAIN");
         usr->phase = UserContext::Phase::IDLE;
         usr->clayton.shouldShowHiScore = false;
@@ -23047,11 +23071,15 @@ swing_checks_done:
 	                                        const bool playerWins = (usr->board.totalScore > usr->enemyBoard.totalScore);
 	                                        const CampaignLevelConfig cfg = Campaign_CurrentLevel(usr);
                                             BallInventory_RestoreDestroyedBallsForResult(usr, playerWins);
-	                                        const bool clearedFullCampaign =
-	                                            (usr->playerRoute == PlayerRoute::CAMPAIGN &&
-                                             playerWins &&
-                                             !usr->campaignPostgameFreeplayActive &&
-                                             cfg.levelNumber == kCampaignLevelCount);
+                                        const bool clearedFullCampaign =
+                                            usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                                            Campaign_FinalResultFlowForState(
+                                                playerWins,
+                                                usr->campaignPostgameFreeplayActive,
+                                                cfg.levelNumber,
+                                                kCampaignLevelCount,
+                                                usr->campaignCompleted
+                                            ) == CampaignFinaleFlow::CelebrationThenResult;
 				                        if (playerWins)
 				                        {
 				                            usr->sound.playSfxWin();
@@ -23101,6 +23129,7 @@ swing_checks_done:
                                             {
                                                 usr->campaignCompleted = true;
                                                 usr->campaignClearTime = glm::max(0.0f, usr->gameplayTime);
+                                                usr->campaignEndgameAwaitingResultDismissal = true;
                                                 Campaign_SaveCompletionState(usr);
                                                 Campaign_QueueEndgameSummaryWindow(usr);
                                             }

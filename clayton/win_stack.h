@@ -2868,7 +2868,15 @@ inline void WindowStack::renderCampaignEndgameSummaryWindow(WindowStack *self, C
 
     CLAY(CLAY_ID("CampaignEndgameWindow"), CLAY_THEME_WINDOW_PANEL)
     {
-        CLAY_TEXT(clayton->txl(TXL_CAMPAIGN_COMPLETE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+        CLAY(CLAY_ID("CampaignEndgameHeading"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+        {
+            CLAY_TEXT(clayton->txl(TXL_CAMPAIGN_COMPLETE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+            CLAY(CLAY_ID("CampaignEndgameHeadingSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
+            CLAY(clayton->campaignEndgameCloseClick.clayId, CLAY_THEME_BTN_DANGER)
+            { CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
+        }
         CLAY_TEXT(clayton->txl(TXL_CAMPAIGN_COMPLETE_DETAIL), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
         CLAY(
             CLAY_ID("CampaignEndgameTotalsRow"),
@@ -2900,21 +2908,22 @@ inline void WindowStack::renderCampaignEndgameSummaryWindow(WindowStack *self, C
                 CLAY_TEXT(totalAttemptsStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
             }
         }
-        CLAY_TEXT(clayton->txl(TXL_ATTEMPTS_BY_LEVEL), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
+        CLAY_TEXT(CLAY_STRING("CAMPAIGN LEVELS"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
         CLAY(
-            CLAY_ID("CampaignEndgameAttemptsGrid"),
+            CLAY_ID("CampaignEndgameLevelGrid"),
             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                        .childGap = 6,
+                        .childGap = 7,
                         .layoutDirection = CLAY_TOP_TO_BOTTOM}}
         )
         {
             for (int row = 0; row < 4; ++row)
             {
                 CLAY(
-                    CLAY_IDI("CampaignEndgameAttemptsRow", row),
+                    CLAY_IDI("CampaignEndgameLevelRow", row),
                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                .childGap = 8,
-                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                                .childGap = 7,
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}}
                 )
                 {
                     for (int col = 0; col < 4; ++col)
@@ -2922,32 +2931,39 @@ inline void WindowStack::renderCampaignEndgameSummaryWindow(WindowStack *self, C
                         const int idx = row * 4 + col;
                         if (idx >= 13)
                         {
-                            // Invisible cells preserve the four-column card grid on
-                            // the final row, so Level 13 stays the same size.
-                            CLAY(CLAY_IDI("CampaignLevelSpacer", idx),
-                                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(102)}}})
-                            {}
                             continue;
                         }
 
-                        char cellBuf[64];
-                        const int losses = std::max(0, self->campaignEndgameAttempts[idx] - self->campaignEndgameWins[idx]);
-                        const int firstWinSeconds = (int)floorf(self->campaignEndgameFirstWinTimes[idx]);
-                        if (firstWinSeconds > 0)
-                            snprintf(cellBuf, sizeof(cellBuf), "%d W%d L%d S%d %02d:%02d", idx + 1, self->campaignEndgameWins[idx], losses, self->campaignEndgameBestScores[idx], firstWinSeconds / 60, firstWinSeconds % 60);
+                        char levelBuf[8], recordBuf[24], scoreBuf[16];
+                        snprintf(levelBuf, sizeof(levelBuf), "%d", idx + 1);
+                        snprintf(recordBuf, sizeof(recordBuf), "%d / %d", self->campaignEndgameWins[idx], self->campaignEndgameAttempts[idx]);
+                        if (self->campaignEndgameBestScores[idx] <= 0)
+                            snprintf(scoreBuf, sizeof(scoreBuf), "%s", idx == 0 ? "?" : "? - ?");
+                        else if (self->campaignEndgameBestOpponentScores[idx] > 0)
+                            snprintf(scoreBuf, sizeof(scoreBuf), "%d - %d", self->campaignEndgameBestScores[idx], self->campaignEndgameBestOpponentScores[idx]);
                         else
-                            snprintf(cellBuf, sizeof(cellBuf), "%d W%d L%d S%d --:--", idx + 1, self->campaignEndgameWins[idx], losses, self->campaignEndgameBestScores[idx]);
-                        Clay_String cellStr = ClayArena_AllocString(arena, cellBuf);
+                            snprintf(scoreBuf, sizeof(scoreBuf), "%d", self->campaignEndgameBestScores[idx]);
+                        Clay_String levelStr = ClayArena_AllocString(arena, levelBuf);
+                        Clay_String recordStr = ClayArena_AllocString(arena, recordBuf);
+                        Clay_String scoreStr = ClayArena_AllocString(arena, scoreBuf);
+                        Clay_TextElementConfig scoreCfg = CLAY_THEME_TEXT_BODY;
+                        if (self->campaignEndgameBestOpponentScores[idx] > 0 &&
+                            self->campaignEndgameBestScores[idx] <= self->campaignEndgameBestOpponentScores[idx])
+                            scoreCfg.textColor = {220, 82, 74, 255};
+                        Clay_ElementDeclaration levelCard = CLAY_THEME_BTN_PRIMARY;
+                        levelCard.layout.sizing.height = CLAY_SIZING_FIXED(102);
+                        levelCard.layout.layoutDirection = CLAY_TOP_TO_BOTTOM;
+                        levelCard.layout.childGap = 0;
+                        levelCard.backgroundColor = {62, 78, 112, 220}; // read-only completed card
+                        if (idx == 12)
+                            levelCard.layout.sizing.width = CLAY_SIZING_FIXED(102);
                         CLAY(
-                            CLAY_IDI("CampaignEndgameCell", idx),
-                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(38)},
-                                        .padding = {6, 6, 5, 5},
-                                        .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                             .backgroundColor = {34, 29, 38, 220},
-                             .cornerRadius = {CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM}}
+                            CLAY_IDI("CampaignEndgameLevelCard", idx), levelCard
                         )
                         {
-                            CLAY_TEXT(cellStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+                            CLAY_TEXT(recordStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+                            CLAY_TEXT(levelStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+                            CLAY_TEXT(scoreStr, CLAY_TEXT_CONFIG(scoreCfg));
                         }
                     }
                 }
@@ -3063,7 +3079,7 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
         if (self->campaignLevelSelectCampaignComplete)
         {
             CLAY(CLAY_ID("CampaignLevelSelectCompletedActions"),
-                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 8,
+            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 8,
                              .layoutDirection = CLAY_LEFT_TO_RIGHT}})
             {
                 CLAY(clayton->campaignLevelRestartClick.clayId, CLAY_THEME_BTN_HUD)

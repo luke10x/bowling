@@ -41,10 +41,12 @@ struct ForestTerrain
     GLuint treeEbo = 0;
     GLuint treeShaderId = 0;
     GLuint riverVao = 0, riverVbo = 0, riverEbo = 0;
+    GLuint mountainVao = 0, mountainVbo = 0, mountainEbo = 0;
     GLuint mistVao = 0, mistVbo = 0, mistEbo = 0, mistShaderId = 0;
     GLsizei indexCount = 0;
     GLsizei treeIndexCount = 0;
     GLsizei riverIndexCount = 0;
+    GLsizei mountainIndexCount = 0;
     GLsizei mistIndexCount = 0;
     float scrollZ = 0.0f;
     float rotorAngle = 0.0f;
@@ -195,6 +197,14 @@ struct ForestTerrain
         this->buildTreeMesh();
         if (jungleMode) this->buildRiverMesh();
         if (jungleMode) this->buildMistMesh();
+        if (windFarmMode) this->buildMountainMesh();
+    }
+
+    void buildMountainMesh()
+    {
+        std::vector<ForestTerrainVertex> v; std::vector<uint32_t> ind;
+        for(int i=0;i<24;++i){float x0=-420.f+i*35.f,x1=x0+35.f,h0=24.f+18.f*(.5f+.5f*std::sin(i*1.71f)),h1=24.f+18.f*(.5f+.5f*std::sin((i+1)*1.71f));uint32_t b=uint32_t(v.size());glm::vec3 n(0,0,-1);v.push_back({{x0,kBaseY,0},n});v.push_back({{x1,kBaseY,0},n});v.push_back({{x1,kBaseY+h1,0},n});v.push_back({{x0,kBaseY+h0,0},n});ind.insert(ind.end(),{b,b+1,b+2,b,b+2,b+3});}
+        mountainIndexCount=GLsizei(ind.size());glGenVertexArrays(1,&mountainVao);glGenBuffers(1,&mountainVbo);glGenBuffers(1,&mountainEbo);glBindVertexArray(mountainVao);glBindBuffer(GL_ARRAY_BUFFER,mountainVbo);glBufferData(GL_ARRAY_BUFFER,GLsizeiptr(v.size()*sizeof(ForestTerrainVertex)),v.data(),GL_STATIC_DRAW);glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,mountainEbo);glBufferData(GL_ELEMENT_ARRAY_BUFFER,GLsizeiptr(ind.size()*sizeof(uint32_t)),ind.data(),GL_STATIC_DRAW);glEnableVertexAttribArray(0);glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,sizeof(ForestTerrainVertex),(void*)offsetof(ForestTerrainVertex,position));glEnableVertexAttribArray(1);glVertexAttribPointer(1,3,GL_FLOAT,GL_FALSE,sizeof(ForestTerrainVertex),(void*)offsetof(ForestTerrainVertex,normal));glBindVertexArray(0);
     }
 
     void buildMistMesh()
@@ -574,6 +584,7 @@ struct ForestTerrain
         glUniform3fv(glGetUniformLocation(this->shaderId, "u_cameraPos"), 1, glm::value_ptr(cameraPos));
         glUniform1f(glGetUniformLocation(this->shaderId, "u_jungle"), jungleMode ? 1.0f : 0.0f);
         glUniform1f(glGetUniformLocation(this->shaderId, "u_windFarm"), windFarmMode ? 1.0f : 0.0f);
+        glUniform1f(glGetUniformLocation(this->shaderId, "u_windMountain"), 0.0f);
         glUniform1f(glGetUniformLocation(this->shaderId, "u_scrollZ"), scrollZ);
         glBindVertexArray(this->vao);
         for (float zOffset : tileOffsets)
@@ -583,6 +594,27 @@ struct ForestTerrain
             glDrawElements(GL_TRIANGLES, this->indexCount, GL_UNSIGNED_INT, 0);
         }
         glBindVertexArray(0);
+
+        // Keep the farming hills grounded at the end of the moving terrain,
+        // but anchor their range to the camera so it reads as a distant
+        // parallax backdrop instead of another scrolling terrain tile.
+        if (windFarmMode && mountainVao != 0)
+        {
+            glBindVertexArray(mountainVao);
+            glUniform1f(glGetUniformLocation(this->shaderId, "u_windMountain"), 2.0f);
+            glm::mat4 farRange = glm::translate(glm::mat4(1.0f),
+                glm::vec3(cameraPos.x + 64.0f, -3.0f, cameraPos.z + kFarZ + 34.0f));
+            glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(farRange));
+            glDrawElements(GL_TRIANGLES, mountainIndexCount, GL_UNSIGNED_INT, 0);
+
+            glUniform1f(glGetUniformLocation(this->shaderId, "u_windMountain"), 1.0f);
+            glm::mat4 nearRange = glm::translate(glm::mat4(1.0f),
+                glm::vec3(cameraPos.x, -1.0f, cameraPos.z + kFarZ + 4.0f));
+            glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(nearRange));
+            glDrawElements(GL_TRIANGLES, mountainIndexCount, GL_UNSIGNED_INT, 0);
+            glBindVertexArray(0);
+            glUniform1f(glGetUniformLocation(this->shaderId, "u_windMountain"), 0.0f);
+        }
 
         if (jungleMode && riverWater && riverVao != 0)
         {
@@ -597,6 +629,8 @@ struct ForestTerrain
         glUniformMatrix4fv(glGetUniformLocation(this->treeShaderId, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
         glUniformMatrix4fv(glGetUniformLocation(this->treeShaderId, "u_projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
         glUniform3fv(glGetUniformLocation(this->treeShaderId, "u_cameraPos"), 1, glm::value_ptr(cameraPos));
+        glUniform1f(glGetUniformLocation(this->treeShaderId, "u_windmillHorizon"),
+            windFarmMode ? cameraPos.z + 440.0f : 100000.0f);
         glBindVertexArray(this->treeVao);
         for (float zOffset : tileOffsets)
         {
@@ -651,6 +685,7 @@ const char *ForestTerrain::FOREST_FRAGMENT_SHADER = GLSL_VERSION R"(
     uniform vec3 u_cameraPos;
     uniform float u_jungle;
     uniform float u_windFarm;
+    uniform float u_windMountain;
     uniform float u_scrollZ;
 
     out vec4 FragColor;
@@ -694,6 +729,18 @@ const char *ForestTerrain::FOREST_FRAGMENT_SHADER = GLSL_VERSION R"(
         farm = mix(farm, vec3(0.045, 0.20, 0.045), border * hedgeGaps);
         farm *= 0.65 + diffuse * 0.60;
         color = mix(color, farm, u_windFarm);
+
+        // Two subdued ranges: the rear range is deliberately blue-grey and
+        // offset by half a ridge cycle, so its peaks sit behind the nearer
+        // range's valleys.
+        if (u_windMountain > 1.5)
+        {
+            color = mix(vec3(0.42, 0.44, 0.43), vec3(0.76, 0.78, 0.76), diffuse);
+        }
+        else if (u_windMountain > 0.5)
+        {
+            color = mix(vec3(0.23, 0.25, 0.24), vec3(0.47, 0.49, 0.47), diffuse);
+        }
 
         // Slow, broken mist pockets drift over the winding river rather than
         // filling the whole valley as a uniform haze.
@@ -745,11 +792,16 @@ const char *ForestTerrain::TREE_FRAGMENT_SHADER = GLSL_VERSION R"(
     in vec3 v_color;
 
     uniform vec3 u_cameraPos;
+    uniform float u_windmillHorizon;
 
     out vec4 FragColor;
 
     void main()
     {
+        // The backdrop is a solid horizon wall.  Suppress turbine cards from
+        // the recycled terrain tile once they pass behind that wall.
+        if (v_worldPos.z > u_windmillHorizon)
+            discard;
         vec3 normal = normalize(v_normal);
         vec3 lightDir = normalize(vec3(-0.22, 0.95, 0.14));
         vec3 viewDir = normalize(u_cameraPos - v_worldPos);

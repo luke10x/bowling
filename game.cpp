@@ -546,9 +546,12 @@ static constexpr float kLaneRenderMaxZ = 0.87f;
 static constexpr float kBallRenderLaneClearanceM = kBallPhysicsRadiusM + 0.003f;
 static constexpr float kSkullBallRenderScale = 0.138f;
 
-static inline glm::mat4 Ball_RenderClampedAboveLane(glm::mat4 model)
+static inline glm::mat4 Ball_RenderClampedAboveLane(glm::mat4 model, bool allowFallingBelowLane)
 {
     glm::vec3 center(model[3]);
+    if (allowFallingBelowLane)
+        return model;
+
     const glm::vec3 closest(
         glm::clamp(center.x, -kLaneRenderHalfWidthM, kLaneRenderHalfWidthM),
         kLaneSurfaceY,
@@ -25496,7 +25499,14 @@ END_LINE:
                     }
                     if (renderSkullBall)
                         renderBallModel = renderBallModel * glm::scale(glm::mat4(1.0f), glm::vec3(kSkullBallRenderScale));
-                    renderBallModel = Ball_RenderClampedAboveLane(renderBallModel);
+                    const glm::vec3 renderBallPos = glm::vec3(renderBallModel[3]);
+                    const glm::vec3 ballVelocity = usr->phy.get_ball_swing_movement();
+                    const bool ballFallingOffLane =
+                        renderBallPos.y < kLaneSurfaceY &&
+                        (fabsf(renderBallPos.x) > kLaneRenderHalfWidthM ||
+                         ballVelocity.y < -0.35f ||
+                         renderBallPos.y < kThrowCompleteFloorY);
+                    renderBallModel = Ball_RenderClampedAboveLane(renderBallModel, ballFallingOffLane);
                     AssetMesh &renderBallMesh = renderSkullBall ? usr->skullBallMesh : usr->ballMesh;
                     usr->mainShader.renderRealMesh(
                         renderBallMesh, renderBallModel, usr->cameraMat, usr->perspectiveMat

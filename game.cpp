@@ -9942,8 +9942,21 @@ static inline void RuneFreeze_Tick(UserContext *usr, float dt)
 
 static inline bool Campaign_IsCurrentBiomeIce(const UserContext *usr)
 {
+    if (usr && Campaign_VisualBiomeSourceForState(
+            usr->pendingMiniGameKind != MiniGameKind::NONE,
+            MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource)
+        return usr->miniGameSourceBiome == CampaignBiome::ICE;
     return usr && usr->playerRoute == PlayerRoute::CAMPAIGN &&
            Campaign_CurrentLevel(usr).biome == CampaignBiome::ICE;
+}
+
+static inline bool Visual_UsesBonusSourceBiome(const UserContext *usr, CampaignBiome biome)
+{
+    return usr &&
+           Campaign_VisualBiomeSourceForState(
+               usr->pendingMiniGameKind != MiniGameKind::NONE,
+               MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource &&
+           usr->miniGameSourceBiome == biome;
 }
 
 static inline bool Visual_ShouldUseNeonBackdrop(const UserContext *usr)
@@ -9957,8 +9970,8 @@ static inline bool Visual_ShouldUseSuburbiaBackdrop(const UserContext *usr)
 {
     if (!usr)
         return false;
-    if (MiniGame_IsActive(usr))
-        return usr->miniGameSourceBiome == CampaignBiome::SUBURBIA;
+    if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource)
+        return Visual_UsesBonusSourceBiome(usr, CampaignBiome::SUBURBIA);
     if (usr->campaignOverrideActive)
         return usr->campaignOverrideBiome == CampaignBiome::SUBURBIA;
     return usr->playerRoute == PlayerRoute::CAMPAIGN &&
@@ -9969,8 +9982,8 @@ static inline bool Visual_ShouldUseRuinsBackdrop(const UserContext *usr)
 {
     if (!usr)
         return false;
-    if (MiniGame_IsActive(usr))
-        return usr->miniGameSourceBiome == CampaignBiome::RUINS_CITY;
+    if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource)
+        return Visual_UsesBonusSourceBiome(usr, CampaignBiome::RUINS_CITY);
     if (usr->campaignOverrideActive)
         return usr->campaignOverrideBiome == CampaignBiome::RUINS_CITY;
     return usr->playerRoute == PlayerRoute::CAMPAIGN &&
@@ -9994,12 +10007,17 @@ static inline bool Visual_ShouldUseForestBackdrop(const UserContext *usr)
 static inline bool Visual_ShouldUseJungleBackdrop(const UserContext *usr)
 {
     if (!usr) return false;
-    if (MiniGame_IsActive(usr)) return usr->miniGameSourceBiome == CampaignBiome::JUNGLE;
+    if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource) return Visual_UsesBonusSourceBiome(usr, CampaignBiome::JUNGLE);
     if (usr->campaignOverrideActive) return usr->campaignOverrideBiome == CampaignBiome::JUNGLE;
     return usr->playerRoute == PlayerRoute::CAMPAIGN && Campaign_CurrentLevel(usr).biome == CampaignBiome::JUNGLE;
 }
 static inline bool Visual_ShouldUseWindFarmBackdrop(const UserContext *usr)
-{ return usr && usr->playerRoute == PlayerRoute::CAMPAIGN && Campaign_CurrentLevel(usr).biome == CampaignBiome::WIND_FARM; }
+{
+    if (!usr) return false;
+    if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource)
+        return Visual_UsesBonusSourceBiome(usr, CampaignBiome::WIND_FARM);
+    return usr->playerRoute == PlayerRoute::CAMPAIGN && Campaign_CurrentLevel(usr).biome == CampaignBiome::WIND_FARM;
+}
 
 static inline bool Visual_ShouldUseDesertBackdrop(const UserContext *usr)
 {
@@ -10011,7 +10029,7 @@ static inline bool Visual_ShouldUseDesertBackdrop(const UserContext *usr)
 static inline bool Visual_ShouldUseRedDesertBackdrop(const UserContext *usr)
 {
     if (!usr) return false;
-    if (MiniGame_IsActive(usr)) return usr->miniGameSourceBiome == CampaignBiome::RED_DESERT;
+    if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource) return Visual_UsesBonusSourceBiome(usr, CampaignBiome::RED_DESERT);
     if (usr->campaignOverrideActive) return usr->campaignOverrideBiome == CampaignBiome::RED_DESERT;
     return usr->playerRoute == PlayerRoute::CAMPAIGN && Campaign_CurrentLevel(usr).biome == CampaignBiome::RED_DESERT;
 }
@@ -10020,8 +10038,8 @@ static inline bool Visual_ShouldUseGreyDesertBackdrop(const UserContext *usr)
 {
     if (!usr)
         return false;
-    if (MiniGame_IsActive(usr))
-        return usr->miniGameSourceBiome == CampaignBiome::GREY_DESERT;
+    if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource)
+        return Visual_UsesBonusSourceBiome(usr, CampaignBiome::GREY_DESERT);
     if (usr->campaignOverrideActive)
         return usr->campaignOverrideBiome == CampaignBiome::GREY_DESERT;
     return usr->playerRoute == PlayerRoute::CAMPAIGN &&
@@ -10032,8 +10050,8 @@ static inline bool Visual_ShouldUseAshlandBackdrop(const UserContext *usr)
 {
     if (!usr)
         return false;
-    if (MiniGame_IsActive(usr))
-        return usr->miniGameSourceBiome == CampaignBiome::ASHLAND;
+    if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource)
+        return Visual_UsesBonusSourceBiome(usr, CampaignBiome::ASHLAND);
     if (usr->campaignOverrideActive)
         return usr->campaignOverrideBiome == CampaignBiome::ASHLAND;
     return usr->playerRoute == PlayerRoute::CAMPAIGN &&
@@ -10044,8 +10062,8 @@ static inline bool Visual_ShouldUseGasFactoryBackdrop(const UserContext *usr)
 {
     if (!usr)
         return false;
-    if (MiniGame_IsActive(usr))
-        return usr->miniGameSourceBiome == CampaignBiome::GAS_FACTORY;
+    if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource)
+        return Visual_UsesBonusSourceBiome(usr, CampaignBiome::GAS_FACTORY);
     if (usr->campaignOverrideActive)
         return usr->campaignOverrideBiome == CampaignBiome::GAS_FACTORY;
     return usr->playerRoute == PlayerRoute::CAMPAIGN &&
@@ -10056,8 +10074,8 @@ static inline bool Visual_ShouldUseCrystalCavernBackdrop(const UserContext *usr)
 {
     if (!usr)
         return false;
-    if (MiniGame_IsActive(usr))
-        return usr->miniGameSourceBiome == CampaignBiome::CRYSTAL_CAVERN;
+    if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource)
+        return Visual_UsesBonusSourceBiome(usr, CampaignBiome::CRYSTAL_CAVERN);
     if (usr->campaignOverrideActive)
         return usr->campaignOverrideBiome == CampaignBiome::CRYSTAL_CAVERN;
     return usr->playerRoute == PlayerRoute::CAMPAIGN &&

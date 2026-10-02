@@ -18,6 +18,24 @@ enum class CampaignFinaleFlow
     NoTransition = 3,
 };
 
+enum class CampaignVisualBiomeSource
+{
+    CurrentCampaignLevel = 0,
+    BonusSource = 1,
+};
+
+// Campaign progress advances as soon as a level is won, but its optional bonus
+// round must retain the completed level's environment while its choice modal is
+// visible and while the round is active.
+static inline CampaignVisualBiomeSource Campaign_VisualBiomeSourceForState(
+    bool bonusQueued,
+    bool bonusActive)
+{
+    return bonusQueued || bonusActive
+        ? CampaignVisualBiomeSource::BonusSource
+        : CampaignVisualBiomeSource::CurrentCampaignLevel;
+}
+
 static inline CampaignFinaleFlow Campaign_FinalResultFlowForState(
     bool playerWon,
     bool postgameFreeplayActive,

@@ -38,3 +38,13 @@ TEST_CASE("First-clear finale keeps results between celebration and Angel greeti
     CHECK(Campaign_FinaleCloseFlowForState(false) == CampaignFinaleFlow::AngelGreeting);
     CHECK(Campaign_ResultDismissFlowForState(false) == CampaignFinaleFlow::NoTransition);
 }
+
+TEST_CASE("Queued bonus keeps the completed level biome visible until the bonus starts")
+{
+    CHECK(Campaign_VisualBiomeSourceForState(/*bonusQueued=*/true, /*bonusActive=*/false) ==
+          CampaignVisualBiomeSource::BonusSource);
+    CHECK(Campaign_VisualBiomeSourceForState(/*bonusQueued=*/false, /*bonusActive=*/true) ==
+          CampaignVisualBiomeSource::BonusSource);
+    CHECK(Campaign_VisualBiomeSourceForState(/*bonusQueued=*/false, /*bonusActive=*/false) ==
+          CampaignVisualBiomeSource::CurrentCampaignLevel);
+}

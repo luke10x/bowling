@@ -156,6 +156,7 @@ struct Water
         }
 
         glUseProgram(this->waterShaderId);
+        glUniformMatrix4fv(glGetUniformLocation(this->waterShaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(glm::mat4(1.0f)));
         glUniformMatrix4fv(glGetUniformLocation(this->waterShaderId, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
         glUniformMatrix4fv(glGetUniformLocation(this->waterShaderId, "u_projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
         glUniform3fv(glGetUniformLocation(this->waterShaderId, "u_cameraPos"), 1, glm::value_ptr(cameraPos));
@@ -167,6 +168,23 @@ struct Water
         glDrawElements(GL_TRIANGLES, this->indexCount, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
     }
+
+    void renderExternalMesh(GLuint vao, GLsizei count, const glm::mat4 &modelMatrix,
+                            const glm::mat4 &cameraMatrix, const glm::mat4 &projectionMatrix, float waterLineY)
+    {
+        this->time += 0.00016f;
+        const glm::mat4 viewMatrix = glm::inverse(cameraMatrix);
+        const glm::vec3 cameraPos = glm::vec3(cameraMatrix[3]);
+        glUseProgram(this->waterShaderId);
+        glUniformMatrix4fv(glGetUniformLocation(this->waterShaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+        glUniformMatrix4fv(glGetUniformLocation(this->waterShaderId, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+        glUniformMatrix4fv(glGetUniformLocation(this->waterShaderId, "u_projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+        glUniform3fv(glGetUniformLocation(this->waterShaderId, "u_cameraPos"), 1, glm::value_ptr(cameraPos));
+        glUniform1f(glGetUniformLocation(this->waterShaderId, "u_time"), this->time);
+        glUniform1f(glGetUniformLocation(this->waterShaderId, "u_waterLineY"), waterLineY);
+        glUniform1f(glGetUniformLocation(this->waterShaderId, "u_horizonY"), 0.5f);
+        glBindVertexArray(vao); glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT, 0); glBindVertexArray(0);
+    }
 };
 
 const char *Water::WATER_VERTEX_SHADER = GLSL_VERSION R"(
@@ -177,6 +195,7 @@ const char *Water::WATER_VERTEX_SHADER = GLSL_VERSION R"(
 
     uniform mat4 u_worldToView;
     uniform mat4 u_projection;
+    uniform mat4 u_modelToWorld;
     uniform float u_time;
     uniform float u_waterLineY;
 
@@ -214,7 +233,8 @@ const char *Water::WATER_VERTEX_SHADER = GLSL_VERSION R"(
 
     void main()
     {
-        vec2 xz = a_pos.xz;
+        vec3 basePos = (u_modelToWorld * vec4(a_pos, 1.0)).xyz;
+        vec2 xz = basePos.xz;
         float centerFalloff = 1.0 - smoothstep(0.0, 26.0, abs(xz.x));
         float waveAmp = mix(1.0, 0.60, centerFalloff);
 
@@ -223,7 +243,7 @@ const char *Water::WATER_VERTEX_SHADER = GLSL_VERSION R"(
         float hx = waveHeight(xz + vec2(eps, 0.0)) * mix(1.0, 0.60, 1.0 - smoothstep(0.0, 26.0, abs(xz.x + eps)));
         float hz = waveHeight(xz + vec2(0.0, eps)) * mix(1.0, 0.60, 1.0 - smoothstep(0.0, 26.0, abs(xz.x)));
 
-        vec3 worldPos = vec3(xz.x, u_waterLineY + h, xz.y);
+        vec3 worldPos = vec3(xz.x, u_waterLineY + basePos.y + h, xz.y);
         vec3 tangentX = vec3(eps, hx - h, 0.0);
         vec3 tangentZ = vec3(0.0, hz - h, eps);
         vec3 normal = normalize(cross(tangentZ, tangentX));

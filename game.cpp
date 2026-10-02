@@ -24506,7 +24506,7 @@ END_LINE:
             else if (Visual_ShouldUseJungleBackdrop(usr))
             {
                 usr->jungle.update(gameplayDeltaTime);
-                usr->jungle.renderForest(usr->cameraMat, cityPerspectiveMat);
+                usr->jungle.renderForest(usr->cameraMat, cityPerspectiveMat, &usr->water);
             }
             else if (Visual_ShouldUseForestBackdrop(usr))
             {

@@ -7,6 +7,7 @@
 #include <cmath>
 
 #include "framework/gl_util.h"
+#include "water.h"
 
 struct ForestTerrainVertex
 {
@@ -36,8 +37,10 @@ struct ForestTerrain
     GLuint treeVbo = 0;
     GLuint treeEbo = 0;
     GLuint treeShaderId = 0;
+    GLuint riverVao = 0, riverVbo = 0, riverEbo = 0;
     GLsizei indexCount = 0;
     GLsizei treeIndexCount = 0;
+    GLsizei riverIndexCount = 0;
     float scrollZ = 0.0f;
     bool jungleMode = false;
 
@@ -176,6 +179,41 @@ struct ForestTerrain
         this->loadForestShader();
         this->buildTerrainMesh();
         this->buildTreeMesh();
+        if (jungleMode) this->buildRiverMesh();
+    }
+
+    void buildRiverMesh()
+    {
+        std::vector<WaterVertex> riverVertices;
+        std::vector<uint32_t> riverIndices;
+        constexpr int rows = 192;
+        for (int i = 0; i <= rows; ++i)
+        {
+            const float z = glm::mix(kNearZ, kFarZ, float(i) / float(rows));
+            const float phase = (z - kNearZ) / kScrollCycleMeters * 18.8495559f;
+            const float center = std::sin(phase) * 34.0f + std::sin(phase * 2.0f + 0.7f) * 12.0f;
+            const float width = 11.0f;
+            const float y = heightAt(center, z) + 2.30f;
+            riverVertices.push_back({{center - width, y, z}, {0.0f, float(i) / float(rows)}});
+            riverVertices.push_back({{center + width, y, z}, {1.0f, float(i) / float(rows)}});
+        }
+        for (int i = 0; i < rows; ++i)
+        {
+            const uint32_t b = uint32_t(i * 2);
+            riverIndices.insert(riverIndices.end(), {b, b + 2, b + 1, b + 1, b + 2, b + 3});
+        }
+        riverIndexCount = GLsizei(riverIndices.size());
+        if (riverEbo) glDeleteBuffers(1, &riverEbo);
+        if (riverVbo) glDeleteBuffers(1, &riverVbo);
+        if (riverVao) glDeleteVertexArrays(1, &riverVao);
+        glGenVertexArrays(1, &riverVao); glGenBuffers(1, &riverVbo); glGenBuffers(1, &riverEbo);
+        glBindVertexArray(riverVao); glBindBuffer(GL_ARRAY_BUFFER, riverVbo);
+        glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(riverVertices.size() * sizeof(WaterVertex)), riverVertices.data(), GL_STATIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, riverEbo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, GLsizeiptr(riverIndices.size() * sizeof(uint32_t)), riverIndices.data(), GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0); glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(WaterVertex), (void *)offsetof(WaterVertex, position));
+        glEnableVertexAttribArray(1); glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(WaterVertex), (void *)offsetof(WaterVertex, uv));
+        glBindVertexArray(0);
     }
 
     void update(float deltaTime)
@@ -474,7 +512,7 @@ struct ForestTerrain
         checkOpenGLError("forest tree init");
     }
 
-    void renderForest(const glm::mat4 &cameraMatrix, const glm::mat4 &projectionMatrix)
+    void renderForest(const glm::mat4 &cameraMatrix, const glm::mat4 &projectionMatrix, Water *riverWater = nullptr)
     {
         if (!this->generated)
             this->buildTerrainMesh();
@@ -500,6 +538,15 @@ struct ForestTerrain
             glDrawElements(GL_TRIANGLES, this->indexCount, GL_UNSIGNED_INT, 0);
         }
         glBindVertexArray(0);
+
+        if (jungleMode && riverWater && riverVao != 0)
+        {
+            for (float zOffset : tileOffsets)
+            {
+                const glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, zOffset));
+                riverWater->renderExternalMesh(riverVao, riverIndexCount, model, cameraMatrix, projectionMatrix, 0.0f);
+            }
+        }
 
         glUseProgram(this->treeShaderId);
         glUniformMatrix4fv(glGetUniformLocation(this->treeShaderId, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
@@ -578,6 +625,14 @@ const char *ForestTerrain::FOREST_FRAGMENT_SHADER = GLSL_VERSION R"(
         jungleGround *= 0.62 + diffuse * 0.62;
         jungleGround = mix(jungleGround, vec3(0.06, 0.24, 0.27), river);
         color = mix(color, jungleGround, u_jungle);
+
+        // Slow, broken mist pockets drift over the winding river rather than
+        // filling the whole valley as a uniform haze.
+        float mistFlow = sin((v_worldPos.z + u_scrollZ * 0.16) * 0.060 + v_worldPos.x * 0.037)
+            * sin((v_worldPos.z + u_scrollZ * 0.11) * 0.024 - v_worldPos.x * 0.071);
+        float mistChannel = 1.0 - smoothstep(20.0, 44.0, abs(v_worldPos.x - riverX));
+        float riverMist = mistChannel * smoothstep(0.22, 0.78, mistFlow * 0.5 + 0.5);
+        color = mix(color, vec3(0.62, 0.76, 0.70), riverMist * u_jungle * 0.34);
 
         float fogT = smoothstep(130.0, 380.0, v_worldPos.z);
         float fogBanks = smoothstep(0.72, 0.92, sin((v_worldPos.z + u_scrollZ) * 0.045 + v_worldPos.x * 0.018) * 0.5 + 0.5);

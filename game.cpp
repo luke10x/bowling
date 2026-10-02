@@ -6159,8 +6159,9 @@ static inline void Angel_Tick(UserContext *usr, float dt)
     if (gSeraphAnimReady) gSeraphAnim.tick(dt);
     if (gThroneAnimReady) gThroneAnim.tick(dt);
 
-    // Still enforce the gameplay avatar state machine: if the active avatar is in a non-looping
-    // throw clip and it finished, return it to looping "argumenting".
+    // Still enforce the gameplay avatar state machine. Keep the completed throw pose visible
+    // until the enemy roll has been scored and the turn has actually ended; otherwise the Angel
+    // pops back to idle while the pins are still falling.
     if (!Bot_AnimReady(usr))
         return;
     AssmanAnimPlayer *anim = Bot_Anim(usr);
@@ -6171,7 +6172,13 @@ static inline void Angel_Tick(UserContext *usr, float dt)
     {
         float dur = Bot_ClipDurationSeconds(usr, throwClip);
         if (dur > 0.0f && anim->t >= dur)
-            Bot_PlayArgumentIfPossible(usr, /*resetTime=*/true);
+        {
+            anim->t = dur;
+            if (IsEnemyTurn(usr))
+                (void)anim->evaluate();
+            else
+                Bot_PlayArgumentIfPossible(usr, /*resetTime=*/true);
+        }
     }
 }
 
@@ -7578,7 +7585,12 @@ static inline void Enemy_EnsureTurnActive(UserContext *usr, float dt)
         // Make sure the pre-shot animation is playing if we got kicked back to a non-throw phase.
         Bot_InitIfNeeded(usr);
         if (Bot_AnimReady(usr))
-            Bot_PlayThrowIfPossible(usr, /*resetTime=*/true);
+        {
+            AssmanAnimPlayer *anim = Bot_Anim(usr);
+            const int throwClip = Bot_ClipThrow(usr);
+            if (!anim || anim->activeClip != throwClip || anim->loop)
+                Bot_PlayThrowIfPossible(usr, /*resetTime=*/true);
+        }
 
         glm::vec3 pos = Enemy_IdleBallPos(usr);
         usr->bufferedRequestThrow = false;
@@ -24279,7 +24291,7 @@ swing_checks_done:
                 // Look from the *player* side (same side as normal play), so the enemy ball
                 // rolls toward the camera instead of the camera moving "backwards".
                 glm::vec3 ballPos = glm::vec3(ballModel[3]);
-                // Always use the render-ball Z during the Angel throw clip; it starts hand-attached
+                // Use the render-ball Z during the Angel throw clip; it starts hand-attached
                 // and then smoothly chases the physics ball, avoiding any idle-pos flash/jump.
                 const int throwClip = Bot_ClipThrow(usr);
                 AssmanAnimPlayer *anim = Bot_Anim(usr);

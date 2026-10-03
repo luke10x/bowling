@@ -3185,7 +3185,8 @@ inline void WindowStack::renderCampaignLevelDetailWindow(WindowStack *self, Clay
             for (int i = 0; i < 3; ++i)
             {
                 CLAY(CLAY_IDI("CampaignLevelDetailRecordColumn", i),
-                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 8,
+                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
                 { CLAY_TEXT(labels[i], CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL)); CLAY_TEXT(values[i], CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)); }
             }
         }

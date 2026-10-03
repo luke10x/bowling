@@ -7,6 +7,7 @@
 
 #include "mesh.h"
 #include "texture.h"
+#include "traffic.h"
 
 struct CityBoxMesh
 {
@@ -19,6 +20,8 @@ struct CityBoxMesh
 struct City
 {
     CityBoxMesh towerMesh;
+    CityBoxMesh roadMesh;
+    CityBoxMesh crosswalkMesh;
     float scrollZ = 0.0f;
     bool generated = false;
 
@@ -30,6 +33,10 @@ struct City
     static constexpr float kCityBaseY = -18.0f;
     static constexpr float kCityDepth = 7.0f;
     static constexpr float kCityScrollSpeed = 1.2f;
+    static constexpr float kRoadCenterX = 3.0f;
+    static constexpr float kRoadWidth = 5.0f;
+    static constexpr float kRoadLength = 360.0f;
+    static constexpr float kRoadY = Traffic::kRoadY - 0.04f;
 
     struct AtlasRect
     {
@@ -219,6 +226,40 @@ struct City
 
     void rebuildInstances()
     {
+        buildUnitBoxMesh(this->roadMesh, 1.0f, 1.0f, 1.0f);
+        buildUnitBoxMesh(this->crosswalkMesh, 1.0f, 1.0f, 1.0f);
+        this->roadMesh.mesh.instanceData.clear();
+        this->crosswalkMesh.mesh.instanceData.clear();
+        for (int side = 0; side < 2; ++side)
+        {
+            const float sideSign = side == 0 ? -1.0f : 1.0f;
+            InstanceData road{};
+            road.instRot = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+            road.textureScale = glm::vec3(0.30f, 0.02f, 2.5f);
+            road.positionOffset = glm::vec3(sideSign * kRoadCenterX, kRoadY, 0.0f);
+            road.scaleOffset = glm::vec3(kRoadWidth, 0.10f, kRoadLength);
+            this->roadMesh.mesh.instanceData.push_back(road);
+            for (int crossing = 0; crossing < 6; ++crossing)
+            {
+                const float z = -18.0f + float(crossing) * 40.0f;
+                for (int stripe = 0; stripe < 5; ++stripe)
+                {
+                    InstanceData mark{};
+                    mark.instRot = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+                    mark.textureScale = glm::vec3(0.08f, 0.02f, 0.08f);
+                    mark.positionOffset = glm::vec3(
+                        sideSign * kRoadCenterX + (float(stripe) - 2.0f) * 0.72f,
+                        Traffic::kRoadY + 0.065f,
+                        z
+                    );
+                    mark.scaleOffset = glm::vec3(0.22f, 0.025f, kRoadWidth * 0.82f);
+                    this->crosswalkMesh.mesh.instanceData.push_back(mark);
+                }
+            }
+        }
+        this->roadMesh.mesh.sendInstanceDataToGpu();
+        this->crosswalkMesh.mesh.sendInstanceDataToGpu();
+
         this->towerMesh.mesh.instanceData.clear();
         this->towerMesh.mesh.instanceData.reserve(kCityRows * kCityColsPerSide * 2);
 
@@ -273,8 +314,22 @@ struct City
                 z += cycle;
             inst.positionOffset.z = z;
         }
+        for (InstanceData &inst : this->roadMesh.mesh.instanceData)
+        {
+            inst.positionOffset.z -= deltaTime * kCityScrollSpeed;
+            while (inst.positionOffset.z < -kCityRowSpacing)
+                inst.positionOffset.z += cycle;
+        }
+        for (InstanceData &inst : this->crosswalkMesh.mesh.instanceData)
+        {
+            inst.positionOffset.z -= deltaTime * kCityScrollSpeed;
+            while (inst.positionOffset.z < -kCityRowSpacing)
+                inst.positionOffset.z += cycle;
+        }
 
         this->towerMesh.mesh.sendInstanceDataToGpu();
+        this->roadMesh.mesh.sendInstanceDataToGpu();
+        this->crosswalkMesh.mesh.sendInstanceDataToGpu();
     }
 
     void renderCity3d(
@@ -287,6 +342,12 @@ struct City
 
         shader.updateDiffuseTexture(diffuseTexture);
         shader.updateUseTextureAlpha(false);
+        shader.updateAtlasRect(glm::vec3(0.30f, 0.02f, 2.5f), Traffic::kNeonAsphaltAtlas.start, Traffic::kNeonAsphaltAtlas.size);
+        shader.updateColorTintMix(glm::vec3(0.26f, 0.26f, 0.26f), 1.0f, 1.0f);
+        shader.renderRealMesh(this->roadMesh.mesh, glm::mat4(1.0f), viewMatrix, projectionMatrix);
+        shader.updateAtlasRect(glm::vec3(0.08f, 0.02f, 0.08f), Traffic::kNeonAsphaltAtlas.start, Traffic::kNeonAsphaltAtlas.size);
+        shader.updateColorTintMix(glm::vec3(0.72f, 0.72f, 0.68f), 1.0f, 1.0f);
+        shader.renderRealMesh(this->crosswalkMesh.mesh, glm::mat4(1.0f), viewMatrix, projectionMatrix);
         shader.updateAtlasRect(
             glm::vec3(0.08f, 0.30f, 0.08f),
             kNeonBuildingAtlas.start,

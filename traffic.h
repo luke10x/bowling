@@ -249,7 +249,10 @@ struct Traffic
                     TrafficCarState state{};
                     state.side = side;
                     state.lane = lane;
-                    state.speed = side == 0 ? speed : -speed;
+                    // Level 6's city traffic follows left-hand driving: the two
+                    // road sides travel in the opposite direction from the
+                    // original right-hand setup.
+                    state.speed = side == 0 ? -speed : speed;
                     this->cars.push_back(state);
                 }
             }
@@ -297,7 +300,9 @@ struct Traffic
             kNeonAsphaltAtlas.start,
             kNeonAsphaltAtlas.size
         );
-        shader.updateColorTintMix(glm::vec3(0.10f, 0.12f, 0.16f), 0.88f, 1.0f);
+        // Keep the shared traffic road neutral so it does not expose the old
+        // purple asphalt layer beneath the scrolling city road.
+        shader.updateColorTintMix(glm::vec3(0.22f, 0.22f, 0.22f), 1.0f, 1.0f);
         shader.renderRealMesh(this->roadMesh.mesh, glm::mat4(1.0f), viewMatrix, projectionMatrix);
 
         shader.updateAtlasRect(

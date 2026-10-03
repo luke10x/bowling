@@ -934,17 +934,13 @@ void Physics::physics_init(
         halfX = 0.60f;
     if (!std::isfinite(halfZ) || halfZ < 0.01f)
         halfZ = 10.0f;
-    // Ensure we at least cover the mesh bounds.
-    halfX = std::max(0.05f, halfX + 0.01f);
-
     // The lane render mesh can include gutters / side geometry, which makes the AABB
     // much wider than the playable lane surface. For stable gameplay, clamp the collider
-    // width to the standard lane surface width (~41.857 inches).
-    // (We still keep a small margin so the ball doesn't "fall off" due to numerical jitter.)
+    // width to the same standard lane surface width used by rendering.
     constexpr float kLaneSurfaceWidthM = 41.857f * 0.0254f;
     constexpr float kLaneHalfWidthM = 0.5f * kLaneSurfaceWidthM;
     constexpr float kLaneHalfWidthMarginM = 0.02f;
-    halfX = std::min(halfX, kLaneHalfWidthM + kLaneHalfWidthMarginM);
+    halfX = kLaneHalfWidthM + kLaneHalfWidthMarginM;
 
     JPH::Vec3 halfExtents(halfX, std::max(0.02f, halfY), halfZ);
     // Keep collider centered to the lane mesh bounds (X/Z). We clamp the width above, so even if the

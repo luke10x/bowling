@@ -2158,7 +2158,7 @@ static inline bool Campaign_IsBlockVariantAvailable(const UserContext *usr, int 
     {
         case CAMPAIGN_BLOCK_CARD_WOOD: return levelNumber >= 8;
         case CAMPAIGN_BLOCK_CARD_BRICK: return levelNumber >= 11;
-        case CAMPAIGN_BLOCK_CARD_CONCRETE: return levelNumber >= 13;
+        case CAMPAIGN_BLOCK_CARD_CONCRETE: return levelNumber >= 12;
         case CAMPAIGN_BLOCK_CARD_GLASS: return Campaign_HasUnlockedGlassTool(usr);
         default: return false;
     }
@@ -6654,8 +6654,7 @@ static inline void BallRollingSfx_EndPause(UserContext *usr)
 static inline bool BallRollingSfx_ShouldStopForMotion(glm::vec3 ballPos, glm::vec3 velocity)
 {
     constexpr float MIN_ROLLING_SPEED_MPS = 0.30f;
-    constexpr float LANE_HALF_WIDTH_M = (41.857f * 0.0254f) * 0.5f;
-    constexpr float OFF_LANE_X_MARGIN_M = 0.04f;
+    constexpr float LANE_HALF_WIDTH_M = (41.857f * 0.0254f) * 0.5f + 0.02f;
     constexpr float FALLEN_CENTER_Y_M = -0.05f;
 
     const bool finite =
@@ -6665,7 +6664,7 @@ static inline bool BallRollingSfx_ShouldStopForMotion(glm::vec3 ballPos, glm::ve
         return true;
     if (glm::length(velocity) < MIN_ROLLING_SPEED_MPS)
         return true;
-    if (std::abs(ballPos.x) > LANE_HALF_WIDTH_M + OFF_LANE_X_MARGIN_M)
+    if (std::abs(ballPos.x) > LANE_HALF_WIDTH_M)
         return true;
     if (ballPos.y < FALLEN_CENTER_Y_M)
         return true;
@@ -18693,7 +18692,13 @@ void vtx::init(vtx::VertexContext *ctx)
     else
         BallStats_OnBallChange(&g_ballCatalog[0], usr);
     BallShop_RebuildInventoryCarousel(usr, usr->selectedBallId);
-    switch (Campaign_ResumeFlowForState(usr->campaignCompleted, usr->campaignPostgameFreeplayActive))
+
+    // A completed campaign should resume directly into the repeatable postgame mode
+    // on a fresh launch.  The completion summary is shown immediately after the final
+    // win, but should not become the startup screen on every later launch.
+    if (usr->campaignCompleted && !usr->campaignPostgameFreeplayActive)
+        Campaign_StartPostgameFreeplayRun(usr);
+    else switch (Campaign_ResumeFlowForState(usr->campaignCompleted, usr->campaignPostgameFreeplayActive))
     {
         case CampaignResumeFlow::CompletedSummary:
             Campaign_ResumeCompletedSummaryFlow(usr);

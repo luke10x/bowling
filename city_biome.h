@@ -4,6 +4,7 @@
 #include "framework/boot.h"
 #include "city.h"
 #include "texture.h"
+#include "traffic.h"
 
 // A soft particle quad, deliberately separate from the box meshes used for
 // buildings and wrecks.  Smoke must never inherit the hard silhouette of a
@@ -28,6 +29,8 @@ struct CityBiome
     CityBoxMesh treeMesh;
     CityBoxMesh skylineMesh;
     CityBoxMesh ruinGroundMesh;
+    CityBoxMesh ruinRoadMesh;
+    CityBoxMesh ruinCrosswalkMesh;
     CityBoxMesh ruinBuildingMesh;
     CityBoxMesh wreckMesh;
     CityBoxMesh fireMesh;
@@ -350,6 +353,8 @@ struct CityBiome
         if (ruinsGenerated)
             return;
         City::buildUnitBoxMesh(ruinGroundMesh, 1.0f, 1.0f, 1.0f);
+        City::buildUnitBoxMesh(ruinRoadMesh, 1.0f, 1.0f, 1.0f);
+        City::buildUnitBoxMesh(ruinCrosswalkMesh, 1.0f, 1.0f, 1.0f);
         City::buildUnitBoxMesh(ruinBuildingMesh, 1.0f, 1.0f, 1.0f);
         City::buildUnitBoxMesh(wreckMesh, 1.0f, 1.0f, 1.0f);
         buildPyramidMesh(fireMesh);
@@ -363,24 +368,77 @@ struct CityBiome
         ruinGroundMesh.mesh.instanceData.push_back(ground);
         ruinGroundMesh.mesh.sendInstanceDataToGpu();
 
+        // Keep the ruined street physically and visually compatible with the
+        // healthy neon city: identical paired-road width and UV tiling, only
+        // its placement is lowered to the ruined buildings' ground level.
+        ruinRoadMesh.mesh.instanceData.clear();
+        for (int side = 0; side < Traffic::kSides; ++side)
+        {
+            const float sideSign = side == 0 ? -1.0f : 1.0f;
+            InstanceData road{};
+            road.instRot = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+            road.textureScale = glm::vec3(0.30f, 0.02f, 2.5f);
+            road.positionOffset = glm::vec3(
+                sideSign * Traffic::kRoadCenterX, kSuburbBaseY - 0.04f, 0.0f);
+            road.scaleOffset = glm::vec3(Traffic::kRoadWidth, Traffic::kRoadThickness, Traffic::kRoadLength);
+            road.atlasStart = glm::vec2(0.0f);
+            ruinRoadMesh.mesh.instanceData.push_back(road);
+        }
+        ruinRoadMesh.mesh.sendInstanceDataToGpu();
+
+        // Repeating zebra crossings make the ruined streets read as roads instead
+        // of uninterrupted dark slabs.  They scroll with the rest of the city.
+        ruinCrosswalkMesh.mesh.instanceData.clear();
+        for (int side = 0; side < Traffic::kSides; ++side)
+        {
+            const float sideSign = side == 0 ? -1.0f : 1.0f;
+            for (int crossing = 0; crossing < 6; ++crossing)
+            {
+                const float crossingZ = -18.0f + float(crossing) * 40.0f;
+                for (int stripe = 0; stripe < 5; ++stripe)
+                {
+                    InstanceData mark{};
+                    mark.instRot = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
+                    mark.textureScale = glm::vec3(0.08f, 0.02f, 0.08f);
+                    mark.positionOffset = glm::vec3(
+                        sideSign * Traffic::kRoadCenterX + (float(stripe) - 2.0f) * 0.72f,
+                        kSuburbBaseY + 0.025f,
+                        crossingZ
+                    );
+                    mark.scaleOffset = glm::vec3(0.22f, 0.025f, Traffic::kRoadWidth * 0.82f);
+                    mark.atlasStart = glm::vec2(0.0f);
+                    ruinCrosswalkMesh.mesh.instanceData.push_back(mark);
+                }
+            }
+        }
+        ruinCrosswalkMesh.mesh.sendInstanceDataToGpu();
+
         ruinBuildingMesh.mesh.instanceData.clear();
         wreckMesh.mesh.instanceData.clear();
         fireMesh.mesh.instanceData.clear();
         fireParticles.clear();
         smokeParticles.clear();
-        for (int row = 0; row < 24; ++row)
+        for (int row = 0; row < City::kCityRows; ++row)
         {
             for (int side = 0; side < 2; ++side)
             {
                 const float sideSign = side == 0 ? -1.0f : 1.0f;
-                for (int lot = 0; lot < 5; ++lot)
+                for (int lot = 0; lot < City::kCityColsPerSide; ++lot)
                 {
+                    // Derive the intact dimensions from Level 6's City
+                    // generator, then apply the ruin-only collapse/lean pass.
+                    const int sideX = side * 100 + lot;
+                    const float widthNoise = City::fbm(float(lot) * 0.31f, float(row) * 0.17f);
+                    const float depthNoise = City::fbm(float(lot) * 0.19f + 7.1f, float(row) * 0.23f + 3.8f);
+                    const float heightNoise = City::fbm(float(lot) * 0.11f + 13.4f, float(row) * 0.09f + 5.2f);
+                    const float sideHeightJitter = glm::mix(0.76f, 1.24f, City::hash01(sideX + 41, row + 17));
+                    const float jitterNoise = City::hash01(sideX, row);
+                    const float width = glm::mix(3.0f, 8.5f, glm::clamp(widthNoise, 0.0f, 1.0f));
+                    const float height = 0.80f * glm::mix(6.0f, 58.0f, std::pow(glm::clamp(heightNoise, 0.0f, 1.0f), 1.20f)) * sideHeightJitter;
+                    const float depth = glm::mix(3.5f, 9.5f, glm::clamp(depthNoise, 0.0f, 1.0f));
+                    const float x = sideSign * (City::kCitySideBaseX + float(lot) * City::kCityColSpacing + jitterNoise * 1.6f);
+                    const float z = float(row) * City::kCityRowSpacing + (jitterNoise - 0.5f) * 2.8f;
                     const int seed = side * 200 + row * 11 + lot;
-                    const float width = glm::mix(5.0f, 12.0f, hash01(seed, 7));
-                    const float height = glm::mix(7.0f, 30.0f, hash01(seed, 19));
-                    const float depth = glm::mix(6.0f, 14.0f, hash01(seed, 83));
-                    const float x = sideSign * (7.0f + lot * 11.5f + hash01(seed, 31) * 2.5f);
-                    const float z = -35.0f + row * 13.5f + (hash01(seed, 43) - 0.5f) * 4.0f;
                     const bool collapsed = hash01(seed, 59) > 0.58f;
                     InstanceData building{};
                     building.instRot = collapsed
@@ -394,9 +452,12 @@ struct CityBiome
 
                     // Fires still favor the lower, collapsed remains, but the
                     // denser destruction is spread across many buildings.
-                    const bool burningBuilding = collapsed
-                        ? hash01(seed, 97) > 0.04f
-                        : hash01(seed, 97) > 0.25f;
+                    // Keep the floor-level fire rate unchanged, but taper it linearly
+                    // to half near the top of taller buildings.
+                    const float height01 = glm::clamp((height - 4.8f) / 41.6f, 0.0f, 1.0f);
+                    const float baseFireChance = collapsed ? 0.48f : 0.375f;
+                    const float fireChance = baseFireChance * glm::mix(1.0f, 0.25f, height01);
+                    const bool burningBuilding = hash01(seed, 97) < fireChance;
                     if (burningBuilding)
                     {
                         // One distinct burn site per selected building.  The
@@ -437,13 +498,17 @@ struct CityBiome
                 }
             }
         }
-        for (int wreck = 0; wreck < 42; ++wreck)
+        for (int wreck = 0; wreck < 70; ++wreck)
         {
             const float seed = hash01(wreck, 331);
             InstanceData car{};
             car.instRot = glm::angleAxis(hash01(wreck, 347) * 6.2831853f, glm::vec3(0.0f, 1.0f, 0.0f));
             car.textureScale = glm::vec3(0.16f);
-            car.positionOffset = glm::vec3(glm::mix(-24.0f, 24.0f, seed), kSuburbBaseY + 0.48f, -20.0f + wreck * 7.0f);
+            car.positionOffset = glm::vec3(
+                glm::mix(-28.0f, 28.0f, seed),
+                kSuburbBaseY + 0.48f,
+                -20.0f + float(wreck) * 4.9f + (hash01(wreck, 353) - 0.5f) * 3.2f
+            );
             car.scaleOffset = glm::vec3(glm::mix(0.8f, 1.4f, hash01(wreck, 359)), 0.65f, glm::mix(1.8f, 3.8f, hash01(wreck, 367)));
             car.atlasStart = glm::vec2(0.0f);
             wreckMesh.mesh.instanceData.push_back(car);
@@ -481,7 +546,9 @@ struct CityBiome
     void updateRuins(float deltaTime)
     {
         const float speed = City::kCityScrollSpeed;
-        const float cycle = 24.0f * 13.5f;
+        // Keep the scroll cycle aligned with the generated building rows.  Using a
+        // longer independent cycle left a large empty stretch after the final row.
+        const float cycle = float(City::kCityRows) * City::kCityRowSpacing;
         const float nearLimit = kSuburbStartZ - 13.5f;
         auto advanceInstances = [&](std::vector<InstanceData> &instances)
         {
@@ -494,6 +561,7 @@ struct CityBiome
         };
         advanceInstances(ruinBuildingMesh.mesh.instanceData);
         advanceInstances(wreckMesh.mesh.instanceData);
+        advanceInstances(ruinCrosswalkMesh.mesh.instanceData);
         for (RuinParticle &particle : fireParticles)
         {
             particle.base.z -= deltaTime * speed;
@@ -502,6 +570,7 @@ struct CityBiome
         }
         ruinBuildingMesh.mesh.sendInstanceDataToGpu();
         wreckMesh.mesh.sendInstanceDataToGpu();
+        ruinCrosswalkMesh.mesh.sendInstanceDataToGpu();
         ruinSmokeScrollZ = glm::mod(ruinSmokeScrollZ + deltaTime * speed, cycle);
     }
 
@@ -524,11 +593,17 @@ struct CityBiome
         shader.updateAtlasRect(glm::vec3(0.24f, 0.02f, 2.5f), City::kNeonBuildingAtlas.start, City::kNeonBuildingAtlas.size);
         shader.updateColorTintMix(glm::vec3(0.08f, 0.06f, 0.07f), 0.96f, 1.0f);
         shader.renderRealMesh(ruinGroundMesh.mesh, glm::mat4(1.0f), view, projection);
+        shader.updateAtlasRect(glm::vec3(0.30f, 0.02f, 2.5f), Traffic::kNeonAsphaltAtlas.start, Traffic::kNeonAsphaltAtlas.size);
+        shader.updateColorTintMix(glm::vec3(0.16f, 0.16f, 0.16f), 1.0f, 1.0f);
+        shader.renderRealMesh(ruinRoadMesh.mesh, glm::mat4(1.0f), view, projection);
+        shader.updateAtlasRect(glm::vec3(0.08f, 0.02f, 0.08f), Traffic::kNeonAsphaltAtlas.start, Traffic::kNeonAsphaltAtlas.size);
+        shader.updateColorTintMix(glm::vec3(0.40f, 0.40f, 0.40f), 1.0f, 1.0f);
+        shader.renderRealMesh(ruinCrosswalkMesh.mesh, glm::mat4(1.0f), view, projection);
         shader.updateAtlasRect(glm::vec3(0.08f, 0.28f, 0.08f), City::kNeonBuildingAtlas.start, City::kNeonBuildingAtlas.size);
         shader.updateColorTintMix(glm::vec3(0.22f, 0.13f, 0.12f), 0.88f, 1.0f);
         shader.renderRealMesh(ruinBuildingMesh.mesh, glm::mat4(1.0f), view, projection);
         shader.updateAtlasRect(glm::vec3(0.16f), City::kNeonBuildingAtlas.start, City::kNeonBuildingAtlas.size);
-        shader.updateColorTintMix(glm::vec3(0.24f, 0.07f, 0.03f), 0.92f, 1.0f);
+        shader.updateColorTintMix(glm::vec3(0.38f, 0.20f, 0.08f), 0.86f, 1.0f);
         shader.renderRealMesh(wreckMesh.mesh, glm::mat4(1.0f), view, projection);
         shader.updateAtlasRect(glm::vec3(0.08f), City::kNeonBuildingAtlas.start, City::kNeonBuildingAtlas.size);
         // Soft particle smoke in the same world/depth space as the fire.

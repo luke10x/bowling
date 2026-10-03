@@ -105,6 +105,7 @@ CXX = em++
 HOST_CXX ?= c++
 
 CXXFLAGS = -std=c++20
+CXXFLAGS += -Wno-reorder-init-list
 CXXFLAGS += $(OPTFLAGS) $(LTOFLAGS)
 CXXFLAGS += -I.
 

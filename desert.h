@@ -17,6 +17,7 @@ struct DesertTerrainVertex
 
 struct DesertRuinedSmokeVertex { glm::vec3 position; glm::vec2 uv; glm::vec4 params; };
 struct DesertRuinedSparkVertex { glm::vec3 origin; glm::vec4 params; };
+struct DesertPyramidAtmosphereVertex { glm::vec3 position; glm::vec2 uv; glm::vec2 params; };
 
 struct DesertTerrain
 {
@@ -26,6 +27,8 @@ struct DesertTerrain
     static const char *RUIN_SMOKE_FRAGMENT_SHADER;
     static const char *RUIN_SPARK_VERTEX_SHADER;
     static const char *RUIN_SPARK_FRAGMENT_SHADER;
+    static const char *PYRAMID_ATMOSPHERE_VERTEX_SHADER;
+    static const char *PYRAMID_ATMOSPHERE_FRAGMENT_SHADER;
 
     GLuint vao = 0;
     GLuint vbo = 0;
@@ -34,6 +37,13 @@ struct DesertTerrain
     GLuint pyramidVao = 0;
     GLuint pyramidVbo = 0;
     GLuint pyramidEbo = 0;
+    GLuint goldPyramidVao = 0;
+    GLuint goldPyramidVbo = 0;
+    GLuint goldPyramidEbo = 0;
+    GLuint pyramidAtmosphereVao = 0;
+    GLuint pyramidAtmosphereVbo = 0;
+    GLuint pyramidAtmosphereEbo = 0;
+    GLuint pyramidAtmosphereShaderId = 0;
     GLuint redMountainVao = 0, redMountainVbo = 0, redMountainEbo = 0;
     GLuint ruinCityVao = 0;
     GLuint ruinCityVbo = 0;
@@ -45,6 +55,8 @@ struct DesertTerrain
     GLuint ruinSparkVao = 0, ruinSparkVbo = 0, ruinSparkShaderId = 0;
     GLsizei indexCount = 0;
     GLsizei pyramidIndexCount = 0;
+    GLsizei goldPyramidIndexCount = 0;
+    GLsizei pyramidAtmosphereIndexCount = 0;
     GLsizei redMountainIndexCount = 0;
     GLsizei ruinCityIndexCount = 0;
     GLsizei ruinSmokeIndexCount = 0;
@@ -193,6 +205,8 @@ struct DesertTerrain
     void loadDesertShader()
     {
         this->shaderId = vtx::createShaderProgram(DESERT_VERTEX_SHADER, DESERT_FRAGMENT_SHADER);
+        this->pyramidAtmosphereShaderId = vtx::createShaderProgram(
+            PYRAMID_ATMOSPHERE_VERTEX_SHADER, PYRAMID_ATMOSPHERE_FRAGMENT_SHADER);
     }
 
     void initDesert()
@@ -338,6 +352,10 @@ struct DesertTerrain
     {
         std::vector<DesertTerrainVertex> pyramidVertices;
         std::vector<uint32_t> pyramidIndices;
+        std::vector<DesertTerrainVertex> goldPyramidVertices;
+        std::vector<uint32_t> goldPyramidIndices;
+        std::vector<DesertPyramidAtmosphereVertex> atmosphereVertices;
+        std::vector<uint32_t> atmosphereIndices;
 
         auto addFace = [&](glm::vec3 a, glm::vec3 b, glm::vec3 c, const glm::vec3 &center)
         {
@@ -370,6 +388,63 @@ struct DesertTerrain
             addFace(ne, se, apex, center);
             addFace(se, sw, apex, center);
             addFace(sw, nw, apex, center);
+        };
+
+        auto addGoldCap = [&](float centerX, float centerZ, float halfWidth, float halfDepth, float height)
+        {
+            // A small, slightly raised pyramid uses the same slope as the
+            // stone underneath, so it reads as a plated gold apex rather than
+            // a detached ornament.
+            const float capScale = 0.13f;
+            const float capHeight = height * capScale;
+            const float baseY = kBaseY + height - capHeight + 0.40f;
+            const glm::vec3 center(centerX, baseY, centerZ);
+            const glm::vec3 nw(centerX - halfWidth * capScale, baseY, centerZ - halfDepth * capScale);
+            const glm::vec3 ne(centerX + halfWidth * capScale, baseY, centerZ - halfDepth * capScale);
+            const glm::vec3 se(centerX + halfWidth * capScale, baseY, centerZ + halfDepth * capScale);
+            const glm::vec3 sw(centerX - halfWidth * capScale, baseY, centerZ + halfDepth * capScale);
+            const glm::vec3 apex(centerX, baseY + capHeight, centerZ);
+            auto addGoldFace = [&](glm::vec3 a, glm::vec3 b, glm::vec3 c)
+            {
+                glm::vec3 normal = glm::normalize(glm::cross(b - a, c - a));
+                const glm::vec3 midpoint = (a + b + c) / 3.0f;
+                const glm::vec3 outward(midpoint.x - center.x, 0.0f, midpoint.z - center.z);
+                if (glm::dot(normal, outward) < 0.0f)
+                {
+                    std::swap(b, c);
+                    normal = glm::normalize(glm::cross(b - a, c - a));
+                }
+                const uint32_t first = uint32_t(goldPyramidVertices.size());
+                goldPyramidVertices.push_back({a, normal});
+                goldPyramidVertices.push_back({b, normal});
+                goldPyramidVertices.push_back({c, normal});
+                goldPyramidIndices.insert(goldPyramidIndices.end(), {first, first + 1, first + 2});
+            };
+            addGoldFace(nw, ne, apex); addGoldFace(ne, se, apex);
+            addGoldFace(se, sw, apex); addGoldFace(sw, nw, apex);
+        };
+
+        auto addPyramidAtmosphere = [&](float centerX, float centerZ, float height, float seed)
+        {
+            // Two camera-facing world-space cards per apex: a whisper-thin
+            // celestial beam and a wider card that only reveals a bolt during
+            // its short, rare discharge window.
+            const float baseY = kBaseY + height + 0.84f;
+            auto addCard = [&](float halfWidth, float beamHeight, float kind)
+            {
+                const uint32_t first = uint32_t(atmosphereVertices.size());
+                const glm::vec3 bl(centerX - halfWidth, baseY, centerZ - 0.24f);
+                const glm::vec3 br(centerX + halfWidth, baseY, centerZ - 0.24f);
+                const glm::vec3 tr(centerX + halfWidth, baseY + beamHeight, centerZ - 0.24f);
+                const glm::vec3 tl(centerX - halfWidth, baseY + beamHeight, centerZ - 0.24f);
+                atmosphereVertices.push_back({bl, {0, 0}, {seed, kind}});
+                atmosphereVertices.push_back({br, {1, 0}, {seed, kind}});
+                atmosphereVertices.push_back({tr, {1, 1}, {seed, kind}});
+                atmosphereVertices.push_back({tl, {0, 1}, {seed, kind}});
+                atmosphereIndices.insert(atmosphereIndices.end(), {first, first + 1, first + 2, first, first + 2, first + 3});
+            };
+            addCard(4.20f, 118.0f, 0.0f);
+            addCard(5.75f, 104.0f, 1.0f);
         };
 
         auto addBox = [&](float centerX, float centerZ, float halfWidth, float halfDepth, float height,
@@ -513,6 +588,12 @@ struct DesertTerrain
             addPyramid(-82.0f, 0.0f, 38.0f, 31.0f, 55.0f);
             addPyramid(12.0f, 0.0f, 27.0f, 23.0f, 39.0f);
             addPyramid(78.0f, 0.0f, 32.0f, 27.0f, 47.0f);
+            addGoldCap(-82.0f, 0.0f, 38.0f, 31.0f, 55.0f);
+            addGoldCap(12.0f, 0.0f, 27.0f, 23.0f, 39.0f);
+            addGoldCap(78.0f, 0.0f, 32.0f, 27.0f, 47.0f);
+            addPyramidAtmosphere(-82.0f, 0.0f, 55.0f, 0.17f);
+            addPyramidAtmosphere(12.0f, 0.0f, 39.0f, 0.53f);
+            addPyramidAtmosphere(78.0f, 0.0f, 47.0f, 0.79f);
         }
 
         this->pyramidIndexCount = GLsizei(pyramidIndices.size());
@@ -528,6 +609,44 @@ struct DesertTerrain
         glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(pyramidVertices.size() * sizeof(DesertTerrainVertex)), pyramidVertices.data(), GL_STATIC_DRAW);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->pyramidEbo);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, GLsizeiptr(pyramidIndices.size() * sizeof(uint32_t)), pyramidIndices.data(), GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(DesertTerrainVertex), (void *)offsetof(DesertTerrainVertex, position));
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(DesertTerrainVertex), (void *)offsetof(DesertTerrainVertex, normal));
+        glBindVertexArray(0);
+
+        this->pyramidAtmosphereIndexCount = GLsizei(atmosphereIndices.size());
+        if (this->pyramidAtmosphereEbo != 0) glDeleteBuffers(1, &this->pyramidAtmosphereEbo);
+        if (this->pyramidAtmosphereVbo != 0) glDeleteBuffers(1, &this->pyramidAtmosphereVbo);
+        if (this->pyramidAtmosphereVao != 0) glDeleteVertexArrays(1, &this->pyramidAtmosphereVao);
+        glGenVertexArrays(1, &this->pyramidAtmosphereVao);
+        glGenBuffers(1, &this->pyramidAtmosphereVbo);
+        glGenBuffers(1, &this->pyramidAtmosphereEbo);
+        glBindVertexArray(this->pyramidAtmosphereVao);
+        glBindBuffer(GL_ARRAY_BUFFER, this->pyramidAtmosphereVbo);
+        glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(atmosphereVertices.size() * sizeof(DesertPyramidAtmosphereVertex)), atmosphereVertices.data(), GL_STATIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->pyramidAtmosphereEbo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, GLsizeiptr(atmosphereIndices.size() * sizeof(uint32_t)), atmosphereIndices.data(), GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(DesertPyramidAtmosphereVertex), (void *)offsetof(DesertPyramidAtmosphereVertex, position));
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(DesertPyramidAtmosphereVertex), (void *)offsetof(DesertPyramidAtmosphereVertex, uv));
+        glEnableVertexAttribArray(2);
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(DesertPyramidAtmosphereVertex), (void *)offsetof(DesertPyramidAtmosphereVertex, params));
+        glBindVertexArray(0);
+
+        this->goldPyramidIndexCount = GLsizei(goldPyramidIndices.size());
+        if (this->goldPyramidEbo != 0) glDeleteBuffers(1, &this->goldPyramidEbo);
+        if (this->goldPyramidVbo != 0) glDeleteBuffers(1, &this->goldPyramidVbo);
+        if (this->goldPyramidVao != 0) glDeleteVertexArrays(1, &this->goldPyramidVao);
+        glGenVertexArrays(1, &this->goldPyramidVao);
+        glGenBuffers(1, &this->goldPyramidVbo);
+        glGenBuffers(1, &this->goldPyramidEbo);
+        glBindVertexArray(this->goldPyramidVao);
+        glBindBuffer(GL_ARRAY_BUFFER, this->goldPyramidVbo);
+        glBufferData(GL_ARRAY_BUFFER, GLsizeiptr(goldPyramidVertices.size() * sizeof(DesertTerrainVertex)), goldPyramidVertices.data(), GL_STATIC_DRAW);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, this->goldPyramidEbo);
+        glBufferData(GL_ELEMENT_ARRAY_BUFFER, GLsizeiptr(goldPyramidIndices.size() * sizeof(uint32_t)), goldPyramidIndices.data(), GL_STATIC_DRAW);
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(DesertTerrainVertex), (void *)offsetof(DesertTerrainVertex, position));
         glEnableVertexAttribArray(1);
@@ -681,6 +800,7 @@ struct DesertTerrain
         glUniform1f(glGetUniformLocation(this->shaderId, "u_greyDesert"), this->greyFlat ? 1.0f : 0.0f);
         glUniform1f(glGetUniformLocation(this->shaderId, "u_redDesert"), this->redDesert ? 1.0f : 0.0f);
         glUniform1f(glGetUniformLocation(this->shaderId, "u_redMountain"), 0.0f);
+        glUniform1f(glGetUniformLocation(this->shaderId, "u_pyramidGold"), 0.0f);
         glUniform1f(glGetUniformLocation(this->shaderId, "u_time"), this->scrollZ);
 
         glBindVertexArray(this->vao);
@@ -713,6 +833,26 @@ struct DesertTerrain
             const glm::mat4 pyramidModel = glm::translate(glm::mat4(1.0f), glm::vec3(cameraPos.x, 0.0f, cameraPos.z + horizonZ));
             glUniformMatrix4fv(glGetUniformLocation(this->shaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(pyramidModel));
             glDrawElements(GL_TRIANGLES, this->pyramidIndexCount, GL_UNSIGNED_INT, 0);
+            glUniform1f(glGetUniformLocation(this->shaderId, "u_pyramidGold"), 1.0f);
+            glBindVertexArray(this->goldPyramidVao);
+            glDrawElements(GL_TRIANGLES, this->goldPyramidIndexCount, GL_UNSIGNED_INT, 0);
+            glBindVertexArray(this->pyramidVao);
+            glUniform1f(glGetUniformLocation(this->shaderId, "u_pyramidGold"), 0.0f);
+
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+            glDepthMask(GL_FALSE);
+            glUseProgram(this->pyramidAtmosphereShaderId);
+            glUniformMatrix4fv(glGetUniformLocation(this->pyramidAtmosphereShaderId, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(pyramidModel));
+            glUniformMatrix4fv(glGetUniformLocation(this->pyramidAtmosphereShaderId, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+            glUniformMatrix4fv(glGetUniformLocation(this->pyramidAtmosphereShaderId, "u_projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+            glUniform1f(glGetUniformLocation(this->pyramidAtmosphereShaderId, "u_time"), this->scrollZ);
+            glBindVertexArray(this->pyramidAtmosphereVao);
+            glDrawElements(GL_TRIANGLES, this->pyramidAtmosphereIndexCount, GL_UNSIGNED_INT, 0);
+            glBindVertexArray(this->pyramidVao);
+            glDepthMask(GL_TRUE);
+            glDisable(GL_BLEND);
+            glUseProgram(this->shaderId);
         }
         glBindVertexArray(0);
         if (this->redDesert)
@@ -782,6 +922,7 @@ const char *DesertTerrain::DESERT_VERTEX_SHADER = GLSL_VERSION R"(
     uniform mat4 u_projection;
     uniform float u_redDesert;
     uniform float u_redMountain;
+    uniform float u_pyramidGold;
     uniform float u_time;
 
     out vec3 v_worldPos;
@@ -822,6 +963,7 @@ const char *DesertTerrain::DESERT_FRAGMENT_SHADER = GLSL_VERSION R"(
     uniform float u_redDesert;
     uniform float u_redMountain;
     uniform float u_ruinCity;
+    uniform float u_pyramidGold;
     uniform float u_time;
     out vec4 FragColor;
 
@@ -846,6 +988,25 @@ const char *DesertTerrain::DESERT_FRAGMENT_SHADER = GLSL_VERSION R"(
         float diffuse = clamp(dot(normal, lightDir), 0.0, 1.0);
         float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 1.8);
         float slope = 1.0 - clamp(normal.y, 0.0, 1.0);
+
+        if (u_pyramidGold > 0.5)
+        {
+            // Like the coins, the cap is polished rather than merely yellow:
+            // a slow moving light sends a narrow bright glint across each
+            // face while its base color remains recognizably metallic gold.
+            vec3 movingLight = normalize(vec3(
+                sin(u_time * 0.52) * 0.72,
+                0.82,
+                cos(u_time * 0.37) * 0.58
+            ));
+            float movingDiffuse = max(dot(normal, movingLight), 0.0);
+            float movingSpecular = pow(max(dot(reflect(-movingLight, normal), viewDir), 0.0), 30.0);
+            vec3 gold = mix(vec3(0.34, 0.14, 0.008), vec3(0.94, 0.61, 0.055), max(diffuse, movingDiffuse));
+            gold += vec3(1.0, 0.80, 0.30) * movingSpecular * 1.35;
+            gold += vec3(0.28, 0.17, 0.025) * fresnel;
+            FragColor = vec4(gold, 1.0);
+            return;
+        }
 
         vec3 sand = vec3(0.78, 0.61, 0.22);
         vec3 amber = vec3(0.86, 0.69, 0.28);
@@ -898,6 +1059,80 @@ const char *DesertTerrain::DESERT_FRAGMENT_SHADER = GLSL_VERSION R"(
 
         FragColor = vec4(color, 1.0);
     }
+)";
+
+const char *DesertTerrain::PYRAMID_ATMOSPHERE_VERTEX_SHADER = GLSL_VERSION R"(
+precision highp float;
+layout(location = 0) in vec3 a_pos;
+layout(location = 1) in vec2 a_uv;
+layout(location = 2) in vec2 a_params;
+uniform mat4 u_modelToWorld;
+uniform mat4 u_worldToView;
+uniform mat4 u_projection;
+out vec2 v_uv;
+out vec2 v_params;
+void main()
+{
+    v_uv = a_uv;
+    v_params = a_params;
+    gl_Position = u_projection * u_worldToView * u_modelToWorld * vec4(a_pos, 1.0);
+}
+)";
+
+const char *DesertTerrain::PYRAMID_ATMOSPHERE_FRAGMENT_SHADER = GLSL_VERSION R"(
+precision highp float;
+in vec2 v_uv;
+in vec2 v_params;
+uniform float u_time;
+out vec4 FragColor;
+
+float hash(float n) { return fract(sin(n) * 43758.5453123); }
+float noise(float n)
+{
+    float i = floor(n), f = fract(n);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(hash(i), hash(i + 1.0), f);
+}
+
+void main()
+{
+    float seed = v_params.x;
+    float cycle = fract(u_time * 0.073 + seed);
+    float flashWindow = smoothstep(0.905, 0.938, cycle) * (1.0 - smoothstep(0.978, 1.0, cycle));
+    // The gold beam is intentionally subtle: brighter near its origin and
+    // breathing slowly instead of looking like a solid laser column.
+    if (v_params.y < 0.5)
+    {
+        // Fade away quickly as the next discharge begins, then take a moment
+        // to refill after it ends instead of popping straight back on.
+        float preFlashFade = 1.0 - smoothstep(0.875, 0.912, cycle);
+        float afterFlash = fract(cycle - 0.978);
+        float slowRecovery = smoothstep(0.0, 0.14, afterFlash);
+        float beamVisibility = min(preFlashFade, slowRecovery) * (1.0 - flashWindow);
+        float cross = 1.0 - smoothstep(0.05, 0.82, abs(v_uv.x - 0.5) * 2.0);
+        float fade = (1.0 - smoothstep(0.58, 1.0, v_uv.y)) * (0.70 + 0.30 * sin(u_time * 0.52 + seed * 20.0));
+        float alpha = cross * fade * beamVisibility * 0.070;
+        FragColor = vec4(vec3(1.0, 0.70, 0.20) * (0.70 + v_uv.y * 0.45), alpha);
+        return;
+    }
+
+    // A thin, upward Tesla-style discharge. Each apex uses a different phase;
+    // it appears for only a small portion of its long cycle.
+    float event = flashWindow;
+    float t = v_uv.y;
+    float jitter = (noise(t * 21.0 + seed * 91.0 + floor(u_time * 5.0)) - 0.5) * 0.30;
+    jitter += sin(t * 43.0 + seed * 37.0) * 0.085;
+    // The lower end remains needle-thin where it meets the gold cap; the
+    // distant upper end broadens into the familiar lightning width.
+    float coreWidth = mix(0.010, 0.030, t);
+    float glowWidth = mix(0.030, 0.13, t);
+    float core = 1.0 - smoothstep(coreWidth, coreWidth * 2.8, abs(v_uv.x - 0.5 - jitter));
+    float glow = 1.0 - smoothstep(glowWidth, glowWidth * 2.8, abs(v_uv.x - 0.5 - jitter));
+    float taper = 0.38 + 0.62 * sin(t * 3.14159265);
+    float alpha = (core * 0.86 + glow * 0.18) * taper * event;
+    vec3 bolt = mix(vec3(0.30, 0.67, 1.0), vec3(1.0, 0.88, 0.47), core);
+    FragColor = vec4(bolt * (core * 1.45 + glow * 0.22), alpha);
+}
 )";
 
 const char *DesertTerrain::RUIN_SMOKE_VERTEX_SHADER = GLSL_VERSION R"(

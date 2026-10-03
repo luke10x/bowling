@@ -893,6 +893,12 @@ struct UserContext
     bool campaignLevelBonusGranted[kCampaignLevelCount] = {};
     int campaignActiveLevel = 0;
     bool campaignPostgameFreeplayActive = false;
+    int campaignPostgameGamesStarted = 0;
+    int campaignPostgameWins = 0;
+    int campaignPostgameLosses = 0;
+    int campaignPostgameQuits = 0;
+    int campaignPostgameBestScore = 0;
+    int campaignPostgameBestOpponentScore = 0;
     bool campaignRunStarted = false;
     bool campaignOverrideActive = false;
     CampaignBiome campaignOverrideBiome = CampaignBiome::NORMAL;
@@ -9915,7 +9921,14 @@ static inline void RuneFreeze_Tick(UserContext *usr, float dt)
                 else
                     toPin = glm::vec3(0.0f, 0.0f, 1.0f);
                 const glm::vec3 contact = ballPos + toPin * 0.11f;
-                ElectroBall_EmitImpactFeedback(usr, contact, glm::vec2(toPin.x, toPin.z), 0.39f);
+                const float ballSpeedMps = glm::length(usr->phy.get_ball_swing_movement());
+                const float speedImpact01 = glm::clamp(ballSpeedMps / 3.0f, 0.0f, 1.0f);
+                ElectroBall_EmitImpactFeedback(
+                    usr,
+                    contact,
+                    glm::vec2(toPin.x, toPin.z),
+                    0.39f * speedImpact01
+                );
             }
         }
         const uint16_t electricHits = directHits & usr->boltElectrifiedPinMask;
@@ -11251,6 +11264,12 @@ static inline void Campaign_ResetAttemptStats(UserContext *usr)
         usr->campaignLevelBestOpponentScores[i] = 0;
         usr->campaignLevelBonusGranted[i] = false;
     }
+    usr->campaignPostgameGamesStarted = 0;
+    usr->campaignPostgameWins = 0;
+    usr->campaignPostgameLosses = 0;
+    usr->campaignPostgameQuits = 0;
+    usr->campaignPostgameBestScore = 0;
+    usr->campaignPostgameBestOpponentScore = 0;
 }
 
 static inline void Campaign_RecordWinForCurrentLevel(UserContext *usr)
@@ -13072,6 +13091,10 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
 {
     if (!usr)
         return;
+
+    if (usr->campaignPostgameFreeplayActive && usr->campaignRunStarted &&
+        usr->phase != UserContext::Phase::RESULT)
+        ++usr->campaignPostgameQuits;
 
     usr->campaignLevelIndex = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount);
     usr->campaignRunStarted = false;
@@ -19601,7 +19624,13 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->campaignLevelFirstWinTimes,
                         usr->campaignLevelBestScores,
                         usr->campaignLevelBestOpponentScores,
-                        usr->campaignLevelLosses
+                        usr->campaignLevelLosses,
+                        usr->campaignPostgameGamesStarted,
+                        usr->campaignPostgameWins,
+                        usr->campaignPostgameLosses,
+                        usr->campaignPostgameQuits,
+                        usr->campaignPostgameBestScore,
+                        usr->campaignPostgameBestOpponentScore
                     );
                 }
                 if (usr->windowStack.campaignLevelSelectedRequested != 0)
@@ -20704,6 +20733,11 @@ void vtx::loop(vtx::VertexContext *ctx)
     if (UiModalPauseShouldBegin(usr->modalWindowActiveLastFrame, usr->windowStack.count))
         UI_OnModalPauseBegin(usr);
     usr->modalWindowActiveLastFrame = modalWindowActiveNow;
+    // Clear overlays at the start of a modal frame. This preserves banners
+    // produced by the throw that caused a result/dialog to open this frame,
+    // while still removing them once a modal was already visible.
+    if (modalWindowActiveNow || usr->dialog.active)
+        UI_DismissTransientOverlaysForDialog(usr);
 
     // School Lesson 4 completion: show completion story after the player closes the Oil window.
     // This must be per-frame (not tied to SDL events), otherwise the dialog may never open
@@ -21450,12 +21484,18 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         usr->windowStack.newGameShopRequested = false;
         BallShop_Open(usr, BallShopTab_SHOP);
+        // The result window remains underneath the shop. Reassert its outcome
+        // label so returning from the shop does not fall back to TRY AGAIN.
+        if (usr->clayton.newGameIsResult)
+            Campaign_SetResultWindowLabels(usr, usr->clayton.newGameVictory);
     }
     if (usr->windowStack.newGameInventoryRequested)
     {
         usr->windowStack.newGameInventoryRequested = false;
         usr->windowStack.count = 0;
         BallShop_Open(usr, BallShopTab_INVENTORY);
+        if (usr->clayton.newGameIsResult)
+            Campaign_SetResultWindowLabels(usr, usr->clayton.newGameVictory);
     }
 
     if (usr->windowStack.bonusPlayRequested)
@@ -22616,7 +22656,10 @@ swing_checks_done:
                                         CampaignRecord_HasStartedRoll(usr->board.frames[0].roll1 == -1 ? 0 : 1))
                                     {
                                         usr->campaignRunStarted = true;
-                                        Campaign_RecordAttemptForCurrentLevel(usr);
+                                        if (usr->campaignPostgameFreeplayActive)
+                                            ++usr->campaignPostgameGamesStarted;
+                                        else
+                                            Campaign_RecordAttemptForCurrentLevel(usr);
                                     }
                                     if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
                                     {
@@ -23137,8 +23180,9 @@ swing_checks_done:
 	                                        const bool playerWins = (usr->board.totalScore > usr->enemyBoard.totalScore);
 	                                        const CampaignLevelConfig cfg = Campaign_CurrentLevel(usr);
                                             BallInventory_RestoreDestroyedBallsForResult(usr, playerWins);
-                                        const bool clearedFullCampaign =
+                                            const bool clearedFullCampaign =
                                             usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                                            !usr->campaignCompleted &&
                                             Campaign_FinalResultFlowForState(
                                                 playerWins,
                                                 usr->campaignPostgameFreeplayActive,
@@ -23159,7 +23203,20 @@ swing_checks_done:
 
 						ResetAllElectroBalls(usr);
 						usr->phase = UserContext::Phase::RESULT;
-                                        Campaign_RecordFinishedLevel(usr, usr->board.totalScore, usr->enemyBoard.totalScore);
+                                            Campaign_RecordFinishedLevel(usr, usr->board.totalScore, usr->enemyBoard.totalScore);
+                                        if (usr->campaignPostgameFreeplayActive)
+                                        {
+                                            usr->campaignPostgameBestScore = glm::max(
+                                                usr->campaignPostgameBestScore,
+                                                usr->board.totalScore
+                                            );
+                                            if (playerWins)
+                                                ++usr->campaignPostgameWins;
+                                            else
+                                                ++usr->campaignPostgameLosses;
+                                            if (usr->board.totalScore >= usr->campaignPostgameBestScore)
+                                                usr->campaignPostgameBestOpponentScore = usr->enemyBoard.totalScore;
+                                        }
                                         if (!clearedFullCampaign)
                                             usr->windowStack.windowStackPushNewGameWindow();
                                         if (usr->playerRoute == PlayerRoute::FREESTYLE)
@@ -27754,10 +27811,11 @@ END_LINE:
 
         // Overlay banners — constrained to the 9:16 portrait area.
         // Negative banners take priority over strike/spare when active.
-        bool showNegative = usr->negativeBannerFlashTime > 0.0f && (usr->negativeBannerKind == 1 || usr->negativeBannerKind == 2);
-        bool showPositive = usr->strikeSpareFlashTime > 0.0f && (usr->strikeSpareKind == 1 || usr->strikeSpareKind == 2);
-        bool showSplit = usr->splitBannerFlashTime > 0.0f;
-        bool showRuneOutcome = usr->runeOutcomeBannerTime > 0.0f && usr->runeOutcomeBannerKind > 0;
+        const bool transientOverlayVisible = usr->windowStack.count == 0 && !usr->dialog.active;
+        bool showNegative = transientOverlayVisible && usr->negativeBannerFlashTime > 0.0f && (usr->negativeBannerKind == 1 || usr->negativeBannerKind == 2);
+        bool showPositive = transientOverlayVisible && usr->strikeSpareFlashTime > 0.0f && (usr->strikeSpareKind == 1 || usr->strikeSpareKind == 2);
+        bool showSplit = transientOverlayVisible && usr->splitBannerFlashTime > 0.0f;
+        bool showRuneOutcome = transientOverlayVisible && usr->runeOutcomeBannerTime > 0.0f && usr->runeOutcomeBannerKind > 0;
 
         // Neutral banner (e.g. "<N> PINS") disabled for now — keeping the code around for later reuse.
         // bool showNeutral = usr->neutralBannerFlashTime > 0.0f && usr->neutralBannerPins > 0;
@@ -28640,7 +28698,6 @@ END_LINE:
         // Typing animation advances only when actually rendered.
         if (usr->windowStack.count == 0 && usr->dialog.active)
         {
-            UI_DismissTransientOverlaysForDialog(usr);
             // Dialog is modal. When it shows clickable options, force normal mouse mode so
             // desktop users can actually click them (relative mouse capture breaks this).
             if (usr->dialog.waitingChoice)

@@ -452,12 +452,20 @@ inline void renderNewGameWindow(Clayton *clayton)
                 }
             }
 
-            if (isResult && clayton->newGameRepeatAvailable && clayton->newGameNextAvailable)
+            CLAY(CLAY_ID("ResultActionsRow"),
+                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                             .childGap = 8, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
             {
-                CLAY(clayton->resultRepeatClick.clayId, CLAY_THEME_BTN_DANGER)
-                { CLAY_TEXT("REPEAT", CLAY_TEXT_CONFIG(buttonCfg)); }
-            }
-            CLAY(
+                if (isResult && clayton->newGameRepeatAvailable && clayton->newGameNextAvailable)
+                {
+                    CLAY(clayton->resultRepeatClick.clayId,
+                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(64)},
+                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                          .backgroundColor = CLAY_COLOR_BTN_DANGER,
+                          .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG}})
+                    { CLAY_TEXT(CLAY_STRING("REPEAT"), CLAY_TEXT_CONFIG(buttonCfg)); }
+                }
+                CLAY(
                 clayton->playAgainClick.clayId,
                 {
                     .layout = {
@@ -473,8 +481,9 @@ inline void renderNewGameWindow(Clayton *clayton)
                     .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                 }
             )
-            {
-                CLAY_TEXT(button, CLAY_TEXT_CONFIG(buttonCfg));
+                {
+                    CLAY_TEXT(button, CLAY_TEXT_CONFIG(buttonCfg));
+                }
             }
         }
     }

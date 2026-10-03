@@ -118,6 +118,12 @@ struct WindowStack
     int campaignLevelSelectActionRequested;
     bool campaignLevelSelectCampaignComplete;
     int campaignLevelSelectCurrentIndex;
+    int campaignPostgameGamesStarted = 0;
+    int campaignPostgameWins = 0;
+    int campaignPostgameLosses = 0;
+    int campaignPostgameQuits = 0;
+    int campaignPostgameBestScore = 0;
+    int campaignPostgameBestOpponentScore = 0;
     int campaignLevelDetailIndex;
     bool menuPracticeRequested;
     bool menuFreestyleRequested;
@@ -344,7 +350,7 @@ struct WindowStack
         campaignEndgameClosedRequested = false;
         windowStackPushWindow_(WindowKind_CampaignEndgameSummary);
     }
-    inline void windowStackPushCampaignLevelSelectWindow(const bool *unlocked, bool campaignComplete, int currentIndex, const int *attempts, const int *wins, const float *firstWinTimes, const int *bestScores, const int *bestOpponentScores, const int *losses = nullptr)
+    inline void windowStackPushCampaignLevelSelectWindow(const bool *unlocked, bool campaignComplete, int currentIndex, const int *attempts, const int *wins, const float *firstWinTimes, const int *bestScores, const int *bestOpponentScores, const int *losses = nullptr, int postgameStarted = 0, int postgameWins = 0, int postgameLosses = 0, int postgameQuits = 0, int postgameBestScore = 0, int postgameBestOpponentScore = 0)
     {
         campaignLevelSelectedRequested = 0;
         campaignLevelSelectActionRequested = 0;
@@ -352,6 +358,12 @@ struct WindowStack
             campaignLevelSelectUnlocked[i] = unlocked ? unlocked[i] : (i == 0);
         campaignLevelSelectCampaignComplete = campaignComplete;
         campaignLevelSelectCurrentIndex = std::max(1, std::min(13, currentIndex));
+        campaignPostgameGamesStarted = postgameStarted;
+        campaignPostgameWins = postgameWins;
+        campaignPostgameLosses = postgameLosses;
+        campaignPostgameQuits = postgameQuits;
+        campaignPostgameBestScore = postgameBestScore;
+        campaignPostgameBestOpponentScore = postgameBestOpponentScore;
         for (int i = 0; i < 13; ++i)
         {
             campaignEndgameAttempts[i] = attempts ? attempts[i] : 0;
@@ -3116,6 +3128,44 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
                         }
                     }
                 }
+            }
+        }
+        if (self->campaignLevelSelectCampaignComplete)
+        {
+            char bestScore[64], wonRecord[32], lostRecord[32], quitRecord[32];
+            if (self->campaignPostgameBestScore > 0)
+                snprintf(bestScore, sizeof(bestScore), "%d-%d", self->campaignPostgameBestScore, self->campaignPostgameBestOpponentScore);
+            else
+                snprintf(bestScore, sizeof(bestScore), "?-?");
+            snprintf(wonRecord, sizeof(wonRecord), "WON %d", self->campaignPostgameWins);
+            snprintf(lostRecord, sizeof(lostRecord), "LOST %d", self->campaignPostgameLosses);
+            snprintf(quitRecord, sizeof(quitRecord), "QUIT %d", self->campaignPostgameQuits);
+            Clay_String bestScoreStr = ClayArena_AllocString(arena, bestScore);
+            Clay_String wonRecordStr = ClayArena_AllocString(arena, wonRecord);
+            Clay_String lostRecordStr = ClayArena_AllocString(arena, lostRecord);
+            Clay_String quitRecordStr = ClayArena_AllocString(arena, quitRecord);
+            CLAY(CLAY_ID("CampaignPostgameApplet"),
+                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                             .padding = {16, 16, 12, 12}, .childGap = 8},
+                  .backgroundColor = CLAY_COLOR_PANEL_BG,
+                  .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},
+                  CLAY_THEME_WINDOW_BORDER})
+            {
+                CLAY_TEXT(CLAY_STRING("POST-CAMPAIGN:"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+                auto postgameStatRow = [&](const char *label, Clay_String value, Clay_ElementId rowId)
+                {
+                    Clay_String labelStr = ClayArena_AllocString(arena, label);
+                    CLAY(rowId, {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+                    {
+                        CLAY_TEXT(labelStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+                        CLAY(CLAY_ID("CampaignPostgameStatSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}) {}
+                        CLAY_TEXT(value, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+                    }
+                };
+                postgameStatRow("Best score:", bestScoreStr, CLAY_ID("CampaignPostgameBestRow"));
+                postgameStatRow("Won:", wonRecordStr, CLAY_ID("CampaignPostgameWonRow"));
+                postgameStatRow("Lost:", lostRecordStr, CLAY_ID("CampaignPostgameLostRow"));
+                postgameStatRow("Quit:", quitRecordStr, CLAY_ID("CampaignPostgameQuitRow"));
             }
         }
         if (self->campaignLevelSelectCampaignComplete)

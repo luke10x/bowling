@@ -97,6 +97,8 @@ struct WindowStack
     bool shopBuyRequested;
     bool oilReoilRequested;
     bool playAgainRequested;
+    bool resultRepeatRequested;
+    bool resultNextRequested;
     bool newGameShopRequested;
     bool newGameInventoryRequested;
     bool housesPointerDown;
@@ -145,6 +147,7 @@ struct WindowStack
     bool botResultPlayerWon;
     float campaignEndgameTotalTime;
     int campaignEndgameAttempts[13];
+    int campaignEndgameLosses[13];
     int campaignEndgameWins[13];
     int campaignEndgameBestScores[13];
     int campaignEndgameBestOpponentScores[13];
@@ -171,6 +174,8 @@ struct WindowStack
         shopBuyRequested = false;
         oilReoilRequested = false;
         playAgainRequested = false;
+        resultRepeatRequested = false;
+        resultNextRequested = false;
         newGameShopRequested = false;
         newGameInventoryRequested = false;
         housesPointerDown = false;
@@ -218,6 +223,7 @@ struct WindowStack
         botResultPlayerWon = false;
         campaignEndgameTotalTime = 0.0f;
         memset(campaignEndgameAttempts, 0, sizeof(campaignEndgameAttempts));
+        memset(campaignEndgameLosses, 0, sizeof(campaignEndgameLosses));
         memset(campaignEndgameWins, 0, sizeof(campaignEndgameWins));
         memset(campaignEndgameBestScores, 0, sizeof(campaignEndgameBestScores));
         memset(campaignEndgameBestOpponentScores, 0, sizeof(campaignEndgameBestOpponentScores));
@@ -314,7 +320,7 @@ struct WindowStack
         windowStackPushWindow_(WindowKind_BotResult);
     }
     inline void windowStackPushCampaignEndgameSummaryWindow(const int *attempts, float totalTime,
-                                                            const int *wins = nullptr, const float *firstWinTimes = nullptr, const int *bestScores = nullptr, const int *bestOpponentScores = nullptr)
+                                                            const int *wins = nullptr, const float *firstWinTimes = nullptr, const int *bestScores = nullptr, const int *bestOpponentScores = nullptr, const int *losses = nullptr)
     {
         campaignEndgameTotalTime = totalTime;
         memset(campaignEndgameAttempts, 0, sizeof(campaignEndgameAttempts));
@@ -330,6 +336,7 @@ struct WindowStack
         for (int i = 0; i < 13; ++i)
         {
             if (wins) campaignEndgameWins[i] = wins[i];
+            if (losses) campaignEndgameLosses[i] = losses[i];
             if (bestScores) campaignEndgameBestScores[i] = bestScores[i];
             if (bestOpponentScores) campaignEndgameBestOpponentScores[i] = bestOpponentScores[i];
             if (firstWinTimes) campaignEndgameFirstWinTimes[i] = firstWinTimes[i];
@@ -337,7 +344,7 @@ struct WindowStack
         campaignEndgameClosedRequested = false;
         windowStackPushWindow_(WindowKind_CampaignEndgameSummary);
     }
-    inline void windowStackPushCampaignLevelSelectWindow(const bool *unlocked, bool campaignComplete, int currentIndex, const int *attempts, const int *wins, const float *firstWinTimes, const int *bestScores, const int *bestOpponentScores)
+    inline void windowStackPushCampaignLevelSelectWindow(const bool *unlocked, bool campaignComplete, int currentIndex, const int *attempts, const int *wins, const float *firstWinTimes, const int *bestScores, const int *bestOpponentScores, const int *losses = nullptr)
     {
         campaignLevelSelectedRequested = 0;
         campaignLevelSelectActionRequested = 0;
@@ -348,6 +355,7 @@ struct WindowStack
         for (int i = 0; i < 13; ++i)
         {
             campaignEndgameAttempts[i] = attempts ? attempts[i] : 0;
+            campaignEndgameLosses[i] = losses ? losses[i] : 0;
             campaignEndgameWins[i] = wins ? wins[i] : 0;
             campaignEndgameBestScores[i] = bestScores ? bestScores[i] : 0;
             campaignEndgameBestOpponentScores[i] = bestOpponentScores ? bestOpponentScores[i] : 0;
@@ -1820,6 +1828,18 @@ inline bool WindowStack::processNewGameWindowEvent(WindowStack *self, Clayton *c
         self->windowStackPopTopWindow_();
         return true;
     }
+    if (isClaytonClicked(&clayton->resultRepeatClick, e))
+    {
+        self->resultRepeatRequested = true;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+    if (isClaytonClicked(&clayton->resultNextClick, e))
+    {
+        self->resultNextRequested = true;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
 
     if (isClaytonClicked(&clayton->newGameShopClick, e))
     {
@@ -3122,7 +3142,8 @@ inline void WindowStack::renderCampaignLevelDetailWindow(WindowStack *self, Clay
         return;
     const int idx = std::max(0, std::min(12, self->campaignLevelDetailIndex - 1));
     const int wins = self->campaignEndgameWins[idx];
-    const int losses = std::max(0, self->campaignEndgameAttempts[idx] - wins);
+    const int losses = std::max(0, self->campaignEndgameLosses[idx]);
+    const int quits = std::max(0, self->campaignEndgameAttempts[idx] - losses - wins);
     const int seconds = (int)floorf(self->campaignEndgameFirstWinTimes[idx]);
     static const TxlKey kLevelTitleKeys[13] = {
         TXL_LEVEL1_TITLE, TXL_LEVEL2_TITLE, TXL_LEVEL3_TITLE, TXL_LEVEL4_TITLE,
@@ -3134,7 +3155,7 @@ inline void WindowStack::renderCampaignLevelDetailWindow(WindowStack *self, Clay
     snprintf(title, sizeof(title), "%s", Txl_Get(clayton->uiLanguage, kLevelTitleKeys[idx]));
     snprintf(winsValue, sizeof(winsValue), "%d", wins);
     snprintf(lossesValue, sizeof(lossesValue), "%d", losses);
-    snprintf(quitsValue, sizeof(quitsValue), "0");
+    snprintf(quitsValue, sizeof(quitsValue), "%d", quits);
     const int bestPlayer = self->campaignEndgameBestScores[idx];
     const int bestEnemy = self->campaignEndgameBestOpponentScores[idx];
     if (bestPlayer > 0)

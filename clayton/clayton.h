@@ -98,6 +98,8 @@ struct Clayton
     bool newGameShopOpensInventory = false;
     bool newGameIsResult = false;
     bool newGameVictory = false;
+    bool newGameRepeatAvailable = false;
+    bool newGameNextAvailable = true;
     bool newGameShowScores = false;
     bool newGameShowOpponent = false;
     int newGamePlayerFrameScores[10] = {};
@@ -134,6 +136,8 @@ struct Clayton
     Clayton_Click shopRestockVisitClick;
     Clayton_Click shopRestockLaterClick;
     Clayton_Click playAgainClick;
+    Clayton_Click resultRepeatClick;
+    Clayton_Click resultNextClick;
     Clayton_Click newGameShopClick;
 
     // Sound Settings clicks

@@ -30,6 +30,26 @@ enum class CampaignResetScope
     Factory = 1,
 };
 
+struct CampaignResultActions
+{
+    bool repeat = false;
+    bool next = false;
+};
+
+static inline CampaignResultActions Campaign_ResultActionsForState(
+    bool campaignLevel,
+    bool playerWon,
+    bool firstCampaignClear)
+{
+    if (!campaignLevel)
+        return {false, true};
+    if (firstCampaignClear)
+        return {false, true};
+    if (playerWon)
+        return {true, true};
+    return {true, false};
+}
+
 static inline bool CampaignReset_PreservesBallInventory(CampaignResetScope scope)
 {
     return scope == CampaignResetScope::CampaignOnly;

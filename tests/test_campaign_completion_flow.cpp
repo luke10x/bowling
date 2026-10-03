@@ -62,3 +62,61 @@ TEST_CASE("Campaign reset preserves inventory while factory reset does not")
     CHECK(CampaignReset_PreservesBallInventory(CampaignResetScope::CampaignOnly));
     CHECK_FALSE(CampaignReset_PreservesBallInventory(CampaignResetScope::Factory));
 }
+
+TEST_CASE("Result actions distinguish campaign and random levels")
+{
+    CHECK(Campaign_ResultActionsForState(true, true, true).repeat == false);
+    CHECK(Campaign_ResultActionsForState(true, true, true).next == true);
+    CHECK(Campaign_ResultActionsForState(true, true, false).repeat == true);
+    CHECK(Campaign_ResultActionsForState(true, true, false).next == true);
+    CHECK(Campaign_ResultActionsForState(true, false, false).repeat == true);
+    CHECK(Campaign_ResultActionsForState(true, false, false).next == false);
+    CHECK(Campaign_ResultActionsForState(false, true, false).repeat == false);
+    CHECK(Campaign_ResultActionsForState(false, true, false).next == true);
+    CHECK(Campaign_ResultActionsForState(false, false, false).repeat == false);
+    CHECK(Campaign_ResultActionsForState(false, false, false).next == true);
+}
+
+TEST_CASE("First level 13 win is the special campaign-winning result")
+{
+    const CampaignResultActions actions =
+        Campaign_ResultActionsForState(/*campaignLevel=*/true, /*playerWon=*/true, /*firstCampaignClear=*/true);
+    CHECK(actions.repeat == false);
+    CHECK(actions.next == true);
+    CHECK(Campaign_FinalResultFlowForState(true, false, 13, 13, false) ==
+          CampaignFinaleFlow::CelebrationThenResult);
+}
+
+TEST_CASE("Later level 13 win is a normal campaign result with repeat and next")
+{
+    const CampaignResultActions actions =
+        Campaign_ResultActionsForState(/*campaignLevel=*/true, /*playerWon=*/true, /*firstCampaignClear=*/false);
+    CHECK(actions.repeat == true);
+    CHECK(actions.next == true);
+    CHECK(Campaign_FinalResultFlowForState(true, false, 13, 13, true) ==
+          CampaignFinaleFlow::NormalResult);
+}
+
+TEST_CASE("Level 13 loss before campaign completion offers repeat only")
+{
+    const CampaignResultActions actions =
+        Campaign_ResultActionsForState(/*campaignLevel=*/true, /*playerWon=*/false, /*firstCampaignClear=*/false);
+    CHECK(actions.repeat == true);
+    CHECK(actions.next == false);
+    CHECK(Campaign_FinalResultFlowForState(false, false, 13, 13, false) ==
+          CampaignFinaleFlow::NormalResult);
+}
+
+TEST_CASE("Post-campaign level 13 outcomes use random-level next-only buttons")
+{
+    const CampaignResultActions win =
+        Campaign_ResultActionsForState(/*campaignLevel=*/false, /*playerWon=*/true, /*firstCampaignClear=*/false);
+    const CampaignResultActions loss =
+        Campaign_ResultActionsForState(/*campaignLevel=*/false, /*playerWon=*/false, /*firstCampaignClear=*/false);
+    CHECK(win.repeat == false);
+    CHECK(win.next == true);
+    CHECK(loss.repeat == false);
+    CHECK(loss.next == true);
+    CHECK(Campaign_FinalResultFlowForState(true, true, 13, 13, true) ==
+          CampaignFinaleFlow::NormalResult);
+}

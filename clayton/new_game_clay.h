@@ -452,6 +452,11 @@ inline void renderNewGameWindow(Clayton *clayton)
                 }
             }
 
+            if (isResult && clayton->newGameRepeatAvailable && clayton->newGameNextAvailable)
+            {
+                CLAY(clayton->resultRepeatClick.clayId, CLAY_THEME_BTN_DANGER)
+                { CLAY_TEXT("REPEAT", CLAY_TEXT_CONFIG(buttonCfg)); }
+            }
             CLAY(
                 clayton->playAgainClick.clayId,
                 {

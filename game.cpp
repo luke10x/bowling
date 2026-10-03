@@ -95,6 +95,7 @@
 #include "physics/physics.h"
 #include "rendertexture.h"
 #include "score.h"
+#include "campaign_record.h"
 #include "shop.h"
 #include "shop/flying_coins_helper.h"
 #include "sounds/sound_clay.h"
@@ -883,6 +884,7 @@ struct UserContext
     float campaignEndgameConfettiNextS = -1.0f;
     uint32_t campaignEndgameConfettiSeed = 0x9e3779b9u;
     int campaignLevelAttempts[kCampaignLevelCount] = {};
+    int campaignLevelLosses[kCampaignLevelCount] = {};
     int campaignLevelWins[kCampaignLevelCount] = {};
     float campaignLevelFirstWinTimes[kCampaignLevelCount] = {};
     bool campaignLevelUnlocked[kCampaignLevelCount] = {true};
@@ -891,6 +893,7 @@ struct UserContext
     bool campaignLevelBonusGranted[kCampaignLevelCount] = {};
     int campaignActiveLevel = 0;
     bool campaignPostgameFreeplayActive = false;
+    bool campaignRunStarted = false;
     bool campaignOverrideActive = false;
     CampaignBiome campaignOverrideBiome = CampaignBiome::NORMAL;
     CampaignOpponent campaignOverrideOpponent = CampaignOpponent::MALACH;
@@ -6772,6 +6775,29 @@ static inline void UI_ResetBannersForNewRoll(UserContext *usr, const char *reaso
     }
 }
 
+// Dialogs own the foreground layer; clear transient score effects so they
+// cannot freeze visually above story or UI dialogs.
+static inline void UI_DismissTransientOverlaysForDialog(UserContext *usr)
+{
+    if (!usr)
+        return;
+    (void)usr->coinLane.resetAllAnimations();
+    usr->resultPendingStrikeSpareCoinCount = 0;
+    usr->resultPendingStrikeSpareCoinDelay = 0.0f;
+    usr->resultPendingStrikeSpareCoinSourceValid = false;
+    usr->strikeSpareKind = 0;
+    usr->strikeSpareFlashTime = 0.0f;
+    usr->strikeSpareEarlyAllDownTime = 0.0f;
+    usr->strikeSpareEarlyDeclared = false;
+    usr->strikeSpareEarlyKind = 0;
+    usr->negativeBannerKind = 0;
+    usr->negativeBannerFlashTime = 0.0f;
+    usr->splitBannerFlashTime = 0.0f;
+    usr->neutralBannerFlashTime = 0.0f;
+    usr->runeOutcomeBannerKind = 0;
+    usr->runeOutcomeBannerTime = 0.0f;
+}
+
 static inline void UI_TriggerRuneOutcomeBanner(UserContext *usr, int kind, float seconds = 2.5f)
 {
     if (!usr || kind <= 0)
@@ -11174,16 +11200,19 @@ static inline void Campaign_SaveLevelResults(UserContext *usr)
     if (!usr)
         return;
     char wins[256] = {};
+    char losses[256] = {};
     char times[256] = {};
     char unlocked[256] = {};
     char bestScores[256] = {};
     char bestOpponentScores[256] = {};
     char bonusesGranted[256] = {};
-    int winsWritten = 0, timesWritten = 0, unlockedWritten = 0, bestWritten = 0, bestOpponentWritten = 0, bonusesWritten = 0;
+    int winsWritten = 0, lossesWritten = 0, timesWritten = 0, unlockedWritten = 0, bestWritten = 0, bestOpponentWritten = 0, bonusesWritten = 0;
     for (int i = 0; i < kCampaignLevelCount; ++i)
     {
         winsWritten += snprintf(wins + winsWritten, sizeof(wins) - winsWritten, "%s%d",
                                 i == 0 ? "" : ",", glm::max(0, usr->campaignLevelWins[i]));
+        lossesWritten += snprintf(losses + lossesWritten, sizeof(losses) - lossesWritten, "%s%d",
+                                  i == 0 ? "" : ",", glm::max(0, usr->campaignLevelLosses[i]));
         timesWritten += snprintf(times + timesWritten, sizeof(times) - timesWritten, "%s%.3f",
                                  i == 0 ? "" : ",", glm::max(0.0f, usr->campaignLevelFirstWinTimes[i]));
         unlockedWritten += snprintf(unlocked + unlockedWritten, sizeof(unlocked) - unlockedWritten, "%s%d",
@@ -11196,6 +11225,7 @@ static inline void Campaign_SaveLevelResults(UserContext *usr)
                                    i == 0 ? "" : ",", usr->campaignLevelBonusGranted[i] ? 1 : 0);
     }
     usr->storage.setChar(Storage::CAMPAIGN_LEVEL_WINS, wins, strlen(wins));
+    usr->storage.setChar(Storage::CAMPAIGN_LEVEL_LOSSES, losses, strlen(losses));
     usr->storage.setChar(Storage::CAMPAIGN_LEVEL_FIRST_WIN_TIMES, times, strlen(times));
     usr->storage.setChar(Storage::CAMPAIGN_LEVEL_UNLOCKED, unlocked, strlen(unlocked));
     usr->storage.setChar(Storage::CAMPAIGN_LEVEL_BEST_SCORES, bestScores, strlen(bestScores));
@@ -11213,6 +11243,7 @@ static inline void Campaign_ResetAttemptStats(UserContext *usr)
     for (int i = 0; i < kCampaignLevelCount; ++i)
     {
         usr->campaignLevelAttempts[i] = 0;
+        usr->campaignLevelLosses[i] = 0;
         usr->campaignLevelWins[i] = 0;
         usr->campaignLevelFirstWinTimes[i] = 0.0f;
         usr->campaignLevelUnlocked[i] = (i == 0);
@@ -11242,6 +11273,8 @@ static inline void Campaign_RecordFinishedLevel(UserContext *usr, int playerScor
     if (!usr || usr->campaignPostgameFreeplayActive)
         return;
     const int idx = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount) - 1;
+    if (playerScore < opponentScore)
+        ++usr->campaignLevelLosses[idx];
     if (playerScore >= usr->campaignLevelBestScores[idx])
     {
         usr->campaignLevelBestScores[idx] = glm::max(0, playerScore);
@@ -11334,7 +11367,8 @@ static inline void Campaign_PushEndgameSummaryWindow(UserContext *usr)
         usr->campaignLevelWins,
         usr->campaignLevelFirstWinTimes,
         usr->campaignLevelBestScores,
-        usr->campaignLevelBestOpponentScores
+        usr->campaignLevelBestOpponentScores,
+        usr->campaignLevelLosses
     );
 }
 
@@ -12347,6 +12381,8 @@ static inline void ResultWindow_ClearPresentation(UserContext *usr)
         return;
     usr->clayton.newGameIsResult = false;
     usr->clayton.newGameVictory = false;
+    usr->clayton.newGameRepeatAvailable = false;
+    usr->clayton.newGameNextAvailable = true;
     usr->clayton.newGameDetail = "";
     usr->clayton.newGameShopButtonLabel = Txl_Get(usr->language, TXL_SHOP);
     usr->clayton.newGameShopOpensInventory = false;
@@ -13038,6 +13074,7 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
         return;
 
     usr->campaignLevelIndex = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount);
+    usr->campaignRunStarted = false;
     const CampaignLevelConfig cfg = Campaign_CurrentLevel(usr);
     const int campaignAttemptIdx = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount) - 1;
     usr->campaignStartStoryAttemptCountAtSetup = glm::max(
@@ -13076,9 +13113,6 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->resultRunBankAtStart = (int)std::lround(usr->carousel.bank);
     ResultWindow_ResetRoundEarnings(usr);
     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
-    if (recordAttempt)
-        Campaign_RecordAttemptForCurrentLevel(usr);
-
     Campaign_ApplyBiomePreset(usr, cfg.biome);
     usr->coinLane.initStars(cfg.pattern, cfg.collectableCount);
 
@@ -18360,6 +18394,8 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->username_len = snprintf(usr->username, sizeof(usr->username), "Anonymous");
     initKeypad(&usr->keypad, usr->username, &usr->username_len);
     initClaytonClick(&usr->clayton.playAgainClick, "ReplayButton");
+    initClaytonClick(&usr->clayton.resultRepeatClick, "ResultRepeatButton");
+    initClaytonClick(&usr->clayton.resultNextClick, "ResultNextButton");
     initClaytonClick(&usr->renameButton, "PlaceOfRenameName");
     initClaytonClick(&usr->menuButton, "MenuButton");
     initClaytonClick(&usr->soundButton, "SoundButton");
@@ -18567,6 +18603,19 @@ void vtx::init(vtx::VertexContext *ctx)
             for (int i = 0; i < kCampaignLevelCount && cursor && *cursor; ++i)
             {
                 usr->campaignLevelBestOpponentScores[i] = glm::max(0, atoi(cursor));
+                char *comma = strchr(cursor, ',');
+                if (!comma) break;
+                cursor = comma + 1;
+            }
+        }
+        char lossesBuf[256] = {};
+        n = usr->storage.getChar(Storage::CAMPAIGN_LEVEL_LOSSES, lossesBuf, sizeof(lossesBuf));
+        if (n > 0)
+        {
+            char *cursor = lossesBuf;
+            for (int i = 0; i < kCampaignLevelCount && cursor && *cursor; ++i)
+            {
+                usr->campaignLevelLosses[i] = glm::max(0, atoi(cursor));
                 char *comma = strchr(cursor, ',');
                 if (!comma) break;
                 cursor = comma + 1;
@@ -19551,7 +19600,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->campaignLevelWins,
                         usr->campaignLevelFirstWinTimes,
                         usr->campaignLevelBestScores,
-                        usr->campaignLevelBestOpponentScores
+                        usr->campaignLevelBestOpponentScores,
+                        usr->campaignLevelLosses
                     );
                 }
                 if (usr->windowStack.campaignLevelSelectedRequested != 0)
@@ -21425,8 +21475,10 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->windowStack.miniGameExitRequested = false;
         MiniGame_ExitInProgress(usr);
     }
-	    if (usr->windowStack.playAgainRequested)
+	    if (usr->windowStack.playAgainRequested || usr->windowStack.resultRepeatRequested || usr->windowStack.resultNextRequested)
 	    {
+	        usr->windowStack.resultRepeatRequested = false;
+	        usr->windowStack.resultNextRequested = false;
 	        usr->windowStack.playAgainRequested = false;
         if (Campaign_ResultDismissFlowForState(
                 usr->campaignEndgameAwaitingResultDismissal) ==
@@ -22559,7 +22611,13 @@ swing_checks_done:
 			                    if (usr->gameMode == UserContext::GameMode::BOT ||
 	                                usr->gameMode == UserContext::GameMode::SOLO)
                                 {
-			                        frameCompleted = addRoll(activeSb, knockedThisRoll);
+                                    frameCompleted = addRoll(activeSb, knockedThisRoll);
+                                    if (activeSb == &usr->board && !usr->campaignRunStarted &&
+                                        CampaignRecord_HasStartedRoll(usr->board.frames[0].roll1 == -1 ? 0 : 1))
+                                    {
+                                        usr->campaignRunStarted = true;
+                                        Campaign_RecordAttemptForCurrentLevel(usr);
+                                    }
                                     if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
                                     {
                                         const glm::vec3 completePos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
@@ -23167,7 +23225,15 @@ swing_checks_done:
                                                 Progress_SaveUnlocksAndBank(usr);
                                             }
                                         }
-	                                        ResultWindow_ConfigureBowling(
+                                        const CampaignResultActions resultActions =
+                                            Campaign_ResultActionsForState(
+                                                usr->playerRoute == PlayerRoute::CAMPAIGN && !usr->campaignPostgameFreeplayActive,
+                                                playerWins,
+                                                clearedFullCampaign
+                                            );
+                                        usr->clayton.newGameRepeatAvailable = resultActions.repeat;
+                                        usr->clayton.newGameNextAvailable = resultActions.next;
+                                        ResultWindow_ConfigureBowling(
 	                                            usr,
 	                                            playerWins,
                                             &usr->board,
@@ -28574,6 +28640,7 @@ END_LINE:
         // Typing animation advances only when actually rendered.
         if (usr->windowStack.count == 0 && usr->dialog.active)
         {
+            UI_DismissTransientOverlaysForDialog(usr);
             // Dialog is modal. When it shows clickable options, force normal mouse mode so
             // desktop users can actually click them (relative mouse capture breaks this).
             if (usr->dialog.waitingChoice)

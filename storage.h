@@ -89,6 +89,7 @@ struct Storage
         CAMPAIGN_COMPLETED,
         CAMPAIGN_CLEAR_TIME,
         CAMPAIGN_LEVEL_ATTEMPTS,
+        CAMPAIGN_LEVEL_LOSSES,
         CAMPAIGN_LEVEL_WINS,
         CAMPAIGN_LEVEL_FIRST_WIN_TIMES,
         CAMPAIGN_LEVEL_UNLOCKED,
@@ -123,6 +124,7 @@ struct Storage
         "campaign_completed",
         "campaign_clear_time",
         "campaign_level_attempts",
+        "campaign_level_losses",
         "campaign_level_wins",
         "campaign_level_first_win_times",
         "campaign_level_unlocked",
@@ -156,6 +158,7 @@ struct Storage
         "0",     // CAMPAIGN_COMPLETED
         "0",     // CAMPAIGN_CLEAR_TIME
         "0,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_ATTEMPTS
+        "0,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_LOSSES
         "0,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_WINS
         "0,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_FIRST_WIN_TIMES
         "1,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_UNLOCKED

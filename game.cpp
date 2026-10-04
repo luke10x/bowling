@@ -1448,6 +1448,10 @@ struct UserContext
 	float laneDryVisualRightStrength = 0.0f;
 	float laneDryVisualLeftReach01 = 0.0f;
 	float laneDryVisualRightReach01 = 0.0f;
+	// Explicit confirmation flash for a successful re-oil. It must not be
+	// inferred from dry-decal resets during level or minigame setup.
+	bool reoilLaneBlinkPending = false;
+	float reoilLaneBlinkRemainingS = 0.0f;
     int laneTextureIdx = 0;
     int pinTextureIdx = 0;
 
@@ -8037,6 +8041,8 @@ static inline void ApplyHouseLaneParams(UserContext *usr)
 	usr->oilWearLeftM = 0.0f;
 	usr->oilWearRightM = 0.0f;
 	usr->oilWearTotalM = 0.0f;
+	usr->reoilLaneBlinkPending = false;
+	usr->reoilLaneBlinkRemainingS = 0.0f;
 }
 
 static inline float LaneDryness01(const UserContext *usr)
@@ -13072,6 +13078,9 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
     ResultWindow_ResetRoundEarnings(usr);
     usr->miniGameCoinsEarnedLastRun = 0;
     usr->miniGameElapsed = 0.0f;
+    // A bonus run starts with fresh lane state, not a re-oil confirmation.
+    usr->reoilLaneBlinkPending = false;
+    usr->reoilLaneBlinkRemainingS = 0.0f;
     UI_ResetBannersForNewRoll(usr, "MINIGAME_BEGIN");
     Campaign_ApplyBiomePreset(usr, usr->miniGameSourceBiome);
     usr->phy.ClearFracturedBlock();
@@ -13232,6 +13241,9 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->pendingBonusChoiceWindow = false;
     usr->miniGameStandalone = false;
     usr->miniGameCoinsEarnedLastRun = 0;
+    // Level setup must never inherit a confirmation flash from the prior lane.
+    usr->reoilLaneBlinkPending = false;
+    usr->reoilLaneBlinkRemainingS = 0.0f;
     CampaignBlockCards_Clear(usr->playerBlockCards);
     CampaignBlockCards_Clear(usr->enemyBlockCards);
     usr->playerBlockCardRngState = 1;
@@ -14031,6 +14043,8 @@ static inline void School_ApplyNeutralLaneDefaults(UserContext *usr)
     usr->oilWearLeftM = 0.0f;
     usr->oilWearRightM = 0.0f;
     usr->oilWearTotalM = 0.0f;
+	usr->reoilLaneBlinkPending = false;
+	usr->reoilLaneBlinkRemainingS = 0.0f;
     usr->schoolOilReoilDueAtThrowStart = false;
     usr->schoolOilReoilReminderShownForDryLane = false;
 }
@@ -14061,6 +14075,8 @@ static inline void School_ApplyOilLessonDefaults(UserContext *usr)
     usr->oilWearLeftM = 0.0f;
     usr->oilWearRightM = 0.0f;
     usr->oilWearTotalM = 0.0f;
+	usr->reoilLaneBlinkPending = false;
+	usr->reoilLaneBlinkRemainingS = 0.0f;
 
     // Lesson-only ball tuning: raise skid (slippery early slide) regardless of selected ball.
     // When leaving lesson 4, we re-apply friction params from the catalog to restore normal behavior.
@@ -19610,6 +19626,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                             if (School_OilLessonCanReoil(usr))
                             {
                                 School_ApplyOilLessonDefaults(usr);
+                                usr->reoilLaneBlinkPending = true;
                                 usr->school.spinSafeCoins = glm::clamp(usr->school.spinSafeCoins + 1, 0, 3);
                                 usr->sound.playSfxBuy();
                                 {
@@ -19629,9 +19646,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                         }
 		                else if (usr->carousel.bank >= 10.0f)
 		                {
-		                    usr->carousel.bank -= 10.0f;
-		                    ApplyHouseLaneParams(usr);
-		                    usr->sound.playSfxBuy();
+	                    usr->carousel.bank -= 10.0f;
+	                    ApplyHouseLaneParams(usr);
+	                    usr->reoilLaneBlinkPending = true;
+	                    usr->sound.playSfxBuy();
 		                }
 		            }
                 if (usr->windowStack.housesSelectRequested)
@@ -25737,22 +25755,27 @@ END_LINE:
         catchUpDryVisual(usr->laneDryVisualLeftReach01, targetLeftDryReach01);
         catchUpDryVisual(usr->laneDryVisualRightReach01, targetRightDryReach01);
 
-        // A re-oil changes the physical oil state immediately, while the dry decal
-        // deliberately eases back to clean. Blink the lane itself white only for
-        // that visual catch-up: oil wearing down moves in the opposite direction
-        // and must not produce this confirmation effect.
-        const float reoilVisualResidual01 = glm::max(
-            glm::max(usr->laneDryVisualLeftStrength - targetLeftDryStrength,
-                     usr->laneDryVisualRightStrength - targetRightDryStrength),
-            glm::max(usr->laneDryVisualLeftReach01 - targetLeftDryReach01,
-                     usr->laneDryVisualRightReach01 - targetRightDryReach01)
-        );
-        float reoilLaneBlink01 = 0.0f;
-        if (!oilStatusOpen && reoilVisualResidual01 > 0.002f)
+        // The worn decal still eases out via catchUpDryVisual above. The white
+        // confirmation, however, is reserved for an actual successful re-oil,
+        // never a lane reset caused by a level transition or bonus start.
+        constexpr float REOIL_LANE_BLINK_DURATION_S = 0.50f;
+        constexpr float REOIL_LANE_BLINK_HZ = 10.0f;
+        if (!oilStatusOpen && usr->reoilLaneBlinkPending)
         {
-            const float pulse01 = 0.5f + 0.5f * cosf(usr->rawTime * 5.0f * glm::two_pi<float>());
-            const float visibleResidual01 = glm::smoothstep(0.002f, 0.045f, reoilVisualResidual01);
-            reoilLaneBlink01 = (0.14f + 0.26f * pulse01) * visibleResidual01;
+            usr->reoilLaneBlinkPending = false;
+            usr->reoilLaneBlinkRemainingS = REOIL_LANE_BLINK_DURATION_S;
+        }
+        float reoilLaneBlink01 = 0.0f;
+        if (usr->reoilLaneBlinkRemainingS > 0.0f)
+        {
+            const float elapsed01 = 1.0f - glm::clamp(
+                usr->reoilLaneBlinkRemainingS / REOIL_LANE_BLINK_DURATION_S, 0.0f, 1.0f);
+            const float pulse01 = 0.5f + 0.5f * cosf(
+                elapsed01 * REOIL_LANE_BLINK_HZ * glm::two_pi<float>());
+            const float fade01 = 1.0f - glm::smoothstep(0.68f, 1.0f, elapsed01);
+            reoilLaneBlink01 = (0.14f + 0.26f * pulse01) * fade01;
+            usr->reoilLaneBlinkRemainingS = glm::max(
+                0.0f, usr->reoilLaneBlinkRemainingS - glm::max(0.0f, gameplayDeltaTime));
         }
         usr->mainShader.updateLaneWearDistortion(
             true,

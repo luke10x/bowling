@@ -941,6 +941,12 @@ struct UserContext
     BotAvatar selectedFreestyleAvatar = BotAvatar::ANGEL;
     int selectedHouseId = 0;
     int selectedBallId = 0;
+    // A shop selection is acknowledged only when its new ball is actually
+    // rendered for the player. This survives enemy turns and other states that
+    // temporarily hide the player's ball.
+    int pendingBallEquipFeedbackId = -1;
+    int lastVisiblePlayerBallId = -1;
+    float ballEquipBlinkStartS = -1000.0f;
     BallShopState ballShop = {};
     uint64_t unlockedBallMask = 0;
     uint64_t destroyedBallPendingReturnMask = 0;
@@ -11928,8 +11934,39 @@ static inline void BallShop_PlayEquipFeedback(UserContext *usr)
 {
     if (!usr)
         return;
+    usr->pendingBallEquipFeedbackId = usr->selectedBallId;
+}
+
+static inline float BallShop_EquipBlinkAmount01(const UserContext *usr)
+{
+    if (!usr)
+        return 0.0f;
+    constexpr float kBlinkDurationS = 0.90f;
+    const float ageS = usr->rawTime - usr->ballEquipBlinkStartS;
+    if (ageS < 0.0f || ageS >= kBlinkDurationS)
+        return 0.0f;
+    const float pulse01 = 0.5f + 0.5f * cosf(ageS * 5.0f * glm::two_pi<float>());
+    return (0.16f + 0.34f * pulse01) * (1.0f - ageS / kBlinkDurationS);
+}
+
+static inline void BallShop_TriggerQueuedEquipFeedbackIfVisible(
+    UserContext *usr,
+    int renderedBallId,
+    const glm::vec3 &visibleBallPosition)
+{
+    if (!usr || usr->shouldShowShop || IsEnemyTurn(usr) ||
+        usr->pendingBallEquipFeedbackId != renderedBallId)
+        return;
+
+    usr->pendingBallEquipFeedbackId = -1;
+    // The player never saw an intervening ball change. For example, they may
+    // switch during an enemy turn and then put the previously visible ball
+    // back before their turn starts.
+    if (usr->lastVisiblePlayerBallId == renderedBallId)
+        return;
+    usr->ballEquipBlinkStartS = usr->rawTime;
     usr->sound.playSfxBuy();
-    usr->particles.burstBallEquipSpiral(BallShop_EquipFeedbackPosition(usr));
+    usr->particles.burstBallEquipSpiral(visibleBallPosition);
 }
 
 static inline void BallShop_CloseAfterAction(UserContext *usr)
@@ -21431,9 +21468,13 @@ void vtx::loop(vtx::VertexContext *ctx)
                 const CatalogItem *pickedBall = &usr->carousel.items[idx];
                 if (!BallInventory_IsDestroyedPendingReturn(usr, pickedBall->id))
                 {
-                    BallStats_OnBallChange(pickedBall, usr);
-                    Progress_SaveEquippedBall(usr);
-                    BallShop_PlayEquipFeedback(usr);
+                    const bool changedBall = pickedBall->id != usr->selectedBallId;
+                    if (changedBall)
+                    {
+                        BallStats_OnBallChange(pickedBall, usr);
+                        Progress_SaveEquippedBall(usr);
+                        BallShop_PlayEquipFeedback(usr);
+                    }
 
                     if (usr->selectorFlowStep == SelectorFlowStep::BALL)
                     {
@@ -21465,10 +21506,13 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     UnlockMask_AddBall(usr, pickedBall->id);
                     usr->carousel.bank -= pickedBall->price;
-                    BallStats_OnBallChange(pickedBall, usr);
+                    const bool changedBall = pickedBall->id != usr->selectedBallId;
+                    if (changedBall)
+                        BallStats_OnBallChange(pickedBall, usr);
                     Progress_SaveUnlocksAndBank(usr);
                     Progress_SaveEquippedBall(usr);
-                    BallShop_PlayEquipFeedback(usr);
+                    if (changedBall)
+                        BallShop_PlayEquipFeedback(usr);
                     BallShop_CloseAfterAction(usr);
                     if (usr->shopRestockResumeAfterShop)
                     {
@@ -25681,6 +25725,8 @@ END_LINE:
             {
                 const bool renderSkullBall = usr->skullBallActive;
                 const bool renderFrozenBall = usr->freezeBallActive && !IsEnemyTurn(usr);
+                const int renderedBallId = renderSkullBall ? -1 : Ball_RenderBallIdForCurrentTurn(usr);
+                float ballEquipBlink01 = 0.0f;
                 if (renderSkullBall)
                 {
                     usr->mainShader.updateTextureParamsInOneGo(
@@ -25693,7 +25739,7 @@ END_LINE:
                 }
                 else
                 {
-                    Ball_ApplyRenderAtlasParams(usr->mainShader, Ball_RenderBallIdForCurrentTurn(usr));
+                    Ball_ApplyRenderAtlasParams(usr->mainShader, renderedBallId);
                     if (renderFrozenBall)
                     {
                         const float coating = ChestRender::Smooth01(usr->freezeCoatingT);
@@ -25730,10 +25776,20 @@ END_LINE:
                          ballVelocity.y < -0.35f ||
                          renderBallPos.y < kThrowCompleteFloorY);
                     renderBallModel = Ball_RenderClampedAboveLane(renderBallModel, ballFallingOffLane);
+                    if (!renderSkullBall)
+                    {
+                        BallShop_TriggerQueuedEquipFeedbackIfVisible(
+                            usr, renderedBallId, glm::vec3(renderBallModel[3]));
+                        ballEquipBlink01 = BallShop_EquipBlinkAmount01(usr);
+                        if (ballEquipBlink01 > 0.0f)
+                            usr->mainShader.updateColorTintMix(glm::vec3(1.0f), ballEquipBlink01, 1.0f);
+                    }
                     AssetMesh &renderBallMesh = renderSkullBall ? usr->skullBallMesh : usr->ballMesh;
                     usr->mainShader.renderRealMesh(
                         renderBallMesh, renderBallModel, usr->cameraMat, usr->perspectiveMat
                     );
+                    if (!renderSkullBall && !IsEnemyTurn(usr))
+                        usr->lastVisiblePlayerBallId = renderedBallId;
                     ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr);
                     if (turnElectroBall != nullptr && !renderSkullBall)
                     {
@@ -25751,7 +25807,7 @@ END_LINE:
                         );
                     }
                 }
-                if (renderSkullBall || renderFrozenBall)
+                if (renderSkullBall || renderFrozenBall || ballEquipBlink01 > 0.0f)
                     usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
                 BoomBallShards_Render(usr, (float)deltaTime);
             }

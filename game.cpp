@@ -12039,12 +12039,13 @@ static inline void Campaign_ApplyBiomePreset(UserContext *usr, CampaignBiome bio
             break;
         case CampaignBiome::GAS_FACTORY:
             // Campaign lanes begin balanced: both sides use the same oil range.
-            usr->houseLane = {0.058f, 26.0f, 0.76f, 6.6f, 11.2f, 6.6f, 11.2f, 0.030f, 0.0032f};
+            usr->houseLane = {0.047f, 6.0f, 0.76f, 6.6f, 11.2f, 6.6f, 11.2f, 0.030f, 0.0032f};
             usr->laneTextureIdx = 3;
             usr->pinTextureIdx = 3;
             break;
         case CampaignBiome::CRYSTAL_CAVERN:
-            usr->houseLane = {0.043f, 20.0f, 0.94f, 8.8f, 13.8f, 8.8f, 13.8f, 0.004f, 0.0018f};
+            // Long Oil: five percentage points more intrinsically slippery than before.
+            usr->houseLane = {0.0355f, 20.0f, 0.94f, 8.8f, 13.8f, 8.8f, 13.8f, 0.004f, 0.0018f};
             usr->laneTextureIdx = 2;
             usr->pinTextureIdx = 2;
             break;
@@ -12064,22 +12065,23 @@ static inline void Campaign_ApplyBiomePreset(UserContext *usr, CampaignBiome bio
             usr->pinTextureIdx = 1;
             break;
         case CampaignBiome::ICE:
-            usr->houseLane = {0.040f, 18.0f, 0.98f, 9.6f, 14.8f, 9.6f, 14.8f, 0.0f, 0.0016f};
+            // Long Oil: five percentage points more intrinsically slippery than before.
+            usr->houseLane = {0.0325f, 18.0f, 0.98f, 9.6f, 14.8f, 9.6f, 14.8f, 0.0f, 0.0016f};
             usr->laneTextureIdx = 2;
             usr->pinTextureIdx = 2;
             break;
         case CampaignBiome::NEON:
-            usr->houseLane = {0.050f, 6.0f, 0.80f, 7.0f, 11.7f, 7.0f, 11.7f, 0.032f, 0.0028f};
+            usr->houseLane = {0.047f, 6.0f, 0.80f, 7.0f, 11.7f, 7.0f, 11.7f, 0.032f, 0.0028f};
             usr->laneTextureIdx = 3;
             usr->pinTextureIdx = 3;
             break;
         case CampaignBiome::SUBURBIA:
-            usr->houseLane = {0.050f, 6.0f, 0.80f, 7.0f, 11.7f, 7.0f, 11.7f, 0.032f, 0.0028f};
+            usr->houseLane = {0.047f, 6.0f, 0.80f, 7.0f, 11.7f, 7.0f, 11.7f, 0.032f, 0.0028f};
             usr->laneTextureIdx = 3;
             usr->pinTextureIdx = 3;
             break;
         case CampaignBiome::RUINS_CITY:
-            usr->houseLane = {0.050f, 6.0f, 0.80f, 7.0f, 11.7f, 7.0f, 11.7f, 0.032f, 0.0028f};
+            usr->houseLane = {0.047f, 6.0f, 0.80f, 7.0f, 11.7f, 7.0f, 11.7f, 0.032f, 0.0028f};
             usr->laneTextureIdx = 3;
             usr->pinTextureIdx = 3;
             break;

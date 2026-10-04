@@ -40,7 +40,8 @@ typedef struct
      .rarity = "COMMON",
      .theme = "House",
      .laneFriction = 0.05f,
-     .lanePushbackStrength = 18.0f,
+     // Classic is deliberately the most forgiving house: strongest line correction.
+     .lanePushbackStrength = 34.0f,
      .laneOilThickness = 1.0f,
      .leftOilFadeStartM = 8.3f,
      .leftOilFadeEndM = 13.3f,
@@ -84,7 +85,8 @@ typedef struct
      .name = "Asym Split",
      .rarity = "LEGENDARY",
      .theme = "House",
-     .laneFriction = 0.055f,
+     // Two percentage points more intrinsically slippery than Classic House.
+     .laneFriction = 0.047f,
      .lanePushbackStrength = 28.0f,
      .laneOilThickness = 0.9f,
      // Re-oil is always symmetric; asymmetry comes from wear/carrydown (left vs right travel).

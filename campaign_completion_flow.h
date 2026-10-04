@@ -131,6 +131,20 @@ static inline bool Campaign_ShouldShowFinaleFireworks(
     return campaignCompleted && !postgameFreeplayActive && awaitingResultDismissal;
 }
 
+// Random post-campaign games are intentionally fully equipped, regardless of
+// the last campaign chapter the player replayed before returning here.
+static inline bool Campaign_PostgameUsesFullToolset(bool postgameFreeplayActive)
+{
+    return postgameFreeplayActive;
+}
+
+static inline bool Campaign_NosEnabledForCampaignLevel(
+    int levelNumber,
+    bool postgameFreeplayActive)
+{
+    return Campaign_PostgameUsesFullToolset(postgameFreeplayActive) || levelNumber >= 7;
+}
+
 // Selecting a campaign level starts a fresh match. It must discard the
 // one-shot first-clear handoff state left by an earlier campaign completion.
 static inline void Campaign_ClearFinaleStateForLevelSetup(bool &awaitingResultDismissal)

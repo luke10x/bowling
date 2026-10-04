@@ -2163,22 +2163,16 @@ struct NosTuning
     static constexpr float MIN_SPEED_FOR_BOOST = 0.35f;
 };
 
-static inline bool Campaign_HasUnlockedGlassTool(const UserContext *usr)
-{
-    if (!usr)
-        return false;
-    if (usr->playerRoute != PlayerRoute::CAMPAIGN)
-        return true;
-    return usr->campaignGlassToolUnlocked || usr->campaignLevelIndex >= 5;
-}
-
 static inline bool Campaign_HasUnlockedNosTool(const UserContext *usr)
 {
     if (!usr)
         return false;
     if (usr->playerRoute != PlayerRoute::CAMPAIGN)
         return true;
-    return usr->campaignLevelIndex >= 7;
+    return Campaign_NosEnabledForCampaignLevel(
+        usr->campaignLevelIndex,
+        usr->campaignPostgameFreeplayActive
+    );
 }
 
 static inline bool Campaign_IsBlockVariantAvailable(const UserContext *usr, int variantIndex)
@@ -2188,15 +2182,11 @@ static inline bool Campaign_IsBlockVariantAvailable(const UserContext *usr, int 
     if (usr->playerRoute != PlayerRoute::CAMPAIGN)
         return variantIndex >= 0 && variantIndex < CAMPAIGN_BLOCK_CARD_COUNT;
 
-    const int levelNumber = usr->campaignLevelIndex;
-    switch (variantIndex)
-    {
-        case CAMPAIGN_BLOCK_CARD_WOOD: return levelNumber >= 8;
-        case CAMPAIGN_BLOCK_CARD_BRICK: return levelNumber >= 11;
-        case CAMPAIGN_BLOCK_CARD_CONCRETE: return levelNumber >= 12;
-        case CAMPAIGN_BLOCK_CARD_GLASS: return Campaign_HasUnlockedGlassTool(usr);
-        default: return false;
-    }
+    const int enabledMask = CampaignBlockCards_EnabledMaskForCampaignLevel(
+        usr->campaignLevelIndex,
+        usr->campaignPostgameFreeplayActive
+    );
+    return CampaignBlockCards_IsTypeEnabled(enabledMask, variantIndex);
 }
 
 static inline int Scoreboard_CurrentFrameNumber(const BowlingScoreboard *sb);
@@ -2252,6 +2242,13 @@ static inline void Campaign_BlockCardsEnsureHandsForCurrentFrame(UserContext *us
     const int frameNumber = Campaign_BlockCardsRoundFrameNumber(usr);
     const int introType = (frameNumber == 1) ? Campaign_BlockCardsIntroTypeForCurrentLevel(usr)
                                              : CAMPAIGN_BLOCK_CARD_NONE;
+    const CampaignBlockCardWeightProfile enemyWeightProfile =
+        CampaignBlockCards_EnemyUsesFinalLevelAdvantage(
+            usr->campaignLevelIndex,
+            usr->campaignPostgameFreeplayActive
+        )
+            ? CampaignBlockCardWeightProfile::EnemyFinalLevelAdvantage
+            : CampaignBlockCardWeightProfile::Default;
 
     if (usr->playerBlockCards.currentFrameNumber != frameNumber)
     {
@@ -2261,7 +2258,8 @@ static inline void Campaign_BlockCardsEnsureHandsForCurrentFrame(UserContext *us
             frameNumber,
             enabledMask,
             introType,
-            usr->playerBlockCardRngState
+            usr->playerBlockCardRngState,
+            CampaignBlockCardWeightProfile::Default
         );
     }
 
@@ -2273,7 +2271,8 @@ static inline void Campaign_BlockCardsEnsureHandsForCurrentFrame(UserContext *us
             frameNumber,
             enabledMask,
             introType,
-            usr->enemyBlockCardRngState
+            usr->enemyBlockCardRngState,
+            enemyWeightProfile
         );
     }
 }

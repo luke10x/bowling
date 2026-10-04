@@ -205,6 +205,15 @@ TEST_CASE("Finale fireworks require every first-clear handoff condition")
     }
 }
 
+TEST_CASE("Post-campaign games always use the full tool set")
+{
+    CHECK(Campaign_PostgameUsesFullToolset(/*postgameFreeplayActive=*/true));
+    CHECK_FALSE(Campaign_PostgameUsesFullToolset(/*postgameFreeplayActive=*/false));
+    CHECK_FALSE(Campaign_NosEnabledForCampaignLevel(6, /*postgame=*/false));
+    CHECK(Campaign_NosEnabledForCampaignLevel(7, /*postgame=*/false));
+    CHECK(Campaign_NosEnabledForCampaignLevel(1, /*postgame=*/true));
+}
+
 TEST_CASE("Level 13 loss before campaign completion offers repeat only")
 {
     const CampaignResultActions actions =

@@ -14,6 +14,12 @@ enum CampaignBlockCardType
     CAMPAIGN_BLOCK_CARD_NONE = -1,
 };
 
+enum class CampaignBlockCardWeightProfile
+{
+    Default = 0,
+    EnemyFinalLevelAdvantage,
+};
+
 static constexpr int kCampaignBlockCardHandSize = 3;
 static constexpr int kCampaignBlockCardQueueSize = 15;
 
@@ -70,6 +76,63 @@ inline bool CampaignBlockCards_ShouldShowHand(int enabledMask)
     return CampaignBlockCards_IsTypeEnabled(enabledMask, CAMPAIGN_BLOCK_CARD_GLASS);
 }
 
+inline int CampaignBlockCards_EnabledMaskForCampaignLevel(
+    int levelNumber,
+    bool postgameFreeplayActive)
+{
+    if (postgameFreeplayActive)
+        return CampaignBlockCards_EnabledMask(true, true, true, true);
+    return CampaignBlockCards_EnabledMask(
+        /*wood=*/levelNumber >= 8,
+        /*brick=*/levelNumber >= 11,
+        /*concrete=*/levelNumber >= 12,
+        /*glass=*/levelNumber >= 5
+    );
+}
+
+inline bool CampaignBlockCards_EnemyUsesFinalLevelAdvantage(
+    int levelNumber,
+    bool postgameFreeplayActive = false)
+{
+    return !postgameFreeplayActive && (levelNumber == 11 || levelNumber == 13);
+}
+
+inline int CampaignBlockCards_WeightForType(
+    int type,
+    CampaignBlockCardWeightProfile profile)
+{
+    static constexpr int kDefaultWeights[CAMPAIGN_BLOCK_CARD_COUNT] = {
+        17, // wood
+        9,  // brick
+        5,  // concrete
+        69, // glass
+    };
+    static constexpr int kEnemyFinalLevelWeights[CAMPAIGN_BLOCK_CARD_COUNT] = {
+        20, // wood
+        12, // brick
+        8,  // concrete
+        60, // glass
+    };
+    if (type < 0 || type >= CAMPAIGN_BLOCK_CARD_COUNT)
+        return 0;
+    return profile == CampaignBlockCardWeightProfile::EnemyFinalLevelAdvantage
+        ? kEnemyFinalLevelWeights[type]
+        : kDefaultWeights[type];
+}
+
+inline int CampaignBlockCards_TotalEnabledWeight(
+    int enabledMask,
+    CampaignBlockCardWeightProfile profile)
+{
+    int totalWeight = 0;
+    for (int type = 0; type < CAMPAIGN_BLOCK_CARD_COUNT; ++type)
+    {
+        if (CampaignBlockCards_IsTypeEnabled(enabledMask, type))
+            totalWeight += CampaignBlockCards_WeightForType(type, profile);
+    }
+    return totalWeight;
+}
+
 inline int CampaignBlockCards_IntroTypeForLevel(int levelNumber)
 {
     switch (levelNumber)
@@ -82,21 +145,12 @@ inline int CampaignBlockCards_IntroTypeForLevel(int levelNumber)
     }
 }
 
-inline int CampaignBlockCards_WeightedRandomType(uint32_t &rngState, int enabledMask)
+inline int CampaignBlockCards_WeightedRandomType(
+    uint32_t &rngState,
+    int enabledMask,
+    CampaignBlockCardWeightProfile profile = CampaignBlockCardWeightProfile::Default)
 {
-    static constexpr int kWeights[CAMPAIGN_BLOCK_CARD_COUNT] = {
-        17, // wood
-        9,  // brick
-        5,  // concrete
-        69, // glass
-    };
-
-    int totalWeight = 0;
-    for (int type = 0; type < CAMPAIGN_BLOCK_CARD_COUNT; ++type)
-    {
-        if (CampaignBlockCards_IsTypeEnabled(enabledMask, type))
-            totalWeight += kWeights[type];
-    }
+    const int totalWeight = CampaignBlockCards_TotalEnabledWeight(enabledMask, profile);
 
     if (totalWeight <= 0)
         return CAMPAIGN_BLOCK_CARD_NONE;
@@ -107,9 +161,10 @@ inline int CampaignBlockCards_WeightedRandomType(uint32_t &rngState, int enabled
     {
         if (!CampaignBlockCards_IsTypeEnabled(enabledMask, type))
             continue;
-        if (cursor < kWeights[type])
+        const int weight = CampaignBlockCards_WeightForType(type, profile);
+        if (cursor < weight)
             return type;
-        cursor -= kWeights[type];
+        cursor -= weight;
     }
 
     for (int type = CAMPAIGN_BLOCK_CARD_COUNT - 1; type >= 0; --type)
@@ -120,19 +175,27 @@ inline int CampaignBlockCards_WeightedRandomType(uint32_t &rngState, int enabled
     return CAMPAIGN_BLOCK_CARD_NONE;
 }
 
-inline void CampaignBlockCards_RefillQueue(CampaignBlockCardDeckState &deck, int enabledMask, uint32_t &rngState)
+inline void CampaignBlockCards_RefillQueue(
+    CampaignBlockCardDeckState &deck,
+    int enabledMask,
+    uint32_t &rngState,
+    CampaignBlockCardWeightProfile profile = CampaignBlockCardWeightProfile::Default)
 {
     for (int i = 0; i < kCampaignBlockCardQueueSize; ++i)
-        deck.queue[i] = CampaignBlockCards_WeightedRandomType(rngState, enabledMask);
+        deck.queue[i] = CampaignBlockCards_WeightedRandomType(rngState, enabledMask, profile);
     deck.queueCursor = 0;
 }
 
-inline int CampaignBlockCards_DrawNext(CampaignBlockCardDeckState &deck, int enabledMask, uint32_t &rngState)
+inline int CampaignBlockCards_DrawNext(
+    CampaignBlockCardDeckState &deck,
+    int enabledMask,
+    uint32_t &rngState,
+    CampaignBlockCardWeightProfile profile = CampaignBlockCardWeightProfile::Default)
 {
     if (enabledMask == 0)
         return CAMPAIGN_BLOCK_CARD_NONE;
     if (deck.queueCursor >= kCampaignBlockCardQueueSize)
-        CampaignBlockCards_RefillQueue(deck, enabledMask, rngState);
+        CampaignBlockCards_RefillQueue(deck, enabledMask, rngState, profile);
     return deck.queue[deck.queueCursor++];
 }
 
@@ -151,14 +214,15 @@ inline void CampaignBlockCards_DealFrameHand(
     int frameNumber,
     int enabledMask,
     int requiredIntroType,
-    uint32_t &rngState
+    uint32_t &rngState,
+    CampaignBlockCardWeightProfile profile = CampaignBlockCardWeightProfile::Default
 )
 {
     deck.currentFrameNumber = frameNumber;
     deck.nonGlassSpentThisThrow = false;
     for (int i = 0; i < kCampaignBlockCardHandSize; ++i)
     {
-        deck.hand[i].type = CampaignBlockCards_DrawNext(deck, enabledMask, rngState);
+        deck.hand[i].type = CampaignBlockCards_DrawNext(deck, enabledMask, rngState, profile);
         deck.hand[i].consumed = false;
     }
 

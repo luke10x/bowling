@@ -10,6 +10,52 @@ TEST_CASE("Block card hand stays hidden before glass is enabled")
     CHECK(CampaignBlockCards_ShouldShowHand(CampaignBlockCards_EnabledMask(true, false, false, true)));
 }
 
+TEST_CASE("Campaign and post-campaign runs load their own block tool sets")
+{
+    CHECK(CampaignBlockCards_EnabledMaskForCampaignLevel(4, false) == 0);
+    CHECK(CampaignBlockCards_EnabledMaskForCampaignLevel(5, false) ==
+          CampaignBlockCards_EnabledMask(false, false, false, true));
+    CHECK(CampaignBlockCards_EnabledMaskForCampaignLevel(8, false) ==
+          CampaignBlockCards_EnabledMask(true, false, false, true));
+    CHECK(CampaignBlockCards_EnabledMaskForCampaignLevel(11, false) ==
+          CampaignBlockCards_EnabledMask(true, true, false, true));
+    CHECK(CampaignBlockCards_EnabledMaskForCampaignLevel(12, false) ==
+          CampaignBlockCards_EnabledMask(true, true, true, true));
+    CHECK(CampaignBlockCards_EnabledMaskForCampaignLevel(1, true) ==
+          CampaignBlockCards_EnabledMask(true, true, true, true));
+}
+
+TEST_CASE("Only Levels 11 and 13 give the enemy final-level block weights")
+{
+    for (int level = 1; level <= 13; ++level)
+    {
+        CHECK(CampaignBlockCards_EnemyUsesFinalLevelAdvantage(level, /*postgame=*/false) ==
+              (level == 11 || level == 13));
+        CHECK_FALSE(CampaignBlockCards_EnemyUsesFinalLevelAdvantage(level, /*postgame=*/true));
+    }
+}
+
+TEST_CASE("Enemy final-level block weights increase non-glass card chances")
+{
+    const auto normal = CampaignBlockCardWeightProfile::Default;
+    const auto advantage = CampaignBlockCardWeightProfile::EnemyFinalLevelAdvantage;
+    CHECK(CampaignBlockCards_WeightForType(CAMPAIGN_BLOCK_CARD_GLASS, normal) == 69);
+    CHECK(CampaignBlockCards_WeightForType(CAMPAIGN_BLOCK_CARD_WOOD, normal) == 17);
+    CHECK(CampaignBlockCards_WeightForType(CAMPAIGN_BLOCK_CARD_BRICK, normal) == 9);
+    CHECK(CampaignBlockCards_WeightForType(CAMPAIGN_BLOCK_CARD_CONCRETE, normal) == 5);
+    CHECK(CampaignBlockCards_WeightForType(CAMPAIGN_BLOCK_CARD_GLASS, advantage) == 60);
+    CHECK(CampaignBlockCards_WeightForType(CAMPAIGN_BLOCK_CARD_WOOD, advantage) == 20);
+    CHECK(CampaignBlockCards_WeightForType(CAMPAIGN_BLOCK_CARD_BRICK, advantage) == 12);
+    CHECK(CampaignBlockCards_WeightForType(CAMPAIGN_BLOCK_CARD_CONCRETE, advantage) == 8);
+
+    const int level11Mask = CampaignBlockCards_EnabledMask(true, true, false, true);
+    const int level13Mask = CampaignBlockCards_EnabledMask(true, true, true, true);
+    CHECK(CampaignBlockCards_TotalEnabledWeight(level11Mask, normal) == 95);
+    CHECK(CampaignBlockCards_TotalEnabledWeight(level11Mask, advantage) == 92);
+    CHECK(CampaignBlockCards_TotalEnabledWeight(level13Mask, normal) == 100);
+    CHECK(CampaignBlockCards_TotalEnabledWeight(level13Mask, advantage) == 100);
+}
+
 TEST_CASE("Block card dealing only uses enabled variants")
 {
     CampaignBlockCardDeckState deck = {};

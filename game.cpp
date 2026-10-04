@@ -25564,10 +25564,39 @@ END_LINE:
         // Exponential catch-up remains stable at all frame rates and eases out
         // as it meets the changing physical oil state.
         const float dryVisualCatchup = 1.0f - expf(-glm::clamp((float)gameplayDeltaTime, 0.0f, 0.10f) * 3.4f);
-        usr->laneDryVisualLeftStrength += (targetLeftDryStrength - usr->laneDryVisualLeftStrength) * dryVisualCatchup;
-        usr->laneDryVisualRightStrength += (targetRightDryStrength - usr->laneDryVisualRightStrength) * dryVisualCatchup;
-        usr->laneDryVisualLeftReach01 += (targetLeftDryReach01 - usr->laneDryVisualLeftReach01) * dryVisualCatchup;
-        usr->laneDryVisualRightReach01 += (targetRightDryReach01 - usr->laneDryVisualRightReach01) * dryVisualCatchup;
+        // Keep the worn decal visible while the Oil Status window is open after
+        // a re-oil. Its fade-out and the lane's white confirmation pulse begin
+        // together as soon as that window is closed. Wear appearing underneath
+        // an open window continues to catch up normally.
+        const bool oilStatusOpen = usr->clayton.shouldShowOilStatus;
+        auto catchUpDryVisual = [&](float &visual, float target)
+        {
+            if (oilStatusOpen && target < visual)
+                return;
+            visual += (target - visual) * dryVisualCatchup;
+        };
+        catchUpDryVisual(usr->laneDryVisualLeftStrength, targetLeftDryStrength);
+        catchUpDryVisual(usr->laneDryVisualRightStrength, targetRightDryStrength);
+        catchUpDryVisual(usr->laneDryVisualLeftReach01, targetLeftDryReach01);
+        catchUpDryVisual(usr->laneDryVisualRightReach01, targetRightDryReach01);
+
+        // A re-oil changes the physical oil state immediately, while the dry decal
+        // deliberately eases back to clean. Blink the lane itself white only for
+        // that visual catch-up: oil wearing down moves in the opposite direction
+        // and must not produce this confirmation effect.
+        const float reoilVisualResidual01 = glm::max(
+            glm::max(usr->laneDryVisualLeftStrength - targetLeftDryStrength,
+                     usr->laneDryVisualRightStrength - targetRightDryStrength),
+            glm::max(usr->laneDryVisualLeftReach01 - targetLeftDryReach01,
+                     usr->laneDryVisualRightReach01 - targetRightDryReach01)
+        );
+        float reoilLaneBlink01 = 0.0f;
+        if (!oilStatusOpen && reoilVisualResidual01 > 0.002f)
+        {
+            const float pulse01 = 0.5f + 0.5f * cosf(usr->rawTime * 5.0f * glm::two_pi<float>());
+            const float visibleResidual01 = glm::smoothstep(0.002f, 0.045f, reoilVisualResidual01);
+            reoilLaneBlink01 = (0.14f + 0.26f * pulse01) * visibleResidual01;
+        }
         usr->mainShader.updateLaneWearDistortion(
             true,
             -18.3f,
@@ -25583,12 +25612,14 @@ END_LINE:
             laneAtlasMinY,
             laneAtlasMaxY
         );
+        usr->mainShader.updateColorTintMix(glm::vec3(1.0f), reoilLaneBlink01, 1.0f);
         usr->mainShader.renderRealMesh(
             usr->laneMesh,
             glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, -.0f, .0f)),
             usr->cameraMat,
             usr->perspectiveMat
         );
+        usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
         usr->laneDryDecal.render(
             usr->cameraMat, usr->perspectiveMat,
             usr->laneDryVisualLeftStrength, usr->laneDryVisualRightStrength,

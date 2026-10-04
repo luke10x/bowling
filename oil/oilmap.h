@@ -41,10 +41,12 @@ struct OilMap
             "uniform float uHouseLeftEndM;\n"
             "uniform float uOilThickness;\n"
             "uniform float uPushback01;\n"
+            "// The UI displays this square render texture in a 9:32 map slot.\n"
+            "uniform float uMapYOverX;\n"
             "\n"
             "float remap01(float x, float a, float b){ return clamp((x - a) / max(1e-6, (b - a)), 0.0, 1.0); }\n"
             "float lineMask(float dist, float halfWidth){ return 1.0 - smoothstep(halfWidth, halfWidth + 0.0025, dist); }\n"
-            "float circleMask(vec2 p, vec2 c, float r){ float d = length(p - c) - r; return 1.0 - smoothstep(0.0, 0.0235, d); }\n"
+            "float circleMask(vec2 p, vec2 c, float r){ vec2 d = p - c; d.y *= uMapYOverX; float edge = length(d) - r; return 1.0 - smoothstep(0.0, 0.0235, edge); }\n"
             "\n"
             "void main(){\n"
             "  // Reserve a thin indicator column on the right for house oil markers (◀).\n"
@@ -163,7 +165,7 @@ struct OilMap
             "  dotXs[0] = 0.10; dotXs[1] = 0.23; dotXs[2] = 0.36; dotXs[3] = 0.50;\n"
             "  dotXs[4] = 0.64; dotXs[5] = 0.77; dotXs[6] = 0.90;\n"
             "  for (int i = 0; i < 7; i++) {\n"
-            "    dotsLine = max(dotsLine, circleMask(p, vec2(dotXs[i], yDots), 0.008));\n"
+            "    dotsLine = max(dotsLine, circleMask(p, vec2(dotXs[i], yDots), 0.016));\n"
             "  }\n"
             "  marks = max(marks, dotsLine);\n"
             "  float yArrow0 = clamp(3.66 / max(1e-6, uLaneLenM), 0.0, 1.0);\n"
@@ -271,6 +273,9 @@ struct OilMap
         glUniform1f(glGetUniformLocation(program, "uHouseLeftEndM"), houseLeftEndM);
         glUniform1f(glGetUniformLocation(program, "uOilThickness"), oilThickness);
         glUniform1f(glGetUniformLocation(program, "uPushback01"), pushback01);
+        // The texture is composited into OilStatusPreviewImage (90 x 320 logical px).
+        // Correct only radial primitives; the deliberately tall lane coordinates stay intact.
+        glUniform1f(glGetUniformLocation(program, "uMapYOverX"), 320.0f / 90.0f);
 
         glBindVertexArray(vao);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);

@@ -25,6 +25,7 @@
 #include "../shop.h"
 #include "../sounds/sounds.h"
 #include "../sounds/sound_clay.h"
+#include "../campaign_time_format.h"
 #include "../oil/oil_clay.h"
 #include "../oil/oil_status.h"
 #include "../oil/oil_status.h"
@@ -3113,14 +3114,19 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
                         }
                         else
                         {
-                            CLAY(CLAY_IDI("CampaignLevelLocked", idx),
-                                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(102)},
-                                             .padding = {6, 6, 5, 5},
-                                             .childGap = 0,
-                                             .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
-                                  .backgroundColor = {40, 40, 43, 175},
-                                  .cornerRadius = {CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM}})
+                            Clay_ElementDeclaration lockedLevelCard = {
+                                .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(102)},
+                                           .padding = {6, 6, 5, 5},
+                                           .childGap = 0,
+                                           .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                           .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                                .backgroundColor = {40, 40, 43, 175},
+                                .cornerRadius = {CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM}};
+                            // Level 13 is always the single, centered final card,
+                            // even before it becomes available.
+                            if (idx == 12)
+                                lockedLevelCard.layout.sizing.width = CLAY_SIZING_FIXED(102);
+                            CLAY(CLAY_IDI("CampaignLevelLocked", idx), lockedLevelCard)
                             {
                                 CLAY_TEXT(levelStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
                                 CLAY_TEXT(clayton->txl(TXL_LOCKED), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
@@ -3146,26 +3152,31 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
             Clay_String quitRecordStr = ClayArena_AllocString(arena, quitRecord);
             CLAY(CLAY_ID("CampaignPostgameApplet"),
                  {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                             .padding = {16, 16, 12, 12}, .childGap = 8},
+                             .padding = {16, 16, 12, 12}, .childGap = 8,
+                             .layoutDirection = CLAY_TOP_TO_BOTTOM},
                   .backgroundColor = CLAY_COLOR_PANEL_BG,
                   .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},
                   CLAY_THEME_WINDOW_BORDER})
             {
                 CLAY_TEXT(CLAY_STRING("POST-CAMPAIGN:"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
-                auto postgameStatRow = [&](const char *label, Clay_String value, Clay_ElementId rowId)
+                CLAY(CLAY_ID("CampaignPostgameBestRow"),
+                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
                 {
-                    Clay_String labelStr = ClayArena_AllocString(arena, label);
-                    CLAY(rowId, {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
-                    {
-                        CLAY_TEXT(labelStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
-                        CLAY(CLAY_ID("CampaignPostgameStatSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}) {}
-                        CLAY_TEXT(value, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
-                    }
-                };
-                postgameStatRow("Best score:", bestScoreStr, CLAY_ID("CampaignPostgameBestRow"));
-                postgameStatRow("Won:", wonRecordStr, CLAY_ID("CampaignPostgameWonRow"));
-                postgameStatRow("Lost:", lostRecordStr, CLAY_ID("CampaignPostgameLostRow"));
-                postgameStatRow("Quit:", quitRecordStr, CLAY_ID("CampaignPostgameQuitRow"));
+                    CLAY_TEXT(CLAY_STRING("Best score:"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+                    CLAY(CLAY_ID("CampaignPostgameBestSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}) {}
+                    CLAY_TEXT(bestScoreStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+                }
+                CLAY(CLAY_ID("CampaignPostgameRecordRow"),
+                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 12,
+                                 .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+                {
+                    CLAY(CLAY_ID("CampaignPostgameWon"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                    { CLAY_TEXT(wonRecordStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)); }
+                    CLAY(CLAY_ID("CampaignPostgameLost"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                    { CLAY_TEXT(lostRecordStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)); }
+                    CLAY(CLAY_ID("CampaignPostgameQuit"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                    { CLAY_TEXT(quitRecordStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)); }
+                }
             }
         }
         if (self->campaignLevelSelectCampaignComplete)
@@ -3177,9 +3188,16 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
                 Clay_ElementDeclaration restartCampaignButton = CLAY_THEME_BTN_DANGER;
                 restartCampaignButton.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)};
                 restartCampaignButton.layout.padding = {.left = 18, .right = 18, .top = 0, .bottom = 0};
+                restartCampaignButton.backgroundColor = Clay_PointerOver(clayton->campaignLevelRestartClick.clayId)
+                    ? Clay_Color{250, 80, 120, 255}
+                    : CLAY_COLOR_BTN_DANGER;
                 CLAY(clayton->campaignLevelRestartClick.clayId, restartCampaignButton)
                 { CLAY_TEXT(clayton->txl(TXL_RESTART_CAMPAIGN), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
-                CLAY(clayton->campaignLevelContinueClick.clayId, CLAY_THEME_BTN_PRIMARY)
+                Clay_ElementDeclaration continueCampaignButton = CLAY_THEME_BTN_PRIMARY;
+                continueCampaignButton.backgroundColor = Clay_PointerOver(clayton->campaignLevelContinueClick.clayId)
+                    ? Clay_Color{104, 84, 244, 255}
+                    : CLAY_COLOR_BTN_PRIMARY;
+                CLAY(clayton->campaignLevelContinueClick.clayId, continueCampaignButton)
                 { CLAY_TEXT(clayton->txl(TXL_CONTINUE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
             }
         }
@@ -3213,7 +3231,7 @@ inline void WindowStack::renderCampaignLevelDetailWindow(WindowStack *self, Clay
     else
         snprintf(scoreValue, sizeof(scoreValue), "? - ?");
     if (seconds > 0)
-        snprintf(timeValue, sizeof(timeValue), "%02d:%02d", seconds / 60, seconds % 60);
+        Campaign_FormatTimeToBeat(seconds, timeValue, sizeof(timeValue));
     else
         snprintf(timeValue, sizeof(timeValue), "%s", Txl_Get(clayton->uiLanguage, TXL_NOT_AVAILABLE));
 

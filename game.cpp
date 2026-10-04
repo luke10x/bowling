@@ -512,8 +512,8 @@ static constexpr CampaignLevelConfig kCampaignLevels[] = {
     {4, TXL_LEVEL4_TITLE, TXL_LEVEL4_SUBTITLE, CampaignBiome::ICE, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.46f, 8, 0, 3004, 3104, CoinPattern::WaveOrbit, 8, 35, "35 bank", "Ezekiel has one more lesson for you", -1, -1, CampaignOpponent::NONE},
     {5, TXL_LEVEL5_TITLE, TXL_LEVEL5_SUBTITLE, CampaignBiome::SUBURBIA, CampaignOpponent::MALACH, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.52f, 26, 0, 3040, 3140, CoinPattern::RibbonOrbit, 8, 40, "40 bank", "Unlock Dog", 26, -1, CampaignOpponent::DOG},
     {6, TXL_LEVEL6_TITLE, TXL_LEVEL6_SUBTITLE, CampaignBiome::NEON, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.74f, 26, 1, 3005, 3105, CoinPattern::TwinOrbit, 8, 45, "45 bank", "Unlock Asym Split", 13, 3, CampaignOpponent::NONE},
-    {7, TXL_LEVEL7_TITLE, TXL_LEVEL7_SUBTITLE, CampaignBiome::JUNGLE, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.75f, 12, 1, 3006, 3106, CoinPattern::StaticDrift, 9, 50, "50 bank", "50 bank", 27, -1, CampaignOpponent::NONE},
-    {8, TXL_LEVEL8_TITLE, TXL_LEVEL8_SUBTITLE, CampaignBiome::DESERT, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.76f, 23, 1, 3007, 3107, CoinPattern::TripleOrbit, 9, 55, "55 bank", "Unlock Beak", 33, -1, CampaignOpponent::BEAK},
+    {7, TXL_LEVEL7_TITLE, TXL_LEVEL7_SUBTITLE, CampaignBiome::DESERT, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.75f, 12, 1, 3006, 3106, CoinPattern::StaticDrift, 9, 50, "50 bank", "50 bank", 27, -1, CampaignOpponent::NONE},
+    {8, TXL_LEVEL8_TITLE, TXL_LEVEL8_SUBTITLE, CampaignBiome::JUNGLE, CampaignOpponent::DOG, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.76f, 23, 1, 3007, 3107, CoinPattern::TripleOrbit, 9, 55, "55 bank", "Unlock Beak", 33, -1, CampaignOpponent::BEAK},
     {9, TXL_LEVEL9_TITLE, TXL_LEVEL9_SUBTITLE, CampaignBiome::CRYSTAL_CAVERN, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.875f, 34, 1, 3009, 3109, CoinPattern::WaveOrbit, 9, 65, "65 bank", "65 bank", 14, -1, CampaignOpponent::NONE},
     {10, TXL_LEVEL10_TITLE, TXL_LEVEL10_SUBTITLE, CampaignBiome::GAS_FACTORY, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.885f, 28, 1, 3010, 3110, CoinPattern::RibbonOrbit, 9, 70, "70 bank", "Unlock Cow", 24, -1, CampaignOpponent::COW},
     {11, TXL_LEVEL11_TITLE, TXL_LEVEL11_SUBTITLE, CampaignBiome::GREY_DESERT, CampaignOpponent::BEAK, CampaignMode::BOT, CampaignWinType::BEAT_OPPONENT, 0, 0.865f, 33, 1, 3008, 3108, CoinPattern::StaticDrift, 8, 60, "60 bank", "60 bank", 34, -1, CampaignOpponent::NONE},
@@ -12017,7 +12017,8 @@ static inline void Campaign_ApplyBiomePreset(UserContext *usr, CampaignBiome bio
             usr->pinTextureIdx = 3;
             break;
         case CampaignBiome::GAS_FACTORY:
-            usr->houseLane = {0.058f, 26.0f, 0.76f, 5.8f, 9.8f, 7.4f, 12.5f, 0.030f, 0.0032f};
+            // Campaign lanes begin balanced: both sides use the same oil range.
+            usr->houseLane = {0.058f, 26.0f, 0.76f, 6.6f, 11.2f, 6.6f, 11.2f, 0.030f, 0.0032f};
             usr->laneTextureIdx = 3;
             usr->pinTextureIdx = 3;
             break;

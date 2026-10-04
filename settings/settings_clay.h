@@ -189,7 +189,7 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
 #endif
 
                 Clay_ElementDeclaration resetProgressButton = CLAY_THEME_BTN_DANGER;
-                resetProgressButton.layout.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIXED(56)};
+                resetProgressButton.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(56)};
                 resetProgressButton.layout.padding = {.left = 14, .right = 14, .top = 0, .bottom = 0};
                 Clay_TextElementConfig resetButtonCfg = buttonCfg;
                 resetButtonCfg.wrapMode = CLAY_TEXT_WRAP_NONE;
@@ -209,21 +209,6 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                 )
                 {
                     CLAY(
-                        CLAY_ID("SettingsResetProgressButtons"),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 10,
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-                    )
-                    {
-                        CLAY(clayton->settingsResetCampaignClick.clayId, resetProgressButton)
-                        {
-                            CLAY_TEXT(clayton->txl(TXL_RESET_CAMPAIGN), CLAY_TEXT_CONFIG(resetButtonCfg));
-                        }
-                        CLAY(clayton->settingsResetProgressClick.clayId, resetProgressButton)
-                        {
-                            CLAY_TEXT(clayton->txl(TXL_RESET_PROGRESS), CLAY_TEXT_CONFIG(resetButtonCfg));
-                        }
-                    }
-                    CLAY(
                         CLAY_ID("SettingsResetProgressHelpWrap"),
                         {
                             .layout = {
@@ -237,6 +222,21 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                             clayton->txl(TXL_RESET_PROGRESS_HELP),
                             CLAY_TEXT_CONFIG(resetHelpCfg)
                         );
+                    }
+                    CLAY(
+                        CLAY_ID("SettingsResetProgressButtons"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 10,
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                    )
+                    {
+                        CLAY(clayton->settingsResetCampaignClick.clayId, resetProgressButton)
+                        {
+                            CLAY_TEXT(clayton->txl(TXL_RESET_CAMPAIGN), CLAY_TEXT_CONFIG(resetButtonCfg));
+                        }
+                        CLAY(clayton->settingsResetProgressClick.clayId, resetProgressButton)
+                        {
+                            CLAY_TEXT(clayton->txl(TXL_RESET_PROGRESS), CLAY_TEXT_CONFIG(resetButtonCfg));
+                        }
                     }
                 }
             }

@@ -1,7 +1,10 @@
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
 #include "../3rdparty/json/tests/thirdparty/doctest/doctest.h"
 
+#include <string>
+
 #include "../campaign_completion_flow.h"
+#include "../campaign_time_format.h"
 
 TEST_CASE("Campaign completion flow keeps finished campaigns out of ordinary level replay")
 {
@@ -61,6 +64,17 @@ TEST_CASE("Campaign reset preserves inventory while factory reset does not")
 {
     CHECK(CampaignReset_PreservesBallInventory(CampaignResetScope::CampaignOnly));
     CHECK_FALSE(CampaignReset_PreservesBallInventory(CampaignResetScope::Factory));
+}
+
+TEST_CASE("Campaign time-to-beat formatting introduces hours after 59 minutes")
+{
+    char time[24] = {};
+    Campaign_FormatTimeToBeat(59 * 60 + 7, time, sizeof(time));
+    CHECK(std::string(time) == "59:07");
+    Campaign_FormatTimeToBeat(60 * 60, time, sizeof(time));
+    CHECK(std::string(time) == "1:00:00");
+    Campaign_FormatTimeToBeat(2 * 60 * 60 + 3 * 60 + 4, time, sizeof(time));
+    CHECK(std::string(time) == "2:03:04");
 }
 
 TEST_CASE("Result actions distinguish campaign and random levels")

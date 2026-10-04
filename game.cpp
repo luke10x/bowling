@@ -445,6 +445,9 @@ enum class CampaignBiome
     WIND_FARM = 12,
 };
 
+static constexpr int kCampaignBiomeCount = static_cast<int>(CampaignBiome::WIND_FARM) + 1;
+static_assert(kCampaignBiomeCount == 13, "Random post-campaign play must include all 13 biomes.");
+
 enum class CampaignOpponent
 {
     NONE = 0,
@@ -11255,6 +11258,25 @@ static inline void Campaign_SavePostgameFreeplayState(UserContext *usr)
     );
 }
 
+static inline void Campaign_SavePostgameStats(UserContext *usr)
+{
+    if (!usr)
+        return;
+    char stats[128];
+    std::snprintf(
+        stats,
+        sizeof(stats),
+        "%d,%d,%d,%d,%d,%d",
+        glm::max(0, usr->campaignPostgameGamesStarted),
+        glm::max(0, usr->campaignPostgameWins),
+        glm::max(0, usr->campaignPostgameLosses),
+        glm::max(0, usr->campaignPostgameQuits),
+        glm::max(0, usr->campaignPostgameBestScore),
+        glm::max(0, usr->campaignPostgameBestOpponentScore)
+    );
+    usr->storage.setChar(Storage::CAMPAIGN_POSTGAME_STATS, stats, std::strlen(stats));
+}
+
 static inline void Campaign_SaveCompletionState(UserContext *usr)
 {
     if (!usr)
@@ -11325,6 +11347,7 @@ static inline void Campaign_SaveLevelResults(UserContext *usr)
     char active[16];
     snprintf(active, sizeof(active), "%d", glm::clamp(usr->campaignActiveLevel, 0, kCampaignLevelCount));
     usr->storage.setChar(Storage::CAMPAIGN_ACTIVE_LEVEL, active, strlen(active));
+    Campaign_SavePostgameStats(usr);
 }
 
 static inline void Campaign_ResetAttemptStats(UserContext *usr)
@@ -11404,8 +11427,12 @@ static inline void Campaign_RandomizePostgameOverride(UserContext *usr)
     usr->campaignOverrideActive = true;
     usr->campaignPostgameFreeplayActive = true;
     Campaign_SavePostgameFreeplayState(usr);
-    usr->campaignOverrideBiome = (CampaignBiome)(seed % 7u);
-    usr->campaignOverrideOpponent = (CampaignOpponent)(1 + ((seed / 7u) % 4u));
+    // Post-campaign runs may use every campaign biome, not only the original
+    // seven biomes that existed when this selector was introduced.
+    usr->campaignOverrideBiome = static_cast<CampaignBiome>(seed % uint32_t(kCampaignBiomeCount));
+    usr->campaignOverrideOpponent = static_cast<CampaignOpponent>(
+        1 + ((seed / uint32_t(kCampaignBiomeCount)) % 4u)
+    );
 
     switch (usr->campaignOverrideOpponent)
     {
@@ -13212,7 +13239,10 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
 
     if (usr->campaignPostgameFreeplayActive && usr->campaignRunStarted &&
         usr->phase != UserContext::Phase::RESULT)
+    {
         ++usr->campaignPostgameQuits;
+        Campaign_SavePostgameStats(usr);
+    }
 
     usr->campaignLevelIndex = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount);
     usr->campaignRunStarted = false;
@@ -18628,7 +18658,7 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->storage.storageInit("10x", "bowling");
     usr->username_len = usr->storage.getChar(Storage::USERNAME, usr->username, 20);
     {
-        char tmp[32] = {};
+        char tmp[128] = {};
         size_t n = usr->storage.getChar(Storage::SCHOOL_DONE, tmp, sizeof(tmp));
         usr->schoolDone = (n > 0 && tmp[0] == '1');
         if (usr->schoolDone)
@@ -18659,6 +18689,21 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->campaignPostgameFreeplayActive = (n > 0 && tmp[0] == '1');
         if (!usr->campaignCompleted)
             usr->campaignPostgameFreeplayActive = false;
+        n = usr->storage.getChar(Storage::CAMPAIGN_POSTGAME_STATS, tmp, sizeof(tmp));
+        if (n > 0)
+        {
+            int started = 0, wins = 0, losses = 0, quits = 0, bestScore = 0, bestOpponentScore = 0;
+            if (std::sscanf(tmp, "%d,%d,%d,%d,%d,%d", &started, &wins, &losses, &quits,
+                            &bestScore, &bestOpponentScore) == 6)
+            {
+                usr->campaignPostgameGamesStarted = glm::max(0, started);
+                usr->campaignPostgameWins = glm::max(0, wins);
+                usr->campaignPostgameLosses = glm::max(0, losses);
+                usr->campaignPostgameQuits = glm::max(0, quits);
+                usr->campaignPostgameBestScore = glm::max(0, bestScore);
+                usr->campaignPostgameBestOpponentScore = glm::max(0, bestOpponentScore);
+            }
+        }
         n = usr->storage.getChar(Storage::UNLOCKED_BALLS, tmp, sizeof(tmp));
         if (n > 0)
             usr->unlockedBallMask = (uint64_t)strtoull(tmp, nullptr, 10);
@@ -22830,7 +22875,10 @@ swing_checks_done:
                                     {
                                         usr->campaignRunStarted = true;
                                         if (usr->campaignPostgameFreeplayActive)
+                                        {
                                             ++usr->campaignPostgameGamesStarted;
+                                            Campaign_SavePostgameStats(usr);
+                                        }
                                         else
                                             Campaign_RecordAttemptForCurrentLevel(usr);
                                     }
@@ -23393,6 +23441,7 @@ swing_checks_done:
                                                 ++usr->campaignPostgameLosses;
                                             if (usr->board.totalScore >= usr->campaignPostgameBestScore)
                                                 usr->campaignPostgameBestOpponentScore = usr->enemyBoard.totalScore;
+                                            Campaign_SavePostgameStats(usr);
                                         }
                                         if (!clearedFullCampaign)
                                             usr->windowStack.windowStackPushNewGameWindow();
@@ -25759,7 +25808,7 @@ END_LINE:
         // confirmation, however, is reserved for an actual successful re-oil,
         // never a lane reset caused by a level transition or bonus start.
         constexpr float REOIL_LANE_BLINK_DURATION_S = 0.50f;
-        constexpr float REOIL_LANE_BLINK_HZ = 10.0f;
+        constexpr float REOIL_LANE_BLINK_HZ = 5.0f;
         if (!oilStatusOpen && usr->reoilLaneBlinkPending)
         {
             usr->reoilLaneBlinkPending = false;

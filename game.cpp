@@ -1399,8 +1399,10 @@ struct UserContext
     char cheatCode[KEYPAD_MAX_CHARS] = {};
     int32_t cheatCodeLen = 0;
     bool cheatKeypadActive = false;
-    char cheatStatusText[32] = {};
-    float cheatStatusTime = 0.0f;
+    // Short-lived operational feedback (cheats, rune deployment, audio recovery).
+    // This deliberately stays separate from the large in-play strike/spare banners.
+    char hudToastText[96] = {};
+    float hudToastTime = 0.0f;
     Keypad keypad;
     NumKeypad numKeypad;
     Clayton_Click renameButton;
@@ -1507,7 +1509,6 @@ struct UserContext
     float audioPerformanceMonitorStart = 0.0f;
     bool audioPerformanceMonitorComplete = false;
     bool audioPerformanceRestartApplied = false;
-    float audioPerformanceFlashTime = 0.0f;
 
     // Click handlers
     // Clayton_Click buyClicks[];
@@ -1613,8 +1614,6 @@ struct UserContext
 	    float neutralBannerFlashTime = 0.0f;
 	    int neutralBannerPins = 0;
 
-    float runeOutcomeBannerTime = 0.0f;
-    int runeOutcomeBannerKind = 0;
 
 	    // Ball<->lane impact tracking (hot reloadable, game.cpp-only)
 	    int laneImpactHitCount = 0;
@@ -6803,16 +6802,25 @@ static inline void UI_DismissTransientOverlaysForDialog(UserContext *usr)
     usr->negativeBannerFlashTime = 0.0f;
     usr->splitBannerFlashTime = 0.0f;
     usr->neutralBannerFlashTime = 0.0f;
-    usr->runeOutcomeBannerKind = 0;
-    usr->runeOutcomeBannerTime = 0.0f;
+    usr->hudToastTime = 0.0f;
+    usr->hudToastText[0] = '\0';
 }
+
+static inline void UI_ShowHudToast(UserContext *usr, const char *text, float seconds = 2.5f)
+{
+    if (!usr || !text || !text[0])
+        return;
+    std::snprintf(usr->hudToastText, sizeof(usr->hudToastText), "%s", text);
+    usr->hudToastTime = glm::max(0.1f, seconds);
+}
+
+static inline TxlKey RuneOutcomeLabelKey(int kind);
 
 static inline void UI_TriggerRuneOutcomeBanner(UserContext *usr, int kind, float seconds = 2.5f)
 {
     if (!usr || kind <= 0)
         return;
-    usr->runeOutcomeBannerKind = kind;
-    usr->runeOutcomeBannerTime = seconds;
+    UI_ShowHudToast(usr, Txl_Get(usr->language, RuneOutcomeLabelKey(kind)), seconds);
 }
 
 static inline void UI_TriggerNegativeBanner(UserContext *usr, int kind)
@@ -12510,6 +12518,9 @@ static inline void ResultWindow_SetResultBase(UserContext *usr, bool victory, in
 {
     if (!usr)
         return;
+    // Patrol pins are a live-lane rune effect, never part of a result or the
+    // next game.  Tear down their physics bodies and render state at game end.
+    RuneGuardPins_Clear(usr);
     usr->clayton.newGameIsResult = true;
     usr->clayton.newGameVictory = victory;
     usr->clayton.newGameTitle = Txl_Get(usr->language, victory ? TXL_VICTORY : TXL_YOU_LOSE);
@@ -18966,7 +18977,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     const bool trackerOnlyMode =
         usr->gameMode == UserContext::GameMode::TRACKER && usr->tracker.active;
     usr->clayton.minigamesMenuUnlocked = Cheats_ShouldUnlockMinigames(usr);
-    usr->cheatStatusTime = glm::max(0.0f, usr->cheatStatusTime - (float)deltaTime);
+    usr->hudToastTime = glm::max(0.0f, usr->hudToastTime - (float)deltaTime);
     usr->deltaTimeLoan = deltaTime;
     usr->gameplayDeltaTimeLoan = deltaTime;
     usr->deltaTimeSum += deltaTime;                   // for some stuff need it in float
@@ -19137,7 +19148,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->sound.requestedBufferSize = 4096;
                     usr->sound.settings.bufferSize = 4096;
                     usr->sound.restartSoundSystem();
-                    usr->audioPerformanceFlashTime = 3.0f;
+                    UI_ShowHudToast(usr, Txl_Get(usr->language, TXL_AUDIO_BUFFER_INCREASED), 3.0f);
                     printf("[SoundPerformance] Low FPS %.2f; restarting audio with 4096 sample buffer\n", usr->fpsCounter.fps);
                 }
             }
@@ -21104,8 +21115,6 @@ void vtx::loop(vtx::VertexContext *ctx)
     usr->gameplayTime += gameplayDeltaTime;
     School_UpdateMassGuidanceUi(usr);
     School_UpdateOilGuidanceUi(usr);
-    if (usr->audioPerformanceFlashTime > 0.0f)
-        usr->audioPerformanceFlashTime = glm::max(0.0f, usr->audioPerformanceFlashTime - safeDeltaTime);
     const int gameplayWholeSeconds = glm::max(0, (int)floorf(usr->gameplayTime));
     if (gameplayWholeSeconds != usr->gameplayTimeLastSavedSecond)
         Progress_SaveGameplayTime(usr);
@@ -21660,13 +21669,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                     Cheats_ApplyUsernameCommands(usr);
                 if (usr->cheatKeypadActive)
                 {
-                    std::snprintf(
-                        usr->cheatStatusText,
-                        sizeof(usr->cheatStatusText),
-                        "%s",
-                        Txl_Get(usr->language, cheatActivated ? TXL_CHEAT_ACTIVATED : TXL_NO_SUCH_CHEAT)
+                    UI_ShowHudToast(
+                        usr,
+                        Txl_Get(usr->language, cheatActivated ? TXL_CHEAT_ACTIVATED : TXL_NO_SUCH_CHEAT),
+                        2.0f
                     );
-                    usr->cheatStatusTime = 2.0f;
                     usr->cheatKeypadActive = false;
                 }
                 usr->keypad.newsDetected = false;
@@ -25913,8 +25920,6 @@ END_LINE:
             usr->splitBannerFlashTime = glm::max(0.0f, usr->splitBannerFlashTime - gameplayDeltaTime);
         if (usr->neutralBannerFlashTime > 0.0f)
             usr->neutralBannerFlashTime = glm::max(0.0f, usr->neutralBannerFlashTime - gameplayDeltaTime);
-        if (usr->runeOutcomeBannerTime > 0.0f)
-            usr->runeOutcomeBannerTime = glm::max(0.0f, usr->runeOutcomeBannerTime - gameplayDeltaTime);
         if (usr->laneImpactShakeTime > 0.0f)
             usr->laneImpactShakeTime = glm::max(0.0f, usr->laneImpactShakeTime - gameplayDeltaTime);
 	        if (usr->pinHitShakeTime > 0.0f)
@@ -27392,12 +27397,10 @@ END_LINE:
                                             (float)deltaTime,
                                             7.5f
                                         );
-                                        const Clay_Color oilDry = {145, 58, 36, 210};
-                                        const Clay_Color oilMid = {210, 151, 54, 220};
-                                        const Clay_Color oilWet = {70, 205, 245, 230};
-                                        const Clay_Color oilFill = oilTarget01 < 0.5f
-                                            ? ClayColorMix(oilDry, oilMid, oilTarget01 * 2.0f)
-                                            : ClayColorMix(oilMid, oilWet, (oilTarget01 - 0.5f) * 2.0f);
+                                        // Amount is communicated by the fill length. Keep its
+                                        // familiar light-blue color; the low-oil blink supplies
+                                        // the urgent warning without reusing the fill hue.
+                                        const Clay_Color oilFill = {70, 205, 245, 230};
                                         const float oilLowBlink01 = OilLowBlink_Amount01(usr);
                                         const Clay_Color oilBg = ClayColorMix(
                                             (Clay_Color){36, 34, 55, 205},
@@ -27415,7 +27418,7 @@ END_LINE:
                                             oilLowBlink01
                                         );
                                         const Clay_Color oilBorder = ClayColorMix(
-                                            ClayColorMix((Clay_Color){150, 85, 65, 170}, (Clay_Color){95, 220, 255, 210}, oilTarget01),
+                                            (Clay_Color){95, 220, 255, 210},
                                             (Clay_Color){255, 72, 78, 230},
                                             oilLowBlink01
                                         );
@@ -27988,52 +27991,10 @@ END_LINE:
         bool showNegative = transientOverlayVisible && usr->negativeBannerFlashTime > 0.0f && (usr->negativeBannerKind == 1 || usr->negativeBannerKind == 2);
         bool showPositive = transientOverlayVisible && usr->strikeSpareFlashTime > 0.0f && (usr->strikeSpareKind == 1 || usr->strikeSpareKind == 2);
         bool showSplit = transientOverlayVisible && usr->splitBannerFlashTime > 0.0f;
-        bool showRuneOutcome = transientOverlayVisible && usr->runeOutcomeBannerTime > 0.0f && usr->runeOutcomeBannerKind > 0;
 
         // Neutral banner (e.g. "<N> PINS") disabled for now — keeping the code around for later reuse.
         // bool showNeutral = usr->neutralBannerFlashTime > 0.0f && usr->neutralBannerPins > 0;
         bool showNeutral = false;
-
-        if (!MiniGame_IsActive(usr) && showRuneOutcome)
-        {
-            const float pulse = 0.5f + 0.5f * sinf(usr->rawTime * 12.0f);
-            const float textA = glm::clamp(185.0f + 70.0f * pulse, 0.0f, 255.0f);
-            const float bgA = glm::clamp(130.0f + 58.0f * pulse, 0.0f, 220.0f);
-            const float outlineA = glm::clamp(150.0f + 70.0f * pulse, 0.0f, 255.0f);
-
-	            Clay_String runeFlashStr = usr->clayton.txl(RuneOutcomeLabelKey(usr->runeOutcomeBannerKind));
-            CLAY(
-                CLAY_ID("RuneOutcomeFooterFlash"),
-                {
-                    .layout = {
-                        .sizing = {CLAY_SIZING_PERCENT(0.76f), CLAY_SIZING_FIT()},
-                        .padding = {12, 10, 12, 10},
-                        .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                    },
-                    .backgroundColor = {10.0f, 38.0f, 82.0f, bgA},
-                    .cornerRadius = {8, 8, 8, 8},
-                    .floating = {
-                        .offset = {0, portraitHeight - 138.0f},
-                        .zIndex = 56,
-                        .attachPoints = {.element = CLAY_ATTACH_POINT_CENTER_CENTER,
-                                         .parent = CLAY_ATTACH_POINT_CENTER_TOP},
-                        .attachTo = CLAY_ATTACH_TO_PARENT,
-                    },
-                    .border = {.color = {76.0f, 184.0f, 255.0f, outlineA}, .width = CLAY_BORDER_ALL(1)},
-                }
-            )
-            {
-                CLAY_TEXT(
-                    runeFlashStr,
-                    CLAY_TEXT_CONFIG({
-                        .textColor = {206.0f, 240.0f, 255.0f, textA},
-                        .fontId = CLAY_FONT_NOTO,
-                        .fontSize = 18,
-                        .textAlignment = CLAY_TEXT_ALIGN_CENTER,
-                    })
-                );
-            }
-        }
 
         if (!MiniGame_IsActive(usr) && (showNegative || showPositive || showSplit || showNeutral))
         {
@@ -28118,42 +28079,6 @@ END_LINE:
             }
 
             (void)duration;
-        }
-
-        if (usr->audioPerformanceFlashTime > 0.0f && usr->gameMode != UserContext::GameMode::TRACKER)
-        {
-            const float alpha01 = glm::clamp(usr->audioPerformanceFlashTime / 3.0f, 0.0f, 1.0f);
-	            Clay_String flashStr = usr->clayton.txl(TXL_AUDIO_BUFFER_INCREASED);
-            CLAY(
-                CLAY_ID("AudioPerformanceFlash"),
-                {
-                    .layout = {
-                        .sizing = {CLAY_SIZING_PERCENT(0.72f), CLAY_SIZING_FIT()},
-                        .padding = {14, 18, 14, 18},
-                        .childAlignment = {.x = CLAY_ALIGN_X_CENTER, .y = CLAY_ALIGN_Y_CENTER},
-                    },
-                    .backgroundColor = {16.0f, 28.0f, 34.0f, 210.0f * alpha01},
-                    .cornerRadius = {8, 8, 8, 8},
-                    .floating = {
-                        .offset = {0, portraitHeight * 0.12f},
-                        .zIndex = 55,
-                        .attachPoints = {.element = CLAY_ATTACH_POINT_CENTER_CENTER,
-                                         .parent = CLAY_ATTACH_POINT_CENTER_CENTER},
-                        .attachTo = CLAY_ATTACH_TO_PARENT,
-                    },
-                    .border = {.color = {112.0f, 220.0f, 190.0f, 180.0f * alpha01}, .width = CLAY_BORDER_ALL(1)},
-                }
-            )
-            {
-                CLAY_TEXT(
-                    flashStr,
-                    CLAY_TEXT_CONFIG({
-                        .textColor = {236.0f, 255.0f, 246.0f, 255.0f * alpha01},
-                        .fontId = CLAY_FONT_NOTO,
-                        .fontSize = 18,
-                    })
-                );
-            }
         }
 
     };
@@ -28408,37 +28333,45 @@ END_LINE:
 	        }
 	    }
 
-        if (usr->cheatStatusTime > 0.0f && usr->cheatStatusText[0])
+        if (usr->hudToastTime > 0.0f && usr->hudToastText[0] &&
+            usr->gameMode != UserContext::GameMode::TRACKER &&
+            usr->gameMode != UserContext::GameMode::SCHOOL &&
+            !MiniGame_IsActive(usr))
         {
-            const float alpha = glm::clamp(usr->cheatStatusTime / 0.25f, 0.0f, 1.0f);
-            Clay_TextElementConfig cheatStatusCfg = CLAY_THEME_TEXT_BUTTON;
-            cheatStatusCfg.textColor = {245.0f, 238.0f, 255.0f, 255.0f * alpha};
-            Clay_String cheatStatus = {
+            // Fade only at the end so consecutive operational messages read cleanly.
+            const float alpha = glm::clamp(usr->hudToastTime / 0.25f, 0.0f, 1.0f);
+            Clay_TextElementConfig toastCfg = CLAY_THEME_TEXT_BUTTON;
+            toastCfg.fontSize = CLAY_FONT_SIZE_SM;
+            toastCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+            toastCfg.textColor = {245.0f, 238.0f, 255.0f, 255.0f * alpha};
+            Clay_String toastText = {
                 .isStaticallyAllocated = false,
-                .length = (int)std::strlen(usr->cheatStatusText),
-                .chars = usr->cheatStatusText,
+                .length = (int)std::strlen(usr->hudToastText),
+                .chars = usr->hudToastText,
             };
             CLAY(
-                CLAY_ID("CheatStatusBanner"),
+                CLAY_ID("HudSystemToast"),
                 {
                     .layout = {
-                        .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
-                        .padding = {18, 18, 10, 10},
+                        .sizing = {CLAY_SIZING_PERCENT(0.76f), CLAY_SIZING_FIT()},
+                        .padding = {12, 14, 10, 14},
                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                     },
-                    .backgroundColor = {42.0f, 20.0f, 66.0f, 220.0f * alpha},
-                    .cornerRadius = {6, 6, 6, 6},
+                    .backgroundColor = {42.0f, 24.0f, 66.0f, 230.0f * alpha},
+                    .cornerRadius = {10, 10, 10, 10},
                     .floating = {
-                        .offset = {0.0f, 0.0f},
-                        .zIndex = 93,
-                        .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
-                        .attachTo = CLAY_ATTACH_TO_PARENT,
+                        .offset = {0.0f, 10.0f},
+                        .parentId = CLAY_ID("MenuAndShopRow").id,
+                        .zIndex = 60,
+                        .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
+                        .attachPoints = {CLAY_ATTACH_POINT_CENTER_TOP, CLAY_ATTACH_POINT_CENTER_BOTTOM},
+                        .attachTo = CLAY_ATTACH_TO_ELEMENT_WITH_ID,
                     },
-                    .border = {.color = {178.0f, 128.0f, 236.0f, 230.0f * alpha}, .width = CLAY_BORDER_ALL(1)},
+                    .border = {.color = {178.0f, 128.0f, 236.0f, 235.0f * alpha}, .width = CLAY_BORDER_ALL(1)},
                 }
             )
             {
-                CLAY_TEXT(cheatStatus, CLAY_TEXT_CONFIG(cheatStatusCfg));
+                CLAY_TEXT(toastText, CLAY_TEXT_CONFIG(toastCfg));
             }
         }
 

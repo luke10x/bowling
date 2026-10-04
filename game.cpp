@@ -2417,9 +2417,22 @@ static inline bool ShouldShowNosToolbar(const UserContext *usr)
            Campaign_HasUnlockedNosTool(usr);
 }
 
+// Player-facing oil meters are relative to the selected lane's fresh maximum.
+// Keep raw thickness for physics, where different house capacities matter.
+static inline float LaneOilDisplayFill01(const UserContext *usr)
+{
+    if (!usr)
+        return 0.0f;
+    return glm::clamp(
+        usr->laneOilThickness / glm::max(0.001f, usr->houseLane.laneOilThickness),
+        0.0f,
+        1.0f
+    );
+}
+
 static inline bool OilLowBlink_ShouldWarn(const UserContext *usr)
 {
-    return usr && usr->laneOilThickness <= 0.45f;
+    return LaneOilDisplayFill01(usr) <= 0.45f;
 }
 
 static inline bool School_OilLessonCanReoil(const UserContext *usr);
@@ -25051,7 +25064,7 @@ END_LINE:
 		                usr->rightOilFadeEndM,
                         usr->houseLane.leftOilFadeStartM,
                         usr->houseLane.leftOilFadeEndM,
-		                usr->laneOilThickness,
+                LaneOilDisplayFill01(usr),
 		                glm::clamp(usr->lanePushbackStrength / 50.0f, 0.0f, 1.0f)
 		            );
 
@@ -27251,7 +27264,11 @@ END_LINE:
 	                                }
 
                                     {
-                                        const float oilTarget01 = glm::clamp(usr->laneOilThickness, 0.0f, 1.0f);
+                                        // Display fill is relative to this lane's own fresh-oil
+                                        // maximum. Some houses intentionally top out below the
+                                        // global 1.0 physical scale, but freshly oiled must still
+                                        // read as a full button.
+                                        const float oilTarget01 = LaneOilDisplayFill01(usr);
                                         usr->oilButtonFill01 = HudEased01(
                                             usr->oilButtonFill01,
                                             oilTarget01,

@@ -172,6 +172,11 @@ namespace BuiltinSfxFileSkullLaugh
 #include "builtin_sfx/skull_laugh.h"
 }
 
+namespace BuiltinSfxFileNosEmptyLoop
+{
+#include "builtin_sfx/nos_empty_loop.h"
+}
+
 struct BuiltinSfxDefinition
 {
     int sfxId;
@@ -221,6 +226,7 @@ static constexpr BuiltinSfxDefinition BUILTIN_SFX_REGISTRY[] = {
     {31, "chest_ready_loop", "sounds/builtin_sfx/chest_ready_loop.h", BuiltinSfxFileChestReadyLoop::XFM_TRACKER_SONG_NAME, BuiltinSfxFileChestReadyLoop::XFM_TRACKER_SONG_PATTERN, BuiltinSfxFileChestReadyLoop::XFM_TRACKER_CUSTOM_INSTRUMENTS, BuiltinSfxFileChestReadyLoop::XFM_TRACKER_TICK_RATE, BuiltinSfxFileChestReadyLoop::XFM_TRACKER_SPEED, BuiltinSfxFileChestReadyLoop::XFM_TRACKER_LFO_ENABLED != 0, BuiltinSfxFileChestReadyLoop::XFM_TRACKER_LFO_FREQUENCY},
     {32, "chest_spin_out", "sounds/builtin_sfx/chest_spin_out.h", BuiltinSfxFileChestSpinOut::XFM_TRACKER_SONG_NAME, BuiltinSfxFileChestSpinOut::XFM_TRACKER_SONG_PATTERN, BuiltinSfxFileChestSpinOut::XFM_TRACKER_CUSTOM_INSTRUMENTS, BuiltinSfxFileChestSpinOut::XFM_TRACKER_TICK_RATE, BuiltinSfxFileChestSpinOut::XFM_TRACKER_SPEED, BuiltinSfxFileChestSpinOut::XFM_TRACKER_LFO_ENABLED != 0, BuiltinSfxFileChestSpinOut::XFM_TRACKER_LFO_FREQUENCY},
     {33, "skull_laugh",    "sounds/builtin_sfx/skull_laugh.h",    BuiltinSfxFileSkullLaugh::XFM_TRACKER_SONG_NAME,    BuiltinSfxFileSkullLaugh::XFM_TRACKER_SONG_PATTERN,    BuiltinSfxFileSkullLaugh::XFM_TRACKER_CUSTOM_INSTRUMENTS,    BuiltinSfxFileSkullLaugh::XFM_TRACKER_TICK_RATE,    BuiltinSfxFileSkullLaugh::XFM_TRACKER_SPEED,    BuiltinSfxFileSkullLaugh::XFM_TRACKER_LFO_ENABLED != 0,    BuiltinSfxFileSkullLaugh::XFM_TRACKER_LFO_FREQUENCY},
+    {34, "nos_empty_loop", "sounds/builtin_sfx/nos_empty_loop.h", BuiltinSfxFileNosEmptyLoop::XFM_TRACKER_SONG_NAME, BuiltinSfxFileNosEmptyLoop::XFM_TRACKER_SONG_PATTERN, BuiltinSfxFileNosEmptyLoop::XFM_TRACKER_CUSTOM_INSTRUMENTS, BuiltinSfxFileNosEmptyLoop::XFM_TRACKER_TICK_RATE, BuiltinSfxFileNosEmptyLoop::XFM_TRACKER_SPEED, BuiltinSfxFileNosEmptyLoop::XFM_TRACKER_LFO_ENABLED != 0, BuiltinSfxFileNosEmptyLoop::XFM_TRACKER_LFO_FREQUENCY},
 };
 
 static constexpr int BUILTIN_SFX_REGISTRY_COUNT =

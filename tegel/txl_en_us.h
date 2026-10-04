@@ -43,6 +43,7 @@ TXL_NEXT_LEVEL = "NEXT LEVEL";
 TXL_TRY_AGAIN = "TRY AGAIN";
 TXL_BONUS_GAME = "BONUS GAME";
 TXL_BALL_CHARGE_FMT = "ENERGY";
+TXL_NOS_NO_ENERGY = "Not enough energy. Pick up gems.";
 TXL_GREETING_RESUME = "Do you want to continue to play bowling?";
 TXL_GREETING_WELCOME = "Welcome to this bowling game.";
 TXL_GREETING_SUBLINE = "Click READY to focus the game canvas.";

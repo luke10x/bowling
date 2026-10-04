@@ -1,0 +1,46 @@
+#pragma once
+#include <xfm_song_dsl.h>
+
+// A short, dry double-clack. Gameplay restarts this while empty NOS is held
+// and stops its voice immediately when charge returns or the button releases.
+XFM_SONG_BEGIN(R"xfmname(NOS Empty)xfmname")
+XFM_TICK_RATE(60)
+XFM_SPEED(3)
+XFM_ROWS_PER_BEAT(1)
+XFM_SCALE_ROOT(0)
+XFM_SCALE_MODE(0)
+XFM_LFO_ENABLED(0)
+XFM_LFO_FREQUENCY(0)
+XFM_PATTERN(R"xfmpattern(
+18
+C-2007F
+.......
+OFF....
+.......
+G-1007F
+.......
+OFF....
+.......
+.......
+C-2007F
+.......
+OFF....
+.......
+G-1007F
+OFF....
+.......
+.......
+.......
+)xfmpattern")
+XFM_INSTRUMENTS(R"xfminstruments(
+INST 00
+NAME Empty NOS Clack
+COLOR F07E86
+PATCH 4 6 0 0
+OP 1 1 2 42 0 6 0 8 12 5 7 0
+OP 2 -1 1 47 0 9 0 5 4 3 3 0
+OP 3 1 1 35 0 7 0 11 10 4 8 0
+OP 4 -1 1 3 0 24 0 6 14 4 7 2
+ENDINST
+)xfminstruments")
+XFM_SONG_END()

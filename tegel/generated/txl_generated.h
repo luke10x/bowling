@@ -48,6 +48,7 @@ enum TxlKey
     TXL_TRY_AGAIN,
     TXL_BONUS_GAME,
     TXL_BALL_CHARGE_FMT,
+    TXL_NOS_NO_ENERGY,
     TXL_GREETING_RESUME,
     TXL_GREETING_WELCOME,
     TXL_GREETING_SUBLINE,
@@ -399,6 +400,7 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "TRY AGAIN",
     "BONUS GAME",
     "ENERGY",
+    "Not enough energy. Pick up gems.",
     "Do you want to continue to play bowling?",
     "Welcome to this bowling game.",
     "Click READY to focus the game canvas.",
@@ -751,6 +753,7 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "BANDYTI DAR KARTĄ",
     "BONUSO ŽAIDIMAS",
     "ENERGIJA",
+    "Nepakanka energijos. Surink brangakmenių.",
     "Ar norite tęsti boulingą?",
     "Sveiki atvykę į šį boulingo žaidimą.",
     "Spustelėkite PARUOŠTA, kad sufokusuotumėte žaidimo drobę.",
@@ -1056,7 +1059,7 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Kirtis",
 };
 
-static constexpr const char *g_txl_chars_lt_lt = "MENIUSukčiavmt įoyląKbŽsAPJOLYGrnegę.RDĖTĄŠZĮVdųžpšz,B?ėf:%Čj(c)1/ū\n34$0!–WĘ->wHxCh256789ŲFŪ+";
+static constexpr const char *g_txl_chars_lt_lt = "MENIUSukčiavmt įoyląKbŽsAPJOLYGrnegę.RDĖTĄŠZĮVdųžpšz,Bj?ėf:%Č(c)1/ū\n34$0!–WĘ->wHxCh256789ŲFŪ+";
 
 static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "メニュー",
@@ -1103,6 +1106,7 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "もう一度",
     "ボーナスゲーム",
     "エネルギー",
+    "エネルギーが足りません。ジェムを集めてください。",
     "ボウリングを続けますか？",
     "このボウリングゲームへようこそ。",
     "「レディー」を押してゲーム画面に戻ります。",
@@ -1408,7 +1412,7 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "アクセント",
 };
 
-static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語プレイキャンペベルクリア済みのを選ぶか、次解放進ます。やり直勝利敗北中断スコ時間戻るもう一度なし練習フタデバ共有ゲム設定ラッカジミ択英国日本サウド曲オボショハと除エェで対戦ナネギグ続け？こよそ「ィ」押て画面に相手切替え所持今ぐ購入: %sんださいがあせは空強化現在残高ロセ品質変更.モSDLァ音楽量パォマ低下検出：使用無効OPN合成（CU負荷め）事前生必要捗d(1f秒/)状態情報最大m\nダ3減衰4滑再料費$0金資不足れたっ良！ポ近全上回ヤ-初記録試数範囲～雪片密完新・描含む期保消去確認WAブ読込ビ公開>接後き適版ザapeKl基礎nGrtogVywHuMixEJhcテ投げ皆感謝転k軽重格ヒピ番ろ引右移動左況取目標ノ点2ゼ登場風力発電砂漠警告ガ氷5硝子郊外6犬78木材ゾ森林9謁見洞窟ちば工白墓地灰色街車輪廃墟牛荒火炎ズ極河吹星ず雲宇宙虚ホFツ雷巨人根世界樹影深淵ヌ路特異潮ケヴ策声個爆散滅存凍結備配置起停止宝箱能稲妻失危険防衛敵攻撃球打破壊得意妨害跳ね速追加口酬物群衆遊び終了差計獲挑補充始+途守護者到達天別該当値削決ė";
+static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語プレイキャンペベルクリア済みのを選ぶか、次解放進ます。やり直勝利敗北中断スコ時間戻るもう一度なし練習フタデバ共有ゲム設定ラッカジミ択英国日本サウド曲オボショハと除エェで対戦ナネギが足せん集めてださいグ続け？こよそ「ィ」押画面に相手切替え所持今ぐ購入: %sあは空強化現在残高ロセ品質変更.モSDLァ音楽量パォマ低下検出：使用無効OPN合成（CU負荷）事前生必要捗d(1f秒/)状態情報最大m\nダ3減衰4滑再料費$0金資不れたっ良！ポ近全上回ヤ-初記録試数範囲～雪片密完新・描含む期保消去確認WAブ読込ビ公開>接後き適版ザapeKl基礎nGrtogVywHuMixEJhcテ投げ皆感謝転k軽重格ヒピ番ろ引右移動左況取目標ノ点2ゼ登場風力発電砂漠警告ガ氷5硝子郊外6犬78木材ゾ森林9謁見洞窟ちば工白墓地灰色街車輪廃墟牛荒火炎ズ極河吹星ず雲宇宙虚ホFツ雷巨人根世界樹影深淵ヌ路特異潮ケヴ策声個爆散滅存凍結備配置起停止宝箱能稲妻失危険防衛敵攻撃球打破壊得意妨害跳ね速追加口酬物群衆遊び終了差計獲挑補充始+途守護者到達天別該当値削決ė";
 
 static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "菜单",
@@ -1455,6 +1459,7 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "再试一次",
     "奖励关",
     "能量",
+    "能量不足。拾取宝石。",
     "你想继续打保龄球吗？",
     "欢迎来到这款保龄球游戏。",
     "点击“准备”以聚焦游戏画面。",
@@ -1760,5 +1765,5 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "重音",
 };
 
-static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言开始战役关卡选择任意已通，或继续下一个解锁。重胜利失败退出最高分时间返回玩无练习自由赛设备共享游戏置音轨编辑制名小English中文立陶宛日声歌曲油道球库商店和的局使用天、对再试次奖励能量你想打保龄吗？欢迎来到这款点击“准”以聚焦画面手切换存即购买：%没有形象为空强化当前余额未后正在频模式.SDL 缓冲乐检测性偏低请项合成闭实OPN芯片（需预载CU占更）生数据要进度d1f秒/状态图信息大毫米\n带3衰减4滑新上免费$0不足暂刚过入错！超了近期排行榜家还第吧尝范围-雪花密完全包括绘恢复厂会留清除现金查WA加网站安装构建发布…是可>离线连接络法服务器应只页支持计程序美术apeK角色基础型GmrtoVywHu动MxJc特别感谢每位并多投人课瞄质给旋与路公斤轻转咬普稀史诗传说目标把尽向拉放右移左剩先耗掉里碑达2西结风电场沙漠警告玻璃冰5霓虹郊区6狗7力字塔8木材地森林9水晶觐见洞窟喙煤气工白墓园灰城市之轮废墟牛烬荒原烈焰滚火钩炼狱怒凤凰升霜寒极漂川暴王星尘云宇宙虚黑F氙光藤蔓雷橡泰坦根世界树暗影深渊归零者子奇潮汐礁石海妖维符神谕调至弯拖少爆炸蒸扛闪瓶冻巡逻部署激活骷髅命停住补块砖混凝土宝箱获得枚币但险防守敌方攻让变狠破障三阻挡刻弹起它快栏添口效故事推刺师群控确定否步货将拾取+途卫首领级门所总各输码启氮架看稍删认ė";
+static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言开始战役关卡选择任意已通，或继续下一个解锁。重胜利失败退出最高分时间返回玩无练习自由赛设备共享游戏置音轨编辑制名小English中文立陶宛日声歌曲油道球库商店和的局使用天、对再试次奖励能量不足拾取宝石你想打保龄吗？欢迎来到这款点击“准”以聚焦画面手切换存即购买：%没有形象为空强化当前余额未后正在频模式.SDL 缓冲乐检测性偏低请项合成闭实OPN芯片（需预载CU占更）生数据要进度d1f秒/状态图信息大毫米\n带3衰减4滑新上免费$0暂刚过入错！超了近期排行榜家还第吧尝范围-雪花密完全包括绘恢复厂会留清除现金查WA加网站安装构建发布…是可>离线连接络法服务器应只页支持计程序美术apeK角色基础型GmrtoVywHu动MxJc特别感谢每位并多投人课瞄质给旋与路公斤轻转咬普稀史诗传说目标把尽向拉放右移左剩先耗掉里碑达2西结风电场沙漠警告玻璃冰5霓虹郊区6狗7力字塔8木材地森林9水晶觐见洞窟喙煤气工白墓园灰城市之轮废墟牛烬荒原烈焰滚火钩炼狱怒凤凰升霜寒极漂川暴王星尘云宇宙虚黑F氙光藤蔓雷橡泰坦根世界树暗影深渊归零者子奇潮汐礁海妖维符神谕调至弯拖少爆炸蒸扛闪瓶冻巡逻部署激活骷髅命停住补块砖混凝土箱获得枚币但险防守敌方攻让变狠破障三阻挡刻弹起它快栏添口效故事推刺师群控确定否步货将+途卫首领级门所总各输码启氮架看稍删认ė";
 

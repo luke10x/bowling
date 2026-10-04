@@ -43,6 +43,7 @@ TXL_NEXT_LEVEL = "KITAS LYGIS";
 TXL_TRY_AGAIN = "BANDYTI DAR KARTĄ";
 TXL_BONUS_GAME = "BONUSO ŽAIDIMAS";
 TXL_BALL_CHARGE_FMT = "ENERGIJA";
+TXL_NOS_NO_ENERGY = "Nepakanka energijos. Surink brangakmenių.";
 TXL_GREETING_RESUME = "Ar norite tęsti boulingą?";
 TXL_GREETING_WELCOME = "Sveiki atvykę į šį boulingo žaidimą.";
 TXL_GREETING_SUBLINE = "Spustelėkite PARUOŠTA, kad sufokusuotumėte žaidimo drobę.";

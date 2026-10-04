@@ -43,6 +43,7 @@ TXL_NEXT_LEVEL = "次のレベル";
 TXL_TRY_AGAIN = "もう一度";
 TXL_BONUS_GAME = "ボーナスゲーム";
 TXL_BALL_CHARGE_FMT = "エネルギー";
+TXL_NOS_NO_ENERGY = "エネルギーが足りません。ジェムを集めてください。";
 TXL_GREETING_RESUME = "ボウリングを続けますか？";
 TXL_GREETING_WELCOME = "このボウリングゲームへようこそ。";
 TXL_GREETING_SUBLINE = "「レディー」を押してゲーム画面に戻ります。";

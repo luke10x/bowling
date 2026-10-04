@@ -92,6 +92,7 @@ struct GameSoundSystem
 	        SFX_CHEST_READY_LOOP,
 	        SFX_CHEST_SPIN_OUT,
 	        SFX_SKULL_LAUGH,
+	        SFX_NOS_EMPTY_LOOP,
 	        SFX_COUNT,
 	        SFX_TRACKER_PREVIEW = 250
 	    };
@@ -354,6 +355,7 @@ struct GameSoundSystem
 	        float ballMassKg,
 	        bool isEnemyTurn);
 	    xfm_voice_id playSfxNosLoop();
+	    xfm_voice_id playSfxNosEmptyLoop();
 	    void playSfxWin();
 	    void playSfxLose();
 	    void playSfxBuy();

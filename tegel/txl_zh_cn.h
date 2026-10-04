@@ -43,6 +43,7 @@ TXL_NEXT_LEVEL = "下一关";
 TXL_TRY_AGAIN = "再试一次";
 TXL_BONUS_GAME = "奖励关";
 TXL_BALL_CHARGE_FMT = "能量";
+TXL_NOS_NO_ENERGY = "能量不足。拾取宝石。";
 TXL_GREETING_RESUME = "你想继续打保龄球吗？";
 TXL_GREETING_WELCOME = "欢迎来到这款保龄球游戏。";
 TXL_GREETING_SUBLINE = "点击“准备”以聚焦游戏画面。";

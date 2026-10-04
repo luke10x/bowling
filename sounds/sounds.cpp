@@ -2416,6 +2416,7 @@ void GameSoundSystem::updateBallRollingPatchForMotion(
     lastBallRollingFb = fb;
 }
 xfm_voice_id GameSoundSystem::playSfxNosLoop()     { return playSfx(SFX_NOS_LOOP, 2); }
+xfm_voice_id GameSoundSystem::playSfxNosEmptyLoop(){ return playSfx(SFX_NOS_EMPTY_LOOP, 2); }
 void GameSoundSystem::playSfxWin()                { playSfx(SFX_WIN, 7); }
 void GameSoundSystem::playSfxLose()               { playSfx(SFX_LOSE, 7); }
 void GameSoundSystem::playSfxBuy()                { playSfx(SFX_BUY, 6); }

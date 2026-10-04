@@ -1403,6 +1403,7 @@ struct UserContext
     // This deliberately stays separate from the large in-play strike/spare banners.
     char hudToastText[96] = {};
     float hudToastTime = 0.0f;
+    bool hudToastHeld = false;
     Keypad keypad;
     NumKeypad numKeypad;
     Clayton_Click renameButton;
@@ -1626,7 +1627,9 @@ struct UserContext
         xfm_voice_id rollingBallVoice = FM_VOICE_INVALID;
         int rollingBallPauseDepth = 0;
         bool rollingBallWasPlayingBeforePause = false;
-        xfm_voice_id nosVoice = FM_VOICE_INVALID;
+	    xfm_voice_id nosVoice = FM_VOICE_INVALID;
+	    xfm_voice_id nosEmptyVoice = FM_VOICE_INVALID;
+	    float nosEmptySfxRestartIn = 0.0f;
 
 	    // Screen shake on ball<->lane impacts
 	    float laneImpactShakeTime = 0.0f;
@@ -2572,6 +2575,8 @@ static inline bool NosEmptyBlink_ShouldWarn(const UserContext *usr)
     return usr && usr->electroBall.getCharge01() <= 0.001f;
 }
 
+static inline void NosEmptySfx_Stop(UserContext *usr);
+
 static inline void NosEmptyBlink_Request(UserContext *usr)
 {
     if (!NosEmptyBlink_ShouldWarn(usr))
@@ -2601,6 +2606,8 @@ static inline void SyncNosHeld(UserContext *usr)
         return;
     const bool wasHeld = usr->nosHeld;
     usr->nosHeld = usr->nosHeldMouse || usr->nosHeldTouch;
+    if (!usr->nosHeld)
+        NosEmptySfx_Stop(usr);
     if (!wasHeld && usr->nosHeld)
     {
         OilLowBlink_Request(usr);
@@ -6587,6 +6594,7 @@ static inline void LogToIdle(UserContext *usr, const char *reason)
 {
     BallRollingSfx_Stop(usr);
     NosSfx_Stop(usr);
+    NosEmptySfx_Stop(usr);
     RuneFootball_Clear(usr);
     const glm::vec3 ball = usr->carriedBall;
     const glm::vec3 pivot = usr->pivotPoint;
@@ -6735,6 +6743,37 @@ static inline void NosSfx_Start(UserContext *usr)
     usr->nosVoice = usr->sound.playSfxNosLoop();
 }
 
+static inline void NosEmptySfx_Stop(UserContext *usr)
+{
+    if (!usr)
+        return;
+    if (usr->nosEmptyVoice != FM_VOICE_INVALID)
+        usr->sound.stopSfx(usr->nosEmptyVoice);
+    usr->nosEmptyVoice = FM_VOICE_INVALID;
+    usr->nosEmptySfxRestartIn = 0.0f;
+}
+
+static inline void NosEmptySfx_Tick(UserContext *usr, bool active, float dt)
+{
+    if (!usr || !active)
+    {
+        NosEmptySfx_Stop(usr);
+        return;
+    }
+
+    usr->nosEmptySfxRestartIn -= glm::max(0.0f, dt);
+    if (usr->nosEmptyVoice != FM_VOICE_INVALID && usr->nosEmptySfxRestartIn > 0.0f)
+        return;
+
+    // Restarting the owned voice prevents a held empty NOS button from stacking
+    // clacks, and leaves one cancellable sound to stop on pickup or key-up.
+    NosEmptySfx_Stop(usr);
+    usr->nosEmptyVoice = usr->sound.playSfxNosEmptyLoop();
+    // nos_empty_loop.h has 18 rows at speed 3 and a 60 Hz tick: 0.90 s.
+    // Matching that duration avoids chopping its final release before restart.
+    usr->nosEmptySfxRestartIn = 0.90f;
+}
+
 static inline void UI_ResetBannersForNewRoll(UserContext *usr, const char *reason, bool preserveActiveResultFlashes = false)
 {
     if (!usr)
@@ -6804,6 +6843,7 @@ static inline void UI_DismissTransientOverlaysForDialog(UserContext *usr)
     usr->neutralBannerFlashTime = 0.0f;
     usr->hudToastTime = 0.0f;
     usr->hudToastText[0] = '\0';
+    usr->hudToastHeld = false;
 }
 
 static inline void UI_ShowHudToast(UserContext *usr, const char *text, float seconds = 2.5f)
@@ -6812,6 +6852,26 @@ static inline void UI_ShowHudToast(UserContext *usr, const char *text, float sec
         return;
     std::snprintf(usr->hudToastText, sizeof(usr->hudToastText), "%s", text);
     usr->hudToastTime = glm::max(0.1f, seconds);
+    usr->hudToastHeld = false;
+}
+
+static inline void UI_SetHeldHudToast(UserContext *usr, const char *text, bool visible)
+{
+    if (!usr)
+        return;
+    if (visible && text && text[0])
+    {
+        std::snprintf(usr->hudToastText, sizeof(usr->hudToastText), "%s", text);
+        // Kept alive only by the held condition; this also gives it a short,
+        // polished fade as soon as the player releases NOS or gets energy.
+        usr->hudToastTime = 0.22f;
+        usr->hudToastHeld = true;
+    }
+    else if (usr->hudToastHeld)
+    {
+        usr->hudToastHeld = false;
+        usr->hudToastTime = glm::min(usr->hudToastTime, 0.22f);
+    }
 }
 
 static inline TxlKey RuneOutcomeLabelKey(int kind);
@@ -6870,6 +6930,7 @@ static inline void UI_OnModalPauseBegin(UserContext *usr)
     // Modal pause is allowed to release transient input capture only.
     // Do not reset phase, reposition the ball, or cancel a throw here.
     NosSfx_Stop(usr);
+    NosEmptySfx_Stop(usr);
     BallRollingSfx_BeginPause(usr);
     usr->isMouseDownInThrow = false;
     usr->nosHeldMouse = false;
@@ -19534,6 +19595,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->rollingBallPauseDepth = 0;
                     usr->rollingBallWasPlayingBeforePause = false;
                     usr->nosVoice = FM_VOICE_INVALID;
+                    usr->nosEmptyVoice = FM_VOICE_INVALID;
+                    usr->nosEmptySfxRestartIn = 0.0f;
                     usr->chestReadyLoopVoice = FM_VOICE_INVALID;
                     usr->chestReadyLoopT = 0.0f;
                 }
@@ -23738,7 +23801,22 @@ swing_checks_done:
             usr->nosChargeDrainAccumulator = 0.0f;
         }
 
-        if (usr->playerNosUsageActiveThisFrame || usr->enemyNosUsageActiveThisFrame)
+        const bool playerNosEmptyHeld =
+            playerNosArmed && usr->electroBall.getCharge01() <= 0.001f;
+        NosEmptySfx_Tick(usr, playerNosEmptyHeld, gameplayDeltaTime);
+        UI_SetHeldHudToast(
+            usr,
+            Txl_Get(usr->language, TXL_NOS_NO_ENERGY),
+            playerNosEmptyHeld
+        );
+
+        // A drain step can consume the final charge in the same tick that NOS
+        // was accelerating the ball. Switch sounds immediately to the empty
+        // feedback instead of letting the boost loop survive one extra frame.
+        const bool nosBoostSfxActive =
+            (usr->playerNosUsageActiveThisFrame && !playerNosEmptyHeld) ||
+            usr->enemyNosUsageActiveThisFrame;
+        if (nosBoostSfxActive)
             NosSfx_Start(usr);
         else
             NosSfx_Stop(usr);
@@ -26031,6 +26109,13 @@ END_LINE:
                             endgameBuf *
                             CurrentTurnManaGainScale(usr)
                         );
+                        // A pickup resolves held empty NOS immediately, before
+                        // the next gameplay tick has a chance to run.
+                        if (turnElectroBall == &usr->electroBall)
+                        {
+                            NosEmptySfx_Stop(usr);
+                            UI_SetHeldHudToast(usr, nullptr, false);
+                        }
                         usr->particles.burstBallTrace(glm::vec3(ballModel[3]), turnElectroBall->getPickupPulse01());
                     }
                     ElectroBall_EmitImpactFeedback(usr, coin.position, pickupImpactDir, 1.0f);

@@ -66,6 +66,7 @@
 #include "campaign_enemy_block_timing.h"
 #include "bolt_logic.h"
 #include "decal.h"
+#include "lane_dry_decal.h"
 #include "electroball.h"
 #include "pin_electric_veins.h"
 #include "fpscounter.h"
@@ -1385,6 +1386,7 @@ struct UserContext
     // Dedicated clock for campaign-card scenes. It never advances live biome state.
     float campaignLevelPreviewTime = 0.0f;
     DecalBatch decalBatch;
+    LaneDryDecal laneDryDecal;
 
     char username[20];
     int32_t username_len;
@@ -1431,6 +1433,12 @@ struct UserContext
 	float leftOilFadeStartM = 8.3f;
 	float rightOilFadeStartM = 8.3f;
 	float laneOilThickness = 1.0f; // 0..1, scales how slippery the oil zone starts
+	// Smoothed presentation values for the dry-lane decal. These deliberately
+	// follow oil state rather than snapping when a roll completes or lane is re-oiled.
+	float laneDryVisualLeftStrength = 0.0f;
+	float laneDryVisualRightStrength = 0.0f;
+	float laneDryVisualLeftReach01 = 0.0f;
+	float laneDryVisualRightReach01 = 0.0f;
     int laneTextureIdx = 0;
     int pinTextureIdx = 0;
 
@@ -25519,6 +25527,32 @@ END_LINE:
             glm::max(0.001f, usr->houseLane.laneOilThickness);
         const float persistentOilWearLeftM = glm::max(visualOilWearLeftM, thicknessWearM) * oilDepletion01;
         const float persistentOilWearRightM = glm::max(visualOilWearRightM, thicknessWearM) * oilDepletion01;
+        const float totalWornLeftM = glm::max(usr->oilWearLeftM, persistentOilWearLeftM);
+        const float totalWornRightM = glm::max(usr->oilWearRightM, persistentOilWearRightM);
+        // Make plentiful oil visually quiet. The curve rises rapidly only as
+        // oil gets low, instead of making every loss of oil look equally large.
+        // Preserve a readable first sign of wear after a roll, then accelerate
+        // strongly once the lane is genuinely low on oil.
+        const float lowOilRamp01 = glm::clamp(
+            0.16f * oilDepletion01 + 1.55f * powf(glm::clamp(oilDepletion01, 0.0f, 1.0f), 2.0f),
+            0.0f, 1.0f);
+        const float leftSideWear01 = glm::clamp(totalWornLeftM / 18.3f, 0.0f, 1.0f);
+        const float rightSideWear01 = glm::clamp(totalWornRightM / 18.3f, 0.0f, 1.0f);
+        const float targetLeftDryStrength = glm::clamp(
+            lowOilRamp01 + leftSideWear01 * (0.05f + 0.28f * lowOilRamp01), 0.0f, 1.0f);
+        const float targetRightDryStrength = glm::clamp(
+            lowOilRamp01 + rightSideWear01 * (0.05f + 0.28f * lowOilRamp01), 0.0f, 1.0f);
+        const float targetLeftDryReach01 = glm::clamp(
+            lowOilRamp01 + leftSideWear01 * (0.12f + 0.54f * lowOilRamp01), 0.0f, 1.0f);
+        const float targetRightDryReach01 = glm::clamp(
+            lowOilRamp01 + rightSideWear01 * (0.12f + 0.54f * lowOilRamp01), 0.0f, 1.0f);
+        // Exponential catch-up remains stable at all frame rates and eases out
+        // as it meets the changing physical oil state.
+        const float dryVisualCatchup = 1.0f - expf(-glm::clamp((float)gameplayDeltaTime, 0.0f, 0.10f) * 3.4f);
+        usr->laneDryVisualLeftStrength += (targetLeftDryStrength - usr->laneDryVisualLeftStrength) * dryVisualCatchup;
+        usr->laneDryVisualRightStrength += (targetRightDryStrength - usr->laneDryVisualRightStrength) * dryVisualCatchup;
+        usr->laneDryVisualLeftReach01 += (targetLeftDryReach01 - usr->laneDryVisualLeftReach01) * dryVisualCatchup;
+        usr->laneDryVisualRightReach01 += (targetRightDryReach01 - usr->laneDryVisualRightReach01) * dryVisualCatchup;
         usr->mainShader.updateLaneWearDistortion(
             true,
             -18.3f,
@@ -25529,8 +25563,8 @@ END_LINE:
             usr->leftOilFadeEndM,
             usr->rightOilFadeStartM,
             usr->rightOilFadeEndM,
-            glm::max(usr->oilWearLeftM, persistentOilWearLeftM),
-            glm::max(usr->oilWearRightM, persistentOilWearRightM),
+            totalWornLeftM,
+            totalWornRightM,
             laneAtlasMinY,
             laneAtlasMaxY
         );
@@ -25540,6 +25574,10 @@ END_LINE:
             usr->cameraMat,
             usr->perspectiveMat
         );
+        usr->laneDryDecal.render(
+            usr->cameraMat, usr->perspectiveMat,
+            usr->laneDryVisualLeftStrength, usr->laneDryVisualRightStrength,
+            usr->laneDryVisualLeftReach01, usr->laneDryVisualRightReach01);
         usr->mainShader.updateLaneWearDistortion(false, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
         MiniGame_RenderCountMasters(usr);
         MiniGame_RenderCrowdControl(usr);

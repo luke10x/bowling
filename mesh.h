@@ -539,6 +539,7 @@ const char *ShaderProgram::DEFAULT_FRAGMENT_SHADER =
             tileUVs = fract(tileUVs);
             tileUVs.y = clamp(tileUVs.y, u_laneAtlasMinY + 0.0015, u_laneAtlasMaxY - 0.0015);
             laneWearBlur01 = distort * 0.0725;
+
         }
 
         // Sample the texture using the tile UVs

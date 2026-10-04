@@ -120,12 +120,31 @@ static inline CampaignFinaleFlow Campaign_ResultDismissFlowForState(bool awaitin
         : CampaignFinaleFlow::NoTransition;
 }
 
+// Fireworks belong only to the first-clear sequence: the campaign-complete
+// modal and the result screen immediately following it. Completed-campaign
+// level replays are ordinary results and must not restart the celebration.
+static inline bool Campaign_ShouldShowFinaleFireworks(
+    bool campaignCompleted,
+    bool postgameFreeplayActive,
+    bool awaitingResultDismissal)
+{
+    return campaignCompleted && !postgameFreeplayActive && awaitingResultDismissal;
+}
+
+// Selecting a campaign level starts a fresh match. It must discard the
+// one-shot first-clear handoff state left by an earlier campaign completion.
+static inline void Campaign_ClearFinaleStateForLevelSetup(bool &awaitingResultDismissal)
+{
+    awaitingResultDismissal = false;
+}
+
 static inline CampaignResumeFlow Campaign_ResumeFlowForState(bool campaignCompleted, bool campaignPostgameFreeplayActive)
 {
-    if (campaignPostgameFreeplayActive)
+    // The completion layout is queued explicitly for the one first-clear
+    // handoff. A saved completed campaign, including a completed-level replay
+    // after its result, resumes the post-campaign random flow instead.
+    if (campaignCompleted || campaignPostgameFreeplayActive)
         return CampaignResumeFlow::PostgameFreeplay;
-    if (campaignCompleted)
-        return CampaignResumeFlow::CompletedSummary;
     return CampaignResumeFlow::CurrentLevel;
 }
 

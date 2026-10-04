@@ -13265,6 +13265,9 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->pendingCampaignBotResultWindow = false;
     usr->pendingCampaignEndgameSummaryWindow = false;
     usr->pendingCampaignPostgameChoiceDialog = false;
+    // A selected campaign replay is never the still-pending first-clear
+    // finale. Prevent a stale dismissal from reopening the Angel/postgame flow.
+    Campaign_ClearFinaleStateForLevelSetup(usr->campaignEndgameAwaitingResultDismissal);
     usr->pendingCampaignCoachStoryId = 0;
     usr->pendingMiniGameKind = MiniGameKind::NONE;
     usr->activeMiniGameKind = MiniGameKind::NONE;
@@ -14494,8 +14497,11 @@ static inline float CampaignEndgameConfetti_Random01(UserContext *usr)
 static inline bool CampaignEndgameConfetti_ShouldRun(const UserContext *usr)
 {
     return usr &&
-        usr->campaignCompleted &&
-        !usr->campaignPostgameFreeplayActive &&
+        Campaign_ShouldShowFinaleFireworks(
+            usr->campaignCompleted,
+            usr->campaignPostgameFreeplayActive,
+            usr->campaignEndgameAwaitingResultDismissal
+        ) &&
         usr->playerRoute == PlayerRoute::CAMPAIGN &&
         usr->phase == UserContext::Phase::RESULT;
 }

@@ -6,13 +6,13 @@
 #include "../campaign_completion_flow.h"
 #include "../campaign_time_format.h"
 
-TEST_CASE("Campaign completion flow keeps finished campaigns out of ordinary level replay")
+TEST_CASE("Campaign completion flow sends finished campaigns to post-campaign play")
 {
     CHECK(
         Campaign_ResumeFlowForState(false, false) == CampaignResumeFlow::CurrentLevel
     );
     CHECK(
-        Campaign_ResumeFlowForState(true, false) == CampaignResumeFlow::CompletedSummary
+        Campaign_ResumeFlowForState(true, false) == CampaignResumeFlow::PostgameFreeplay
     );
     CHECK(
         Campaign_ResumeFlowForState(true, true) == CampaignResumeFlow::PostgameFreeplay
@@ -121,6 +121,88 @@ TEST_CASE("Later level 13 win is a normal campaign result with repeat and next")
     CHECK(actions.next == true);
     CHECK(Campaign_FinalResultFlowForState(true, false, 13, 13, true) ==
           CampaignFinaleFlow::NormalResult);
+}
+
+TEST_CASE("Completed-campaign replays never restart finale fireworks")
+{
+    CHECK(Campaign_ShouldShowFinaleFireworks(
+        /*campaignCompleted=*/true,
+        /*postgameFreeplayActive=*/false,
+        /*awaitingResultDismissal=*/true
+    ));
+    CHECK_FALSE(Campaign_ShouldShowFinaleFireworks(
+        /*campaignCompleted=*/true,
+        /*postgameFreeplayActive=*/false,
+        /*awaitingResultDismissal=*/false
+    ));
+    CHECK_FALSE(Campaign_ShouldShowFinaleFireworks(
+        /*campaignCompleted=*/true,
+        /*postgameFreeplayActive=*/true,
+        /*awaitingResultDismissal=*/true
+    ));
+}
+
+TEST_CASE("Finale flow matrix celebrates exactly one outcome")
+{
+    constexpr int levels[] = {1, 3, 12, 13};
+    for (const int level : levels)
+    {
+        for (const bool playerWon : {false, true})
+        {
+            for (const bool postgameFreeplay : {false, true})
+            {
+                for (const bool campaignCompleted : {false, true})
+                {
+                    const bool firstFinalClear = playerWon && !postgameFreeplay &&
+                                                 level == 13 && !campaignCompleted;
+                    CHECK(Campaign_FinalResultFlowForState(
+                        playerWon, postgameFreeplay, level, 13, campaignCompleted
+                    ) == (firstFinalClear
+                        ? CampaignFinaleFlow::CelebrationThenResult
+                        : CampaignFinaleFlow::NormalResult));
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("Campaign level selection clears stale finale state before a replay")
+{
+    // Exact regression: campaign already complete, select Level 3, then win.
+    bool awaitingResultDismissal = true;
+    Campaign_ClearFinaleStateForLevelSetup(awaitingResultDismissal);
+    CHECK_FALSE(awaitingResultDismissal);
+    CHECK(Campaign_FinalResultFlowForState(
+        /*playerWon=*/true, /*postgameFreeplayActive=*/false,
+        /*levelNumber=*/3, /*finalLevelNumber=*/13, /*campaignCompleted=*/true
+    ) == CampaignFinaleFlow::NormalResult);
+    CHECK_FALSE(Campaign_ShouldShowFinaleFireworks(
+        /*campaignCompleted=*/true, /*postgameFreeplayActive=*/false,
+        awaitingResultDismissal
+    ));
+    CHECK(Campaign_ResultDismissFlowForState(awaitingResultDismissal) ==
+          CampaignFinaleFlow::NoTransition);
+    CHECK(Campaign_ResumeFlowForState(
+        /*campaignCompleted=*/true, /*campaignPostgameFreeplayActive=*/false
+    ) == CampaignResumeFlow::PostgameFreeplay);
+}
+
+TEST_CASE("Finale fireworks require every first-clear handoff condition")
+{
+    for (const bool campaignCompleted : {false, true})
+    {
+        for (const bool postgameFreeplay : {false, true})
+        {
+            for (const bool awaitingResultDismissal : {false, true})
+            {
+                const bool expected = campaignCompleted && !postgameFreeplay &&
+                                      awaitingResultDismissal;
+                CHECK(Campaign_ShouldShowFinaleFireworks(
+                    campaignCompleted, postgameFreeplay, awaitingResultDismissal
+                ) == expected);
+            }
+        }
+    }
 }
 
 TEST_CASE("Level 13 loss before campaign completion offers repeat only")

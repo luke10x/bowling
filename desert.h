@@ -737,8 +737,13 @@ struct DesertTerrain
             smokeVertices.push_back({center + glm::vec3(-w * .5f,  h * .5f, 0), {0,1}, {phase,w,h,density}});
             smokeIndices.insert(smokeIndices.end(), {i,i+1,i+2,i,i+2,i+3});
         };
-        constexpr int kRuinFireBuildings[] = {4, 16, 28, 40, 48};
-        for (int fire = 0; fire < 5; ++fire) {
+        // Keep every second source from the forty-source arrangement.
+        constexpr int kRuinFireBuildings[] = {
+            0, 3, 5, 8, 11, 13, 16, 19, 21, 24,
+            27, 29, 32, 35, 37, 40, 43, 45, 48, 51
+        };
+        constexpr int kRuinFireCount = int(sizeof(kRuinFireBuildings) / sizeof(kRuinFireBuildings[0]));
+        for (int fire = 0; fire < kRuinFireCount; ++fire) {
             const int building = kRuinFireBuildings[fire];
             const float x = kRuinCityStartX + float(building) * 12.0f;
             const float z = 390.0f + (hash01(building, 631) - 0.5f) * 12.0f - 2.8f;
@@ -764,7 +769,7 @@ struct DesertTerrain
         glBindVertexArray(0);
 
         std::vector<DesertRuinedSparkVertex> sparks;
-        for (int fire = 0; fire < 5; ++fire) {
+        for (int fire = 0; fire < kRuinFireCount; ++fire) {
             const int building = kRuinFireBuildings[fire];
             const float x = kRuinCityStartX + float(building) * 12.0f;
             const float z = 390.0f + (hash01(building, 631) - .5f) * 12.0f;

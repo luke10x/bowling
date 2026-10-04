@@ -50,3 +50,19 @@ TEST_CASE("Coin fly animations can be emitted after a short delay")
     CHECK(startedSfx == 1);
     CHECK(lane.getActiveFlyCount() == 0);
 }
+
+TEST_CASE("Dismissing transient fly effects preserves deployed gems")
+{
+    CoinLane lane {};
+    lane.initStars(CoinPattern::Static, 7);
+    REQUIRE(lane.hasActiveGem());
+    const int deployedCount = lane.getActiveCount();
+    CHECK(lane.spawnFlyAnimation(
+        {0.0f, 0.0f}, {10.0f, 10.0f}, CollectableVisualKind::Gem, false, 90.0f
+    ));
+
+    CHECK(lane.clearFlyAnimations() == 1);
+    CHECK(lane.getActiveFlyCount() == 0);
+    CHECK(lane.getActiveCount() == deployedCount);
+    CHECK(lane.hasActiveGem());
+}

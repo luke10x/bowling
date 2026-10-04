@@ -1517,6 +1517,9 @@ struct UserContext
 
     bool shouldShowShop = false;
     bool shopRestockResumeAfterShop = false;
+    // Set only for a Shop opened from a normal campaign victory result.  A
+    // successful purchase should then continue to the next level directly.
+    bool resultShopAdvanceCampaignOnPurchase = false;
     bool modalWindowActiveLastFrame = false;
 
     int numberOfBallsHit;
@@ -6785,7 +6788,9 @@ static inline void UI_DismissTransientOverlaysForDialog(UserContext *usr)
 {
     if (!usr)
         return;
-    (void)usr->coinLane.resetAllAnimations();
+    // Closing/dimming an overlay may cancel its HUD fly effects, but deployed
+    // coins and gems belong to the lane and must survive the modal.
+    (void)usr->coinLane.clearFlyAnimations();
     usr->resultPendingStrikeSpareCoinCount = 0;
     usr->resultPendingStrikeSpareCoinDelay = 0.0f;
     usr->resultPendingStrikeSpareCoinSourceValid = false;
@@ -13145,6 +13150,7 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->enemyNeedsReplacementBall = false;
     usr->enemyRetargetStrength = glm::clamp(cfg.enemySkill, 0.0f, 1.0f);
     usr->pendingCampaignEndStoryId = 0;
+    usr->resultShopAdvanceCampaignOnPurchase = false;
     usr->pendingCampaignBotResultWindow = false;
     usr->pendingCampaignEndgameSummaryWindow = false;
     usr->pendingCampaignPostgameChoiceDialog = false;
@@ -21078,7 +21084,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     const bool chestRewardPausesGameplay = Chest_IsRewardActive(usr);
     const bool gameplayPausedByUi =
-        trackerOnlyMode || usr->windowStack.count > 0 || chestRewardPausesGameplay || usr->chestSummaryActive;
+        trackerOnlyMode || usr->windowStack.count > 0 || usr->dialog.active ||
+        chestRewardPausesGameplay || usr->chestSummaryActive;
     const bool chestLongSoundPauseNow = chestRewardPausesGameplay || usr->chestSummaryActive;
     if (usr->chestLongSoundPauseActiveLastFrame && !chestLongSoundPauseNow)
         BallRollingSfx_EndPause(usr);
@@ -21428,6 +21435,17 @@ void vtx::loop(vtx::VertexContext *ctx)
         continueAfterReplayReset();
     };
 
+    auto continueAfterResultShopPurchase = [&]()
+    {
+        if (!usr->resultShopAdvanceCampaignOnPurchase)
+            return false;
+        usr->resultShopAdvanceCampaignOnPurchase = false;
+        // The shop replaced a Victory/Next modal. Take its same Next action
+        // after a successful purchase instead of reopening a stale result.
+        usr->windowStack.resultNextRequested = true;
+        return true;
+    };
+
     if (usr->shouldShowShop && usr->windowStack.shopBuyRequested)
     {
         usr->windowStack.shopBuyRequested = false;
@@ -21457,7 +21475,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                     else
                     {
                         BallShop_CloseAfterAction(usr);
-                        if (usr->shopRestockResumeAfterShop)
+                        if (continueAfterResultShopPurchase())
+                        {
+                            // The result action below performs the level advance.
+                        }
+                        else if (usr->shopRestockResumeAfterShop)
                         {
                             usr->shopRestockResumeAfterShop = false;
                             continueAfterReplayReset();
@@ -21485,7 +21507,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                     if (changedBall)
                         BallShop_PlayEquipFeedback(usr);
                     BallShop_CloseAfterAction(usr);
-                    if (usr->shopRestockResumeAfterShop)
+                    if (continueAfterResultShopPurchase())
+                    {
+                        // The result action below performs the level advance.
+                    }
+                    else if (usr->shopRestockResumeAfterShop)
                     {
                         usr->shopRestockResumeAfterShop = false;
                         continueAfterReplayReset();
@@ -21503,6 +21529,17 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             usr->shopRestockResumeAfterShop = false;
             continueAfterReplayReset();
+        }
+        else if (usr->resultShopAdvanceCampaignOnPurchase)
+        {
+            // Closing without a purchase returns to the original Victory/Next
+            // result; it must never degrade to the default Try Again window.
+            usr->resultShopAdvanceCampaignOnPurchase = false;
+            if (usr->phase == UserContext::Phase::RESULT && usr->windowStack.count == 0)
+            {
+                Campaign_SetResultWindowLabels(usr, /*advanced=*/true);
+                usr->windowStack.windowStackPushNewGameWindow();
+            }
         }
     }
     if (usr->windowStack.shopRestockVisitRequested)
@@ -21522,9 +21559,18 @@ void vtx::loop(vtx::VertexContext *ctx)
     if (usr->windowStack.newGameShopRequested)
     {
         usr->windowStack.newGameShopRequested = false;
+        usr->resultShopAdvanceCampaignOnPurchase =
+            Campaign_ShouldAdvanceAfterResultShopPurchase(
+                usr->playerRoute == PlayerRoute::CAMPAIGN && !usr->campaignPostgameFreeplayActive,
+                usr->clayton.newGameVictory,
+                usr->clayton.newGameNextAvailable,
+                usr->campaignEndgameAwaitingResultDismissal
+            );
+        if (usr->resultShopAdvanceCampaignOnPurchase)
+            usr->windowStack.windowStackCloseTopWindow();
         BallShop_Open(usr, BallShopTab_SHOP);
-        // The result window remains underneath the shop. Reassert its outcome
-        // label so returning from the shop does not fall back to TRY AGAIN.
+        // Losses and non-campaign results retain their result window beneath
+        // the shop. Reassert its outcome label on that return path.
         if (usr->clayton.newGameIsResult)
             Campaign_SetResultWindowLabels(usr, usr->clayton.newGameVictory);
     }
@@ -24344,7 +24390,14 @@ swing_checks_done:
         }
     }
 
-    Chest_Tick(usr, deltaTime, glm::vec3(ballModel[3]));
+    // A modal freezes the live lane.  In particular, an available chest must
+    // neither age out nor be collected by the paused rolling ball behind an
+    // Oil/story window.  HUD fly animations are handled separately by the
+    // dialog cleanup and are the only collectable state a dialog may cancel.
+    const bool chestWorldLifecyclePausedByModal =
+        usr->windowStack.count > 0 || usr->dialog.active;
+    if (!chestWorldLifecyclePausedByModal)
+        Chest_Tick(usr, deltaTime, glm::vec3(ballModel[3]));
     if (usr->boomFuseActive)
     {
         usr->boomFuseT += glm::clamp((float)gameplayDeltaTime, 0.0f, 0.05f);

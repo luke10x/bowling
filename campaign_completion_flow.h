@@ -50,6 +50,18 @@ static inline CampaignResultActions Campaign_ResultActionsForState(
     return {true, false};
 }
 
+// Buying from the Shop opened by a normal campaign victory is a detour on the
+// way to the next level, not a second result decision.  The first Level 13
+// clear is excluded because its result must lead into the finale greeting.
+static inline bool Campaign_ShouldAdvanceAfterResultShopPurchase(
+    bool campaignLevel,
+    bool playerWon,
+    bool nextAvailable,
+    bool finaleGreetingPending)
+{
+    return campaignLevel && playerWon && nextAvailable && !finaleGreetingPending;
+}
+
 static inline bool CampaignReset_PreservesBallInventory(CampaignResetScope scope)
 {
     return scope == CampaignResetScope::CampaignOnly;

@@ -548,17 +548,25 @@ struct CoinLane {
     }
 
     // === Reset/Respawn ===
+    // Modal UI may dismiss transient HUD rewards, but must never remove a
+    // deployed lane pickup.  Keep that narrower operation explicit.
+    [[nodiscard]] int clearFlyAnimations() noexcept {
+        int cancelled = 0;
+        for (auto& anim : flyAnimations) {
+            if (anim.active)
+                ++cancelled;
+            anim.active = false;
+        }
+        return cancelled;
+    }
+
     [[nodiscard]]int resetAllAnimations() noexcept {
         activeCount = 0;
         for (auto& c : coins) {
             c.state = CoinState::Dead;
             c.flyTriggered = false;
         }
-        int earnings = 0;
-        for (auto& a : flyAnimations) {
-            a.active = false;
-            earnings += 1;
-        }
+        const int earnings = clearFlyAnimations();
         emptyTimer = 0.0f;
         return earnings;
     }

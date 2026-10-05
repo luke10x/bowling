@@ -67,6 +67,7 @@ TXL_SHOP_EMPTY = "ショップは空です";
 TXL_SHOP_IMPROVE_YOUR_RUN = "ショップ: ゲームを強化";
 TXL_CURRENT_BALANCE = "現在の残高";
 TXL_LOCKED = "ロック中";
+TXL_PASS = "合格";
 TXL_RESETS_IN_FMT = "%s にリセット";
 TXL_SOUND_SETTINGS = "サウンド設定";
 TXL_CHANGING_QUALITY = "品質を変更中...";

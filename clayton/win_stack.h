@@ -3047,7 +3047,15 @@ inline void WindowStack::renderCampaignEndgameSummaryWindow(WindowStack *self, C
                         char levelBuf[8], recordBuf[24], scoreBuf[16];
                         snprintf(levelBuf, sizeof(levelBuf), "%d", idx + 1);
                         snprintf(recordBuf, sizeof(recordBuf), "%d / %d", self->campaignEndgameWins[idx], self->campaignEndgameAttempts[idx]);
-                        if (self->campaignEndgameBestScores[idx] <= 0)
+                        const bool schoolPassedFirstLevel =
+                            idx == 0 && self->campaignEndgameWins[idx] > 0 &&
+                            self->campaignEndgameBestScores[idx] <= 0;
+                        if (schoolPassedFirstLevel)
+                        {
+                            const Clay_String pass = clayton->txl(TXL_PASS);
+                            snprintf(scoreBuf, sizeof(scoreBuf), "%.*s", (int)pass.length, pass.chars);
+                        }
+                        else if (self->campaignEndgameBestScores[idx] <= 0)
                             snprintf(scoreBuf, sizeof(scoreBuf), "%s", idx == 0 ? "?" : "? - ?");
                         else if (self->campaignEndgameBestOpponentScores[idx] > 0)
                             snprintf(scoreBuf, sizeof(scoreBuf), "%d - %d", self->campaignEndgameBestScores[idx], self->campaignEndgameBestOpponentScores[idx]);

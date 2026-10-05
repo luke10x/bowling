@@ -8416,6 +8416,26 @@ static inline TxlKey Campaign_BlockCardLabelKey(int type)
     }
 }
 
+// The deployment toolbar is a material palette: its color is a quick cue for
+// what will be thrown, independent of the order in which cards are dealt.
+static inline Clay_Color Campaign_BlockCardButtonColor(int type)
+{
+    switch (type)
+    {
+    case CAMPAIGN_BLOCK_CARD_WOOD:     return (Clay_Color){238, 142, 43, 235};  // amber orange wood
+    case CAMPAIGN_BLOCK_CARD_BRICK:    return (Clay_Color){235, 65, 78, 235};   // coral-red brick
+    case CAMPAIGN_BLOCK_CARD_CONCRETE: return (Clay_Color){171, 88, 232, 235};  // distinct violet concrete
+    case CAMPAIGN_BLOCK_CARD_GLASS:    return (Clay_Color){18, 211, 199, 235};  // high-contrast turquoise glass
+    default:                           return CLAY_COLOR_BTN_HUD;
+    }
+}
+
+static inline Clay_Color Campaign_BlockCardButtonBorderColor(int type)
+{
+    const Clay_Color base = Campaign_BlockCardButtonColor(type);
+    return ClayColorMix(base, (Clay_Color){230, 250, 255, 255}, 0.38f);
+}
+
 static inline TxlKey RuneOutcomeLabelKey(int kind)
 {
     switch (kind)
@@ -13403,6 +13423,35 @@ static inline void Campaign_AdvanceIfWon(UserContext *usr, const CampaignLevelCo
     usr->campaignStartStoryLevelShown = 0;
 }
 
+// Graduation is an alternate completion of the first milestone.  Keep a
+// normal campaign result record (so level 2 is unlocked and selectable), but
+// deliberately leave its score empty: the campaign card renders that as PASS.
+static inline void Campaign_GraduateSchoolPastFirstLevel(UserContext *usr)
+{
+    if (!usr || usr->campaignLevelIndex != 1)
+        return;
+
+    const CampaignLevelConfig &cfg = kCampaignLevels[0];
+    usr->campaignLevelAttempts[0] = glm::max(1, usr->campaignLevelAttempts[0]);
+    if (usr->campaignLevelWins[0] == 0)
+        ++usr->campaignLevelWins[0];
+    usr->campaignLevelUnlocked[0] = true;
+    usr->campaignLevelUnlocked[1] = true;
+    usr->campaignActiveLevel = 0;
+    usr->milestone100Reached = true;
+    usr->schoolExitLocked = false;
+    if (cfg.unlockHouseId >= 0)
+        UnlockMask_AddHouse(usr, cfg.unlockHouseId);
+    if (cfg.unlockOpponent != CampaignOpponent::NONE)
+        UnlockMask_AddOpponent(usr, cfg.unlockOpponent);
+    usr->campaignLevelIndex = 2;
+    usr->campaignStartStoryLevelShown = 0;
+    Campaign_SaveAttemptStats(usr);
+    Campaign_SaveLevelResults(usr);
+    Campaign_SaveCurrentLevel(usr);
+    Progress_SaveUnlocksAndBank(usr);
+}
+
 static inline void Campaign_SetResultWindowLabels(UserContext *usr, bool advanced)
 {
     if (!usr)
@@ -13535,6 +13584,11 @@ static inline void Campaign_StartFreshRunAfterReset(UserContext *usr)
     if (!usr)
         return;
 
+    // Campaign reset preserves school graduation.  A graduate starts the new
+    // campaign directly at Malach instead of being sent through level 1 again.
+    if (Campaign_ShouldApplySchoolPassOnResume(
+            usr->schoolDone, usr->campaignLevelIndex, usr->campaignLevelWins[0]))
+        Campaign_GraduateSchoolPastFirstLevel(usr);
     Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
     Run_ResetBoardsAndMode(usr, usr->gameMode);
     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
@@ -14765,7 +14819,13 @@ static void School_Exit(UserContext *usr)
         usr->schoolExitLocked = false;
     }
 
-    if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
+    if (completedSchoolThisExit && usr->playerRoute == PlayerRoute::CAMPAIGN &&
+        usr->campaignLevelIndex == 1)
+    {
+        Campaign_GraduateSchoolPastFirstLevel(usr);
+        Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true, /*recordAttempt=*/false);
+    }
+    else if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
         (usr->milestone100Reached || usr->campaignLevelIndex > 1))
     {
         usr->milestone100Reached = true;
@@ -19027,6 +19087,11 @@ void vtx::init(vtx::VertexContext *ctx)
     // A completed campaign should resume directly into the repeatable postgame mode
     // on a fresh launch.  The completion summary is shown immediately after the final
     // win, but should not become the startup screen on every later launch.
+    // School graduation is also a valid Level 1 completion, including when
+    // the player graduated before this launch.
+    if (Campaign_ShouldApplySchoolPassOnResume(
+            usr->schoolDone, usr->campaignLevelIndex, usr->campaignLevelWins[0]))
+        Campaign_GraduateSchoolPastFirstLevel(usr);
     if (usr->campaignCompleted && !usr->campaignPostgameFreeplayActive)
         Campaign_StartPostgameFreeplayRun(usr);
     else switch (Campaign_ResumeFlowForState(usr->campaignCompleted, usr->campaignPostgameFreeplayActive))
@@ -19199,6 +19264,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         campaignLevel.startStoryId,
         usr->campaignStartStoryAttemptCountAtSetup,
         usr->schoolDone,
+        usr->campaignLevelWins[0] > 0,
         usr->campaignCompleted,
         usr->campaignPostgameFreeplayActive
     );
@@ -23721,8 +23787,6 @@ swing_checks_done:
                                                 ? 22
                                                 : cfg.endStoryId;
                                     }
-                                    if (!passed && cfg.levelNumber == 1)
-                                        usr->pendingCampaignEndStoryId = 10;
                                     ResultWindow_ConfigureBowling(
                                         usr,
                                         passed,
@@ -27881,6 +27945,14 @@ END_LINE:
                                         Clay_ElementDeclaration btnTheme = CLAY_THEME_BTN_HUD;
                                         const bool enabled =
                                             CampaignBlockCards_CanUseSlot(usr->playerBlockCards, i, usr->phy.HasFracturedBlock());
+                                        const Clay_Color materialColor = Campaign_BlockCardButtonColor(slot.type);
+                                        btnTheme.backgroundColor = materialColor;
+                                        btnTheme.border.color = Campaign_BlockCardButtonBorderColor(slot.type);
+                                        btnTheme.border.width = CLAY_BORDER_ALL(1);
+                                        if (Clay_PointerOver(usr->blockDeployButtons[i].clayId))
+                                            btnTheme.backgroundColor = ClayColorMix(
+                                                materialColor, (Clay_Color){255, 255, 255, 255}, 0.16f
+                                            );
                                         const bool blinkForGlassLesson =
                                             usr->campaignGlassLessonBlinkActive &&
                                             usr->playerRoute == PlayerRoute::CAMPAIGN &&
@@ -27890,13 +27962,11 @@ END_LINE:
                                             const float pulse01 = 0.5f + 0.5f * sinf(
                                                 usr->rawTime * glm::two_pi<float>() * 2.0f
                                             );
-                                            btnTheme.backgroundColor = (Clay_Color){
-                                                80.0f + 80.0f * pulse01,
-                                                60.0f + 160.0f * pulse01,
-                                                220.0f + 28.0f * pulse01,
-                                                255.0f
-                                            };
-                                            btnTheme.border.color = (Clay_Color){185, 240, 255, 255};
+                                            btnTheme.backgroundColor = ClayColorMix(
+                                                materialColor, (Clay_Color){245, 250, 255, 255},
+                                                0.16f + 0.34f * pulse01
+                                            );
+                                            btnTheme.border.color = (Clay_Color){220, 250, 255, 255};
                                             btnTheme.border.width = CLAY_BORDER_ALL(2);
                                         }
                                         if (!enabled)

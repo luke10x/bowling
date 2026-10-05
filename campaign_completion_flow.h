@@ -188,11 +188,23 @@ static inline CampaignResumeFlow Campaign_ResumeFlowForState(bool campaignComple
     return CampaignResumeFlow::CurrentLevel;
 }
 
+// A school graduate only needs the synthetic Level 1 pass when an older or
+// freshly-reset campaign save still points at level 1.  A normal Level 1 win
+// already saved level 2, so leave that persisted progress untouched.
+static inline bool Campaign_ShouldApplySchoolPassOnResume(
+    bool schoolDone,
+    int savedCampaignLevel,
+    int savedLevelOneWins)
+{
+    return schoolDone && savedCampaignLevel == 1 && savedLevelOneWins <= 0;
+}
+
 static inline int Campaign_StartStoryIdForState(
     int levelNumber,
     int configuredStartStoryId,
     int attemptCountBeforeThisSetup,
     bool schoolDone,
+    bool levelOnePassed,
     bool campaignCompleted,
     bool campaignPostgameFreeplayActive)
 {
@@ -200,13 +212,20 @@ static inline int Campaign_StartStoryIdForState(
         CampaignResumeFlow::CurrentLevel)
         return 0;
 
-    if (levelNumber == 1 && attemptCountBeforeThisSetup <= 0)
-        return 0;
+    // School is a recovery lesson, not an opening interruption.  The Angel
+    // only mentions it after a player has failed the first milestone and
+    // deliberately starts level 1 again.  A passed milestone (including the
+    // school-graduation pass) and a finished school silence that reminder.
+    if (levelNumber == 1)
+    {
+        if (schoolDone || levelOnePassed || attemptCountBeforeThisSetup <= 0)
+            return 0;
+        return configuredStartStoryId;
+    }
 
-    if (levelNumber == 1 && schoolDone && configuredStartStoryId == 40)
-        return 41;
-
-    if (levelNumber == 2 && !schoolDone)
+    // Reaching level 2 proves the first milestone was cleared, so never
+    // reintroduce the school there.
+    if (levelNumber == 2 && !levelOnePassed && !schoolDone)
         return 30020;
 
     return configuredStartStoryId;

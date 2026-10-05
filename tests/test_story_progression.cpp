@@ -39,19 +39,32 @@ TEST_CASE("Story: win path can route to BOT via EVENT_GO_TO_BOT")
     CHECK(found);
 }
 
-TEST_CASE("Campaign start stories skip only the truly fresh level 1 boot")
+TEST_CASE("Campaign school reminder only appears on a failed level 1 replay")
 {
-    CHECK(Campaign_StartStoryIdForState(1, 40, 0, false, false, false) == 0);
-    CHECK(Campaign_StartStoryIdForState(1, 40, 1, false, false, false) == 40);
-    CHECK(Campaign_StartStoryIdForState(1, 40, 1, true, false, false) == 41);
+    CHECK(Campaign_StartStoryIdForState(1, 40, 0, false, false, false, false) == 0);
+    CHECK(Campaign_StartStoryIdForState(1, 40, 1, false, false, false, false) == 40);
+    CHECK(Campaign_StartStoryIdForState(1, 40, 1, true, false, false, false) == 0);
+    CHECK(Campaign_StartStoryIdForState(1, 40, 1, false, true, false, false) == 0);
+}
+
+TEST_CASE("Persisted campaign resume preserves both valid Level 1 completion routes")
+{
+    // A graduate with an old/reset level-1 save gets the synthetic pass.
+    CHECK(Campaign_ShouldApplySchoolPassOnResume(true, 1, 0));
+    // A normal 100-point pass already stored level 2 and must remain there.
+    CHECK_FALSE(Campaign_ShouldApplySchoolPassOnResume(false, 2, 1));
+    // A previously stored school pass also remains at level 2 on later loads.
+    CHECK_FALSE(Campaign_ShouldApplySchoolPassOnResume(true, 2, 1));
+    // Graduation never rewrites a genuine Level 1 score/win.
+    CHECK_FALSE(Campaign_ShouldApplySchoolPassOnResume(true, 1, 1));
 }
 
 TEST_CASE("Campaign start stories respect school and completed resume flow")
 {
-    CHECK(Campaign_StartStoryIdForState(2, 3002, 0, false, false, false) == 30020);
-    CHECK(Campaign_StartStoryIdForState(2, 3002, 0, true, false, false) == 3002);
-    CHECK(Campaign_StartStoryIdForState(13, 3012, 3, true, true, false) == 0);
-    CHECK(Campaign_StartStoryIdForState(13, 3012, 3, true, true, true) == 0);
+    CHECK(Campaign_StartStoryIdForState(2, 3002, 0, false, true, false, false) == 3002);
+    CHECK(Campaign_StartStoryIdForState(2, 3002, 0, true, false, false, false) == 3002);
+    CHECK(Campaign_StartStoryIdForState(13, 3012, 3, true, false, true, false) == 0);
+    CHECK(Campaign_StartStoryIdForState(13, 3012, 3, true, false, true, true) == 0);
 }
 
 TEST_CASE("Campaign routed start story nodes exist")

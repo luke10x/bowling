@@ -67,6 +67,7 @@ TXL_SHOP_EMPTY = "商店已空";
 TXL_SHOP_IMPROVE_YOUR_RUN = "商店：强化这一局";
 TXL_CURRENT_BALANCE = "当前余额";
 TXL_LOCKED = "未解锁";
+TXL_PASS = "通过";
 TXL_RESETS_IN_FMT = "%s后重置";
 TXL_SOUND_SETTINGS = "声音设置";
 TXL_CHANGING_QUALITY = "正在切换音频模式...";

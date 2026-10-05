@@ -1551,6 +1551,9 @@ struct UserContext
     // Set only for a Shop opened from a normal campaign victory result.  A
     // successful purchase should then continue to the next level directly.
     bool resultShopAdvanceCampaignOnPurchase = false;
+    // The end-story shop offer is an optional detour between campaign levels.
+    // Every exit path from it advances; it must never reveal a retry modal.
+    bool campaignEndStoryShopAdvancePending = false;
     bool modalWindowActiveLastFrame = false;
 
     int numberOfBallsHit;
@@ -11854,6 +11857,7 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     usr->pendingCampaignEndgameSummaryWindow = false;
     usr->pendingCampaignPostgameChoiceDialog = false;
     usr->campaignEndgameAwaitingResultDismissal = false;
+    usr->campaignEndStoryShopAdvancePending = false;
     if (resetInventory)
     {
         usr->carousel.bank = 20.0f;
@@ -13399,6 +13403,7 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->enemyRetargetStrength = glm::clamp(cfg.enemySkill, 0.0f, 1.0f);
     usr->pendingCampaignEndStoryId = 0;
     usr->resultShopAdvanceCampaignOnPurchase = false;
+    usr->campaignEndStoryShopAdvancePending = false;
     usr->pendingCampaignBotResultWindow = false;
     usr->pendingCampaignEndgameSummaryWindow = false;
     usr->pendingCampaignPostgameChoiceDialog = false;
@@ -19468,7 +19473,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->dialog.open(usr->pendingCampaignEndStoryId);
                 usr->dialog.dialogAppearDelayLeft = 0.0f;
                 usr->dialog.openedThisFrame = true;
-                usr->pendingCampaignEndStoryId = 0;
+    usr->pendingCampaignEndStoryId = 0;
             }
             if (usr->pendingCampaignBotResultWindow &&
                 !MiniGame_IsActive(usr) &&
@@ -21345,7 +21350,28 @@ void vtx::loop(vtx::VertexContext *ctx)
                     }
                     else if (storyEvent == EVENT_OPEN_SHOP_WINDOW)
                     {
+                        usr->campaignEndStoryShopAdvancePending =
+                            Campaign_ShouldAdvanceAfterEndStoryShopDecision(
+                                usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                                    !usr->campaignPostgameFreeplayActive,
+                                usr->clayton.newGameIsResult && usr->clayton.newGameVictory,
+                                usr->campaignEndgameAwaitingResultDismissal
+                            );
                         BallShop_Open(usr, BallShopTab_SHOP);
+                    }
+                    else if (storyEvent == EVENT_CONTINUE_CAMPAIGN_AFTER_SHOP_OFFER)
+                    {
+                        if (Campaign_ShouldAdvanceAfterEndStoryShopDecision(
+                                usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                                    !usr->campaignPostgameFreeplayActive,
+                                usr->clayton.newGameIsResult && usr->clayton.newGameVictory,
+                                usr->campaignEndgameAwaitingResultDismissal
+                            ))
+                        {
+                            // "Later" takes the same Next path as visiting
+                            // the optional shop; do not reveal a retry modal.
+                            usr->windowStack.resultNextRequested = true;
+                        }
                     }
                     else if (storyEvent == EVENT_CAMPAIGN_POSTGAME_CONTINUE)
                     {
@@ -21860,6 +21886,16 @@ void vtx::loop(vtx::VertexContext *ctx)
         return true;
     };
 
+    auto continueAfterEndStoryShop = [&]()
+    {
+        if (!usr->campaignEndStoryShopAdvancePending)
+            return false;
+        usr->campaignEndStoryShopAdvancePending = false;
+        // Shop was only an optional stop between campaign levels.
+        usr->windowStack.resultNextRequested = true;
+        return true;
+    };
+
     if (usr->shouldShowShop && usr->windowStack.shopBuyRequested)
     {
         usr->windowStack.shopBuyRequested = false;
@@ -21889,7 +21925,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     else
                     {
                         BallShop_CloseAfterAction(usr);
-                        if (continueAfterResultShopPurchase())
+                        if (continueAfterEndStoryShop() || continueAfterResultShopPurchase())
                         {
                             // The result action below performs the level advance.
                         }
@@ -21921,7 +21957,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     if (changedBall)
                         BallShop_PlayEquipFeedback(usr);
                     BallShop_CloseAfterAction(usr);
-                    if (continueAfterResultShopPurchase())
+                    if (continueAfterEndStoryShop() || continueAfterResultShopPurchase())
                     {
                         // The result action below performs the level advance.
                     }
@@ -21939,7 +21975,11 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->windowStack.shopCloseRequested = false;
         if (usr->selectorFlowStep != SelectorFlowStep::NONE)
             SelectorFlow_Cancel(usr);
-        if (usr->shopRestockResumeAfterShop)
+        if (continueAfterEndStoryShop())
+        {
+            // The result action below advances immediately.
+        }
+        else if (usr->shopRestockResumeAfterShop)
         {
             usr->shopRestockResumeAfterShop = false;
             continueAfterReplayReset();
@@ -22024,12 +22064,14 @@ void vtx::loop(vtx::VertexContext *ctx)
             CampaignFinaleFlow::AngelGreeting)
         {
             usr->campaignEndgameAwaitingResultDismissal = false;
+            usr->campaignEndStoryShopAdvancePending = false;
             usr->pendingCampaignPostgameChoiceDialog = true;
             // Stay in RESULT so the post-campaign fireworks remain visible behind
             // the final result until the Angel greeting takes over.
             return;
         }
         LogToIdle(usr, "PLAY_AGAIN");
+        usr->campaignEndStoryShopAdvancePending = false;
         usr->phase = UserContext::Phase::IDLE;
         usr->clayton.shouldShowHiScore = false;
         usr->clayton.shouldShowHiScoreWithLatest = false;

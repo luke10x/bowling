@@ -34,6 +34,7 @@
 #define EVENT_SCHOOL_STRIKE_HELP_DECLINE 2009
 #define EVENT_OPEN_OIL_WINDOW 2010
 #define EVENT_OPEN_SHOP_WINDOW 2011
+#define EVENT_CONTINUE_CAMPAIGN_AFTER_SHOP_OFFER 2012
 #define EVENT_CAMPAIGN_POSTGAME_CONTINUE 2012
 #define EVENT_OPEN_RESET_PROGRESS_CONFIRM 2013
 #define EVENT_SCHOOL_CONFIRM_LESSON_SWITCH 2014
@@ -796,7 +797,7 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
         /*choice_id=*/CHOICE_MALACH_SHOP_OFFER,
         /*option=*/"No thanks",
         /*goto_storyline=*/0,
-        /*trigger_event=*/EVENT_NONE,
+        /*trigger_event=*/EVENT_CONTINUE_CAMPAIGN_AFTER_SHOP_OFFER,
     },
     {
         /*choice_id=*/CHOICE_CAMPAIGN_ENDGAME,

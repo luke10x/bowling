@@ -62,6 +62,17 @@ static inline bool Campaign_ShouldAdvanceAfterResultShopPurchase(
     return campaignLevel && playerWon && nextAvailable && !finaleGreetingPending;
 }
 
+// The optional shop offered by a campaign end-story is a detour between two
+// chapters, never a second result decision. Whether the player buys, closes
+// the shop, or chooses "Later", continue along the winning path.
+static inline bool Campaign_ShouldAdvanceAfterEndStoryShopDecision(
+    bool campaignLevel,
+    bool playerWon,
+    bool finaleGreetingPending)
+{
+    return campaignLevel && playerWon && !finaleGreetingPending;
+}
+
 static inline bool CampaignReset_PreservesBallInventory(CampaignResetScope scope)
 {
     return scope == CampaignResetScope::CampaignOnly;

@@ -103,6 +103,17 @@ TEST_CASE("A shop purchase after a normal campaign victory continues directly")
     CHECK_FALSE(Campaign_ShouldAdvanceAfterResultShopPurchase(true, true, true, true));
 }
 
+TEST_CASE("End-story shop decisions continue a normal campaign victory directly")
+{
+    CHECK(Campaign_ShouldAdvanceAfterEndStoryShopDecision(
+        /*campaignLevel=*/true, /*playerWon=*/true,
+        /*finaleGreetingPending=*/false
+    ));
+    CHECK_FALSE(Campaign_ShouldAdvanceAfterEndStoryShopDecision(true, false, false));
+    CHECK_FALSE(Campaign_ShouldAdvanceAfterEndStoryShopDecision(false, true, false));
+    CHECK_FALSE(Campaign_ShouldAdvanceAfterEndStoryShopDecision(true, true, true));
+}
+
 TEST_CASE("First level 13 win is the special campaign-winning result")
 {
     const CampaignResultActions actions =

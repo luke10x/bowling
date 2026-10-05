@@ -60,6 +60,7 @@
 #include "coins.h"
 #include "campaign_block_cards.h"
 #include "campaign_completion_flow.h"
+#include "campaign_nos_lesson.h"
 #include "campaign_rune_lessons.h"
 #include "campaign_enemy_ai.h"
 #include "campaign_enemy_mana_capacity.h"
@@ -923,9 +924,14 @@ struct UserContext
     // Persistent one-time Level 5 lesson. The temporary prompt/blink state is
     // reset per level, while learned survives replays until campaign reset.
     bool campaignGlassLessonLearned = false;
+    // Level 7 is the first game with NOS enabled. Knowledge survives replays;
+    // the prompt/blink state resets for every level setup.
+    bool campaignNosLessonLearned = false;
     int campaignRuneLessonsSeen = 0;
     bool campaignGlassCoachPromptedThisLevel = false;
     bool campaignGlassLessonBlinkActive = false;
+    bool campaignNosCoachPromptedThisLevel = false;
+    bool campaignNosLessonBlinkActive = false;
     bool campaignSplitCoachShownThisLevel = false;
     bool campaignOilCoachShownThisLevel = false;
     bool campaignPlayerReoiledThisLevel = false;
@@ -2601,6 +2607,7 @@ static inline void School_UpdateOilGuidanceUi(UserContext *usr)
 }
 
 static inline void NosEmptySfx_Stop(UserContext *usr);
+static inline void Campaign_SaveNosLessonProgress(UserContext *usr);
 
 static inline float NosEmptyBlink_Amount01(const UserContext *usr)
 {
@@ -2637,6 +2644,12 @@ static inline void SyncNosHeld(UserContext *usr)
     if (!wasHeld && usr->nosHeld)
     {
         OilLowBlink_Request(usr);
+        if (!usr->campaignNosLessonLearned && Campaign_HasUnlockedNosTool(usr))
+        {
+            usr->campaignNosLessonLearned = true;
+            usr->campaignNosLessonBlinkActive = false;
+            Campaign_SaveNosLessonProgress(usr);
+        }
     }
 }
 
@@ -5450,6 +5463,7 @@ static inline BotAvatar StoryDialog_AngelAvatarForStoryId(int32_t storyId)
         case 3005:
         case 3105:
         case 3006:
+        case 30061:
         case 3106:
         case 3007:
         case 3107:
@@ -11358,6 +11372,17 @@ static inline void Campaign_SaveGlassLessonProgress(UserContext *usr)
     );
 }
 
+static inline void Campaign_SaveNosLessonProgress(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->storage.setChar(
+        Storage::CAMPAIGN_NOS_LESSON_LEARNED,
+        usr->campaignNosLessonLearned ? "1" : "0",
+        1
+    );
+}
+
 static inline void Campaign_SaveRuneLessonProgress(UserContext *usr)
 {
     if (!usr)
@@ -11838,9 +11863,12 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     usr->unlockedBotMask = 0;
     usr->campaignGlassToolUnlocked = false;
     usr->campaignGlassLessonLearned = false;
+    usr->campaignNosLessonLearned = false;
     usr->campaignRuneLessonsSeen = 0;
     usr->campaignGlassCoachPromptedThisLevel = false;
     usr->campaignGlassLessonBlinkActive = false;
+    usr->campaignNosCoachPromptedThisLevel = false;
+    usr->campaignNosLessonBlinkActive = false;
     usr->pendingCampaignMidTurnStoryId = 0;
     usr->pendingCampaignCoachStoryId = 0;
     usr->pendingCampaignRuneLessonStoryId = 0;
@@ -11904,6 +11932,7 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     Campaign_SaveLevelResults(usr);
     Campaign_SavePostgameSettings(usr);
     Campaign_SaveGlassLessonProgress(usr);
+    Campaign_SaveNosLessonProgress(usr);
     Campaign_SaveRuneLessonProgress(usr);
     Progress_SaveCrowdControlCampaignState(usr);
 }
@@ -13395,6 +13424,8 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
         usr->campaignGlassToolUnlocked = true;
     usr->campaignGlassCoachPromptedThisLevel = false;
     usr->campaignGlassLessonBlinkActive = false;
+    usr->campaignNosCoachPromptedThisLevel = false;
+    usr->campaignNosLessonBlinkActive = false;
     usr->campaignSplitCoachShownThisLevel = false;
     usr->campaignOilCoachShownThisLevel = false;
     usr->campaignPlayerReoiledThisLevel = false;
@@ -18887,6 +18918,8 @@ void vtx::init(vtx::VertexContext *ctx)
         }
         n = usr->storage.getChar(Storage::CAMPAIGN_GLASS_LESSON_LEARNED, tmp, sizeof(tmp));
         usr->campaignGlassLessonLearned = n > 0 && tmp[0] == '1';
+        n = usr->storage.getChar(Storage::CAMPAIGN_NOS_LESSON_LEARNED, tmp, sizeof(tmp));
+        usr->campaignNosLessonLearned = n > 0 && tmp[0] == '1';
         n = usr->storage.getChar(Storage::CAMPAIGN_RUNE_LESSONS_SEEN, tmp, sizeof(tmp));
         usr->campaignRuneLessonsSeen = n > 0 ? glm::max(0, atoi(tmp)) : 0;
         n = usr->storage.getChar(Storage::UNLOCKED_BALLS, tmp, sizeof(tmp));
@@ -19354,7 +19387,16 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         // Coach tips are advice for the player, so wait until the next player
         // idle turn instead of popping before the enemy throws.
-        usr->dialog.open(usr->pendingCampaignCoachStoryId);
+        const int coachStoryId = usr->pendingCampaignCoachStoryId;
+        usr->dialog.open(coachStoryId);
+        if (coachStoryId == kCampaignNosLessonStoryId)
+        {
+            // The first NOS prompt must always be actionable: give a low
+            // meter a full charge before asking the player to use the pedal.
+            if (CampaignNosLesson_ShouldRefill(usr->electroBall.getCharge01()))
+                usr->electroBall.addGemCharge(usr->electroBall.chargeCapacity);
+            usr->campaignNosLessonBlinkActive = true;
+        }
         usr->dialog.dialogAppearDelayLeft = 0.0f;
         usr->dialog.openedThisFrame = true;
         usr->pendingCampaignCoachStoryId = 0;
@@ -23388,16 +23430,17 @@ swing_checks_done:
                                 !usr->campaignPostgameFreeplayActive &&
                                 !IsEnemyTurn(usr) &&
                                 frameCompleted &&
-                                Campaign_IsCurrentOpponentMalach(usr) &&
                                 usr->pendingCampaignCoachStoryId == 0)
                             {
-                                if (!usr->campaignSplitCoachShownThisLevel &&
+                                if (Campaign_IsCurrentOpponentMalach(usr) &&
+                                    !usr->campaignSplitCoachShownThisLevel &&
                                     Campaign_PlayerSplitFrameCount(usr) >= 4)
                                 {
                                     usr->campaignSplitCoachShownThisLevel = true;
                                     usr->pendingCampaignCoachStoryId = 30031;
                                 }
-                                else if (!usr->campaignOilCoachShownThisLevel &&
+                                else if (Campaign_IsCurrentOpponentMalach(usr) &&
+                                         !usr->campaignOilCoachShownThisLevel &&
                                          Campaign_CurrentLevel(usr).biome == CampaignBiome::RED_DESERT &&
                                          !usr->campaignPlayerReoiledThisLevel &&
                                          Scoreboard_CurrentFrameNumber(&usr->board) >= 3 &&
@@ -23405,6 +23448,15 @@ swing_checks_done:
                                 {
                                     usr->campaignOilCoachShownThisLevel = true;
                                     usr->pendingCampaignCoachStoryId = 30032;
+                                }
+                                else if (CampaignNosLesson_ShouldPrompt(
+                                             Campaign_CurrentLevel(usr).levelNumber,
+                                             Scoreboard_CurrentFrameNumber(&usr->board),
+                                             usr->campaignNosLessonLearned,
+                                             usr->campaignNosCoachPromptedThisLevel))
+                                {
+                                    usr->campaignNosCoachPromptedThisLevel = true;
+                                    usr->pendingCampaignCoachStoryId = kCampaignNosLessonStoryId;
                                 }
                                 else if (CampaignBlockCards_ShouldPromptGlassLesson(
                                              Campaign_CurrentLevel(usr).levelNumber,
@@ -27926,6 +27978,17 @@ END_LINE:
                                     const float nosEmptyBlink01 = NosEmptyBlink_Amount01(usr);
                                     const bool charged = charge01 > 0.001f;
                                     const bool highlighted = pulse01 > charge01 + 0.001f;
+                                    const bool nosLessonWhiteBlink = CampaignNosLesson_ShouldWhiteBlink(
+                                        usr->campaignNosLessonLearned,
+                                        usr->campaignNosLessonBlinkActive,
+                                        usr->nosHeld,
+                                        charge01
+                                    );
+                                    const float nosLessonBlink01 = nosLessonWhiteBlink
+                                        ? (0.30f + 0.70f * (0.5f + 0.5f * sinf(
+                                            usr->rawTime * glm::two_pi<float>() * 2.0f
+                                        )))
+                                        : 0.0f;
                                     usr->nosButtonFill01 = HudEased01(
                                         usr->nosButtonFill01,
                                         charge01,
@@ -27948,6 +28011,9 @@ END_LINE:
                                                                  highlighted ? (Clay_Color){180, 245, 255, 240} :
                                                                  charged ? (Clay_Color){80, 205, 255, 180} :
                                                                            CLAY_COLOR_BORDER;
+                                    nosBase = ClayColorMix(nosBase, (Clay_Color){238, 248, 255, 245}, nosLessonBlink01 * 0.62f);
+                                    nosFill = ClayColorMix(nosFill, (Clay_Color){255, 255, 255, 255}, nosLessonBlink01);
+                                    nosBorder = ClayColorMix(nosBorder, (Clay_Color){255, 255, 255, 255}, nosLessonBlink01);
                                     nosBase = ClayColorMix(nosBase, (Clay_Color){150, 18, 28, 220}, nosEmptyBlink01);
                                     nosFill = ClayColorMix(nosFill, (Clay_Color){245, 42, 48, 230}, nosEmptyBlink01);
                                     nosBorder = ClayColorMix(nosBorder, (Clay_Color){255, 72, 78, 230}, nosEmptyBlink01);

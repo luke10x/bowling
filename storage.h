@@ -97,6 +97,7 @@ struct Storage
         CAMPAIGN_LEVEL_BEST_OPPONENT_SCORES,
         CAMPAIGN_LEVEL_BONUSES_GRANTED,
         CAMPAIGN_GLASS_LESSON_LEARNED,
+        CAMPAIGN_NOS_LESSON_LEARNED,
         CAMPAIGN_RUNE_LESSONS_SEEN,
         CAMPAIGN_ACTIVE_LEVEL,
         CAMPAIGN_POSTGAME_FREEPLAY,
@@ -136,6 +137,7 @@ struct Storage
         "campaign_level_best_opponent_scores",
         "campaign_level_bonuses_granted",
         "campaign_glass_lesson_learned",
+        "campaign_nos_lesson_learned",
         "campaign_rune_lessons_seen",
         "campaign_active_level",
         "campaign_postgame_freeplay",
@@ -174,6 +176,7 @@ struct Storage
         "0,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_BEST_OPPONENT_SCORES
         "0,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_BONUSES_GRANTED
         "0",     // CAMPAIGN_GLASS_LESSON_LEARNED
+        "0",     // CAMPAIGN_NOS_LESSON_LEARNED
         "0",     // CAMPAIGN_RUNE_LESSONS_SEEN
         "0",     // CAMPAIGN_ACTIVE_LEVEL
         "0",     // CAMPAIGN_POSTGAME_FREEPLAY

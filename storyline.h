@@ -532,6 +532,14 @@ static constexpr StorylineNode STORYLINES[] = {
         /*next_storyline=*/0,
     },
     {
+        /*storyline_id=*/30061,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"You have NOS now, but you still will not use it.\n"
+                 "I filled your energy. Hold the NOS pedal while your ball is already moving.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
         /*storyline_id=*/3106,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"Take that power into the desert.\n"
@@ -872,6 +880,7 @@ static inline const char *Story_AngelNameForStoryId(TxlLanguage language, int32_
         case 3005:
         case 3105:
         case 3006:
+        case 30061:
         case 3106:
         case 3007:
         case 3107:
@@ -950,6 +959,7 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
             case 3005: return "Aš Cherubel.\nMėgstu aštrias kovas ir žaidėjus, kurie kerta atgal.\nParodyk, ar trauksiesi, ar atsakysi.\n";
             case 3105: return "Neblogai.\nKitą lygį grįšime į paprastą taką. Šįkart leidžiu NOS.\n";
             case 3006: return "Dabar mesdamas gali naudoti NOS.\nNespausk be reikalo. Laikyk, kai kamuolys jau greitas, ir stumk galią per visą taką.\n";
+            case 30061: return "Dabar turi NOS, bet vis dar jo nenaudoji.\nPripildžiau tavo energiją. Kamuoliui jau judant laikyk NOS pedalą.\n";
             case 3106: return "Nešk šią jėgą į dykumą.\nPrieš paskutinį mūsų lygį leisiu mesti medį į mano kelią.\n";
             case 3007: return "Vėl dykuma.\nKai mesiu aš, galėsi dėti medį.\nTegu tai būna atsakymas, ne puošmena.\n";
             case 3107: return "Mane atlaikei.\nSeraphel tyliai stebėjo. Paprastai tai blogiau.\n";
@@ -1023,6 +1033,7 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
             case 3005: return "私はケルビム。\n噛みごたえのある勝負と、反撃するプレイヤーが好きだ。\n退くのか、返すのか見せて。\n";
             case 3105: return "悪くない。\n次は普通のレーンへ戻る。今回はNOSを許可する。\n";
             case 3006: return "投球中にNOSを使えるようになった。\nおもちゃのように押すな。球に速度が乗ってから押し続け、力をレーンへ通せ。\n";
+            case 30061: return "NOSが使えるのに、まだ使おうとしないね。\nエネルギーは満たしておいた。球が動き出してからNOSペダルを押し続けろ。\n";
             case 3106: return "その力を砂漠へ持って行け。\n最後の勝負の前に、木を私の道へ置くことも許そう。\n";
             case 3007: return "また砂漠だ。\n私が投げる時、君は木を置ける。\n飾りではなく、返答として使え。\n";
             case 3107: return "私を耐え抜いたね。\nセラフィムが黙って見ていた。たいてい、それはもっと悪い。\n";
@@ -1097,6 +1108,7 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
         case 3005: return "我是基路伯。\n我喜欢有咬劲的比赛，也喜欢会反击的玩家。\n让我看看你是会缩，还是会回。\n";
         case 3105: return "不赖。\n下一关我们回到普通球道，而且这次我允许你使用 NOS。\n";
         case 3006: return "现在你可以在出手时使用 NOS。\n别把它当玩具乱点。等球已经有速度时按住它，把力量送穿整条球道。\n";
+        case 30061: return "你现在有 NOS 了，却还是不用。\n我已经把能量充满了。球开始移动后，按住 NOS 踏板。\n";
         case 3106: return "把这股力量带去沙漠。\n在我和你的最后一关之前，我还会让你把木块丢到我的路线上。\n";
         case 3007: return "又是沙漠。\n这次当我出手时，你可以放木块。\n把它当成一种回嘴，而不是装饰。\n";
         case 3107: return "你挺过我了。\n撒拉弗一直在沉默地看着，而这通常更糟。\n";

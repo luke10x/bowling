@@ -2233,6 +2233,14 @@ static inline uint32_t Campaign_BlockCardsMixSeed(const UserContext *usr, bool e
     if (!usr)
         return enemyDeck ? 2u : 1u;
     uint32_t seed = uint32_t((usr->campaignLevelIndex + 1) * 131);
+    // Each campaign run resets its hand state. Level/frame alone would then
+    // recreate the exact same 15-card queue on every replay. Mix in the
+    // persisted run ordinal for both normal campaign replays and postgame
+    // random games, while retaining the configured material weights.
+    const int runOrdinal = usr->campaignPostgameFreeplayActive
+        ? usr->campaignPostgameGamesStarted
+        : usr->campaignLevelAttempts[glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount) - 1];
+    seed ^= uint32_t((runOrdinal + 1) * 2654435761u);
     seed ^= uint32_t((Scoreboard_CurrentFrameNumber(&usr->board) + 3) * 313);
     seed ^= uint32_t((Scoreboard_CurrentFrameNumber(&usr->enemyBoard) + 7) * 977);
     seed ^= enemyDeck ? 0x9e3779b9u : 0x85ebca6bu;

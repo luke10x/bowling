@@ -23,7 +23,24 @@ TEST_CASE("Campaign and post-campaign runs load their own block tool sets")
           CampaignBlockCards_EnabledMask(true, true, true, true));
     CHECK(CampaignBlockCards_EnabledMaskForCampaignLevel(1, true) ==
           CampaignBlockCards_EnabledMask(true, true, true, true));
+    CHECK(CampaignBlockCards_EnabledMaskForCampaignLevel(8, true) ==
+          CampaignBlockCards_EnabledMask(true, true, true, true));
     CHECK(CampaignBlockCards_EnabledMaskForCampaignLevel(13, true, /*blocksEnabled=*/false) == 0);
+}
+
+TEST_CASE("Post-campaign default deck can deal every enabled material")
+{
+    const int enabledMask = CampaignBlockCards_EnabledMaskForCampaignLevel(8, /*postgame=*/true);
+    int dealtMask = 0;
+    uint32_t rng = 0x4d3c2b1au;
+    for (int draw = 0; draw < 1000; ++draw)
+    {
+        const int type = CampaignBlockCards_WeightedRandomType(rng, enabledMask);
+        REQUIRE(type >= CAMPAIGN_BLOCK_CARD_WOOD);
+        REQUIRE(type < CAMPAIGN_BLOCK_CARD_COUNT);
+        dealtMask |= 1 << type;
+    }
+    CHECK(dealtMask == enabledMask);
 }
 
 TEST_CASE("Level 5 glass reminder stops once glass has been learned")

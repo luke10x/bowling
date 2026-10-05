@@ -78,10 +78,15 @@ inline bool CampaignBlockCards_ShouldShowHand(int enabledMask)
 
 inline int CampaignBlockCards_EnabledMaskForCampaignLevel(
     int levelNumber,
-    bool postgameFreeplayActive)
+    bool postgameFreeplayActive,
+    bool postgameBlocksEnabled = true)
 {
     if (postgameFreeplayActive)
+    {
+        if (!postgameBlocksEnabled)
+            return 0;
         return CampaignBlockCards_EnabledMask(true, true, true, true);
+    }
     return CampaignBlockCards_EnabledMask(
         /*wood=*/levelNumber >= 8,
         /*brick=*/levelNumber >= 11,

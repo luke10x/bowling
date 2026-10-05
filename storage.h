@@ -99,6 +99,7 @@ struct Storage
         CAMPAIGN_ACTIVE_LEVEL,
         CAMPAIGN_POSTGAME_FREEPLAY,
         CAMPAIGN_POSTGAME_STATS,
+        CAMPAIGN_POSTGAME_SETTINGS,
         CROWD_CONTROL_BONUS_CLAIMS,
         CROWD_CONTROL_BALL_WON,
         CROWD_CONTROL_PRIZE_INDEX,
@@ -135,6 +136,7 @@ struct Storage
         "campaign_active_level",
         "campaign_postgame_freeplay",
         "campaign_postgame_stats",
+        "campaign_postgame_settings",
         "crowd_control_bonus_claims",
         "crowd_control_ball_won",
         "crowd_control_prize_index",
@@ -169,7 +171,8 @@ struct Storage
         "0,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_BONUSES_GRANTED
         "0",     // CAMPAIGN_ACTIVE_LEVEL
         "0",     // CAMPAIGN_POSTGAME_FREEPLAY
-        "0,0,0,0,0,0", // CAMPAIGN_POSTGAME_STATS: started,wins,losses,quits,best player,best opponent
+        "0,0,0,0,0,0,1,1", // CAMPAIGN_POSTGAME_STATS: started,wins,losses,quits,best player,best opponent,best blocks,best nos
+        "1,1", // CAMPAIGN_POSTGAME_SETTINGS: blocks,nos
         "0",     // CROWD_CONTROL_BONUS_CLAIMS
         "0",     // CROWD_CONTROL_BALL_WON
         "0",     // CROWD_CONTROL_PRIZE_INDEX

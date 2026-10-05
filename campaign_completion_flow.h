@@ -133,16 +133,42 @@ static inline bool Campaign_ShouldShowFinaleFireworks(
 
 // Random post-campaign games are intentionally fully equipped, regardless of
 // the last campaign chapter the player replayed before returning here.
-static inline bool Campaign_PostgameUsesFullToolset(bool postgameFreeplayActive)
+static inline bool Campaign_PostgameUsesFullToolset(
+    bool postgameFreeplayActive,
+    bool postgameToolEnabled = true)
 {
-    return postgameFreeplayActive;
+    return postgameFreeplayActive && postgameToolEnabled;
+}
+
+struct CampaignPostgameToolset
+{
+    bool blocksEnabled = true;
+    bool nosEnabled = true;
+};
+
+// Settings are preferences for the next post-campaign game.  A game takes this
+// value only at setup, so opening and closing Campaign cannot reconfigure a
+// live match.
+static inline CampaignPostgameToolset Campaign_SnapshotPostgameToolset(
+    bool configuredBlocksEnabled,
+    bool configuredNosEnabled)
+{
+    return {configuredBlocksEnabled, configuredNosEnabled};
+}
+
+// Completed-campaign results always advance to a fresh random post-campaign
+// game.  Their button must say NEXT even if the just-finished game was lost.
+static inline bool Campaign_ResultButtonUsesNext(bool postCampaignResult, bool playerWon)
+{
+    return postCampaignResult || playerWon;
 }
 
 static inline bool Campaign_NosEnabledForCampaignLevel(
     int levelNumber,
-    bool postgameFreeplayActive)
+    bool postgameFreeplayActive,
+    bool postgameNosEnabled = true)
 {
-    return Campaign_PostgameUsesFullToolset(postgameFreeplayActive) || levelNumber >= 7;
+    return Campaign_PostgameUsesFullToolset(postgameFreeplayActive, postgameNosEnabled) || levelNumber >= 7;
 }
 
 // Selecting a campaign level starts a fresh match. It must discard the

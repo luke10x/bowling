@@ -209,9 +209,35 @@ TEST_CASE("Post-campaign games always use the full tool set")
 {
     CHECK(Campaign_PostgameUsesFullToolset(/*postgameFreeplayActive=*/true));
     CHECK_FALSE(Campaign_PostgameUsesFullToolset(/*postgameFreeplayActive=*/false));
+    CHECK_FALSE(Campaign_PostgameUsesFullToolset(/*postgameFreeplayActive=*/true, /*enabled=*/false));
     CHECK_FALSE(Campaign_NosEnabledForCampaignLevel(6, /*postgame=*/false));
     CHECK(Campaign_NosEnabledForCampaignLevel(7, /*postgame=*/false));
     CHECK(Campaign_NosEnabledForCampaignLevel(1, /*postgame=*/true));
+    CHECK_FALSE(Campaign_NosEnabledForCampaignLevel(1, /*postgame=*/true, /*enabled=*/false));
+}
+
+TEST_CASE("Post-campaign tool changes wait for a newly started game")
+{
+    const CampaignPostgameToolset activeGame = Campaign_SnapshotPostgameToolset(
+        /*blocks=*/true, /*nos=*/true
+    );
+    // Changing the saved preferences does not mutate the snapshot held by the
+    // in-progress game.
+    const CampaignPostgameToolset nextGame = Campaign_SnapshotPostgameToolset(
+        /*blocks=*/false, /*nos=*/false
+    );
+    CHECK(activeGame.blocksEnabled);
+    CHECK(activeGame.nosEnabled);
+    CHECK_FALSE(nextGame.blocksEnabled);
+    CHECK_FALSE(nextGame.nosEnabled);
+}
+
+TEST_CASE("Post-campaign result button always says next")
+{
+    CHECK(Campaign_ResultButtonUsesNext(/*postCampaign=*/true, /*won=*/true));
+    CHECK(Campaign_ResultButtonUsesNext(/*postCampaign=*/true, /*won=*/false));
+    CHECK(Campaign_ResultButtonUsesNext(/*postCampaign=*/false, /*won=*/true));
+    CHECK_FALSE(Campaign_ResultButtonUsesNext(/*postCampaign=*/false, /*won=*/false));
 }
 
 TEST_CASE("Level 13 loss before campaign completion offers repeat only")

@@ -23,6 +23,7 @@ TEST_CASE("Campaign and post-campaign runs load their own block tool sets")
           CampaignBlockCards_EnabledMask(true, true, true, true));
     CHECK(CampaignBlockCards_EnabledMaskForCampaignLevel(1, true) ==
           CampaignBlockCards_EnabledMask(true, true, true, true));
+    CHECK(CampaignBlockCards_EnabledMaskForCampaignLevel(13, true, /*blocksEnabled=*/false) == 0);
 }
 
 TEST_CASE("Only Levels 11 and 13 give the enemy final-level block weights")

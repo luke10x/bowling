@@ -903,6 +903,14 @@ struct UserContext
     int campaignPostgameQuits = 0;
     int campaignPostgameBestScore = 0;
     int campaignPostgameBestOpponentScore = 0;
+    bool campaignPostgameBlocksEnabled = true;
+    bool campaignPostgameNosEnabled = true;
+    bool campaignPostgameBestBlocksEnabled = true;
+    bool campaignPostgameBestNosEnabled = true;
+    // Snapshotted at new-game setup.  The post-campaign settings UI changes
+    // preferences only; it must never change a game that is already underway.
+    bool campaignRunPostgameBlocksEnabled = true;
+    bool campaignRunPostgameNosEnabled = true;
     bool campaignRunStarted = false;
     bool campaignOverrideActive = false;
     CampaignBiome campaignOverrideBiome = CampaignBiome::NORMAL;
@@ -2171,7 +2179,8 @@ static inline bool Campaign_HasUnlockedNosTool(const UserContext *usr)
         return true;
     return Campaign_NosEnabledForCampaignLevel(
         usr->campaignLevelIndex,
-        usr->campaignPostgameFreeplayActive
+        usr->campaignPostgameFreeplayActive,
+        usr->campaignRunPostgameNosEnabled
     );
 }
 
@@ -2184,7 +2193,8 @@ static inline bool Campaign_IsBlockVariantAvailable(const UserContext *usr, int 
 
     const int enabledMask = CampaignBlockCards_EnabledMaskForCampaignLevel(
         usr->campaignLevelIndex,
-        usr->campaignPostgameFreeplayActive
+        usr->campaignPostgameFreeplayActive,
+        usr->campaignRunPostgameBlocksEnabled
     );
     return CampaignBlockCards_IsTypeEnabled(enabledMask, variantIndex);
 }
@@ -11265,15 +11275,28 @@ static inline void Campaign_SavePostgameStats(UserContext *usr)
     std::snprintf(
         stats,
         sizeof(stats),
-        "%d,%d,%d,%d,%d,%d",
+        "%d,%d,%d,%d,%d,%d,%d,%d",
         glm::max(0, usr->campaignPostgameGamesStarted),
         glm::max(0, usr->campaignPostgameWins),
         glm::max(0, usr->campaignPostgameLosses),
         glm::max(0, usr->campaignPostgameQuits),
         glm::max(0, usr->campaignPostgameBestScore),
-        glm::max(0, usr->campaignPostgameBestOpponentScore)
+        glm::max(0, usr->campaignPostgameBestOpponentScore),
+        usr->campaignPostgameBestBlocksEnabled ? 1 : 0,
+        usr->campaignPostgameBestNosEnabled ? 1 : 0
     );
     usr->storage.setChar(Storage::CAMPAIGN_POSTGAME_STATS, stats, std::strlen(stats));
+}
+
+static inline void Campaign_SavePostgameSettings(UserContext *usr)
+{
+    if (!usr)
+        return;
+    char settings[8];
+    std::snprintf(settings, sizeof(settings), "%d,%d",
+                  usr->campaignPostgameBlocksEnabled ? 1 : 0,
+                  usr->campaignPostgameNosEnabled ? 1 : 0);
+    usr->storage.setChar(Storage::CAMPAIGN_POSTGAME_SETTINGS, settings, std::strlen(settings));
 }
 
 static inline void Campaign_SaveCompletionState(UserContext *usr)
@@ -11370,6 +11393,10 @@ static inline void Campaign_ResetAttemptStats(UserContext *usr)
     usr->campaignPostgameQuits = 0;
     usr->campaignPostgameBestScore = 0;
     usr->campaignPostgameBestOpponentScore = 0;
+    usr->campaignPostgameBlocksEnabled = true;
+    usr->campaignPostgameNosEnabled = true;
+    usr->campaignPostgameBestBlocksEnabled = true;
+    usr->campaignPostgameBestNosEnabled = true;
 }
 
 static inline void Campaign_RecordWinForCurrentLevel(UserContext *usr)
@@ -11802,6 +11829,7 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     Campaign_SaveCompletionState(usr);
     Campaign_SaveAttemptStats(usr);
     Campaign_SaveLevelResults(usr);
+    Campaign_SavePostgameSettings(usr);
     Progress_SaveCrowdControlCampaignState(usr);
 }
 
@@ -13245,6 +13273,12 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
 
     usr->campaignLevelIndex = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount);
     usr->campaignRunStarted = false;
+    const CampaignPostgameToolset postgameToolset = Campaign_SnapshotPostgameToolset(
+        usr->campaignPostgameBlocksEnabled,
+        usr->campaignPostgameNosEnabled
+    );
+    usr->campaignRunPostgameBlocksEnabled = postgameToolset.blocksEnabled;
+    usr->campaignRunPostgameNosEnabled = postgameToolset.nosEnabled;
     const CampaignLevelConfig cfg = Campaign_CurrentLevel(usr);
     const int campaignAttemptIdx = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount) - 1;
     usr->campaignStartStoryAttemptCountAtSetup = glm::max(
@@ -13350,16 +13384,19 @@ static inline void Campaign_SetResultWindowLabels(UserContext *usr, bool advance
 {
     if (!usr)
         return;
+    const bool postCampaignResult =
+        usr->playerRoute == PlayerRoute::CAMPAIGN && usr->campaignCompleted;
+    const bool buttonUsesNext = Campaign_ResultButtonUsesNext(postCampaignResult, advanced);
     if (usr->clayton.newGameIsResult)
     {
         usr->clayton.newGameVictory = advanced;
         usr->clayton.newGameTitle = Txl_Get(usr->language, advanced ? TXL_VICTORY : TXL_YOU_LOSE);
-        usr->clayton.newGameButtonLabel = Txl_Get(usr->language, advanced ? TXL_NEXT : TXL_RETRY);
+        usr->clayton.newGameButtonLabel = Txl_Get(usr->language, buttonUsesNext ? TXL_NEXT : TXL_RETRY);
         return;
     }
     usr->clayton.newGameTitle = advanced ? Txl_Get(usr->language, TXL_NEXT) : Txl_Get(usr->language, TXL_TRY_AGAIN);
     usr->clayton.newGameDetail = "";
-    usr->clayton.newGameButtonLabel = Txl_Get(usr->language, advanced ? TXL_NEXT : TXL_RETRY);
+    usr->clayton.newGameButtonLabel = Txl_Get(usr->language, buttonUsesNext ? TXL_NEXT : TXL_RETRY);
 }
 
 static inline TxlKey Campaign_TitleKey(int levelNumber)
@@ -18620,6 +18657,10 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.campaignLevelContinueClick, "CampaignLevelContinue");
     initClaytonClick(&usr->clayton.campaignLevelDetailPlayClick, "CampaignLevelDetailPlay");
     initClaytonClick(&usr->clayton.campaignLevelDetailBackClick, "CampaignLevelDetailBack");
+    initClaytonClick(&usr->clayton.campaignPostgameSettingsClick, "CampaignPostgameSettings");
+    initClaytonClick(&usr->clayton.campaignPostgameSettingsCloseClick, "CampaignPostgameSettingsClose");
+    initClaytonClick(&usr->clayton.campaignPostgameBlocksClick, "CampaignPostgameBlocks");
+    initClaytonClick(&usr->clayton.campaignPostgameNosClick, "CampaignPostgameNos");
     initClaytonClick(&usr->clayton.menuPracticeClick, "menuPractice");
     initClaytonClick(&usr->clayton.menuFreestyleClick, "menuFreestyle");
     initClaytonClick(&usr->clayton.menuMinigamesClick, "menuMinigames");
@@ -18698,8 +18739,10 @@ void vtx::init(vtx::VertexContext *ctx)
         if (n > 0)
         {
             int started = 0, wins = 0, losses = 0, quits = 0, bestScore = 0, bestOpponentScore = 0;
-            if (std::sscanf(tmp, "%d,%d,%d,%d,%d,%d", &started, &wins, &losses, &quits,
-                            &bestScore, &bestOpponentScore) == 6)
+            int bestBlocks = 1, bestNos = 1;
+            const int fields = std::sscanf(tmp, "%d,%d,%d,%d,%d,%d,%d,%d", &started, &wins, &losses, &quits,
+                                           &bestScore, &bestOpponentScore, &bestBlocks, &bestNos);
+            if (fields >= 6)
             {
                 usr->campaignPostgameGamesStarted = glm::max(0, started);
                 usr->campaignPostgameWins = glm::max(0, wins);
@@ -18707,6 +18750,21 @@ void vtx::init(vtx::VertexContext *ctx)
                 usr->campaignPostgameQuits = glm::max(0, quits);
                 usr->campaignPostgameBestScore = glm::max(0, bestScore);
                 usr->campaignPostgameBestOpponentScore = glm::max(0, bestOpponentScore);
+                if (fields >= 8)
+                {
+                    usr->campaignPostgameBestBlocksEnabled = bestBlocks != 0;
+                    usr->campaignPostgameBestNosEnabled = bestNos != 0;
+                }
+            }
+        }
+        n = usr->storage.getChar(Storage::CAMPAIGN_POSTGAME_SETTINGS, tmp, sizeof(tmp));
+        if (n > 0)
+        {
+            int blocks = 1, nos = 1;
+            if (std::sscanf(tmp, "%d,%d", &blocks, &nos) == 2)
+            {
+                usr->campaignPostgameBlocksEnabled = blocks != 0;
+                usr->campaignPostgameNosEnabled = nos != 0;
             }
         }
         n = usr->storage.getChar(Storage::UNLOCKED_BALLS, tmp, sizeof(tmp));
@@ -19810,8 +19868,19 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->campaignPostgameLosses,
                         usr->campaignPostgameQuits,
                         usr->campaignPostgameBestScore,
-                        usr->campaignPostgameBestOpponentScore
+                        usr->campaignPostgameBestOpponentScore,
+                        usr->campaignPostgameBlocksEnabled,
+                        usr->campaignPostgameNosEnabled,
+                        usr->campaignPostgameBestBlocksEnabled,
+                        usr->campaignPostgameBestNosEnabled
                     );
+                }
+                if (usr->windowStack.campaignPostgameSettingsChanged)
+                {
+                    usr->windowStack.campaignPostgameSettingsChanged = false;
+                    usr->campaignPostgameBlocksEnabled = usr->windowStack.campaignPostgameBlocksEnabled;
+                    usr->campaignPostgameNosEnabled = usr->windowStack.campaignPostgameNosEnabled;
+                    Campaign_SavePostgameSettings(usr);
                 }
                 if (usr->windowStack.campaignLevelSelectedRequested != 0)
                 {
@@ -23436,6 +23505,8 @@ swing_checks_done:
                                             Campaign_RecordFinishedLevel(usr, usr->board.totalScore, usr->enemyBoard.totalScore);
                                         if (usr->campaignPostgameFreeplayActive)
                                         {
+                                            const bool matchedOrBeatBest =
+                                                usr->board.totalScore >= usr->campaignPostgameBestScore;
                                             usr->campaignPostgameBestScore = glm::max(
                                                 usr->campaignPostgameBestScore,
                                                 usr->board.totalScore
@@ -23444,8 +23515,12 @@ swing_checks_done:
                                                 ++usr->campaignPostgameWins;
                                             else
                                                 ++usr->campaignPostgameLosses;
-                                            if (usr->board.totalScore >= usr->campaignPostgameBestScore)
+                                            if (matchedOrBeatBest)
+                                            {
                                                 usr->campaignPostgameBestOpponentScore = usr->enemyBoard.totalScore;
+                                                usr->campaignPostgameBestBlocksEnabled = usr->campaignRunPostgameBlocksEnabled;
+                                                usr->campaignPostgameBestNosEnabled = usr->campaignRunPostgameNosEnabled;
+                                            }
                                             Campaign_SavePostgameStats(usr);
                                         }
                                         if (!clearedFullCampaign)
@@ -23527,7 +23602,13 @@ swing_checks_done:
                                             &usr->board,
                                             &usr->enemyBoard,
                                             ResultWindow_CoinsSinceRunStart(usr),
-	                                            Txl_Get(usr->language, playerWins ? TXL_NEXT : TXL_RETRY),
+                                            Txl_Get(
+                                                usr->language,
+                                                Campaign_ResultButtonUsesNext(
+                                                    usr->campaignCompleted,
+                                                    playerWins
+                                                ) ? TXL_NEXT : TXL_RETRY
+                                            ),
                                             (usr->playerRoute == PlayerRoute::CAMPAIGN)
                                                 ? Campaign_OpponentDisplayName(usr->language, cfg.opponent)
 	                                                : BotAvatar_DisplayName(usr->language, usr->botAvatar)

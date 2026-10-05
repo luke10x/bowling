@@ -45,6 +45,10 @@
 #define WINDOW_STACK_MAX 10
 #endif
 
+// A best score that lost to the opponent has the same muted coral tint everywhere
+// campaign records appear (level cards and the post-campaign applet).
+static constexpr Clay_Color kCampaignRecordLossTextColor = {220, 82, 74, 255};
+
 enum WindowKind // I like it 
 {
     WindowKind_Greetings,
@@ -66,6 +70,7 @@ enum WindowKind // I like it
     WindowKind_CampaignEndgameSummary,
     WindowKind_CampaignLevelSelect,
     WindowKind_CampaignLevelDetail,
+    WindowKind_CampaignPostgameSettings,
     WindowKind_Credits,
     WindowKind_Settings,
     WindowKind_SettingsResetConfirm,
@@ -125,6 +130,11 @@ struct WindowStack
     int campaignPostgameQuits = 0;
     int campaignPostgameBestScore = 0;
     int campaignPostgameBestOpponentScore = 0;
+    bool campaignPostgameBlocksEnabled = true;
+    bool campaignPostgameNosEnabled = true;
+    bool campaignPostgameBestBlocksEnabled = true;
+    bool campaignPostgameBestNosEnabled = true;
+    bool campaignPostgameSettingsChanged = false;
     int campaignLevelDetailIndex;
     bool menuPracticeRequested;
     bool menuFreestyleRequested;
@@ -351,7 +361,7 @@ struct WindowStack
         campaignEndgameClosedRequested = false;
         windowStackPushWindow_(WindowKind_CampaignEndgameSummary);
     }
-    inline void windowStackPushCampaignLevelSelectWindow(const bool *unlocked, bool campaignComplete, int currentIndex, const int *attempts, const int *wins, const float *firstWinTimes, const int *bestScores, const int *bestOpponentScores, const int *losses = nullptr, int postgameStarted = 0, int postgameWins = 0, int postgameLosses = 0, int postgameQuits = 0, int postgameBestScore = 0, int postgameBestOpponentScore = 0)
+    inline void windowStackPushCampaignLevelSelectWindow(const bool *unlocked, bool campaignComplete, int currentIndex, const int *attempts, const int *wins, const float *firstWinTimes, const int *bestScores, const int *bestOpponentScores, const int *losses = nullptr, int postgameStarted = 0, int postgameWins = 0, int postgameLosses = 0, int postgameQuits = 0, int postgameBestScore = 0, int postgameBestOpponentScore = 0, bool postgameBlocksEnabled = true, bool postgameNosEnabled = true, bool postgameBestBlocksEnabled = true, bool postgameBestNosEnabled = true)
     {
         campaignLevelSelectedRequested = 0;
         campaignLevelSelectActionRequested = 0;
@@ -365,6 +375,11 @@ struct WindowStack
         campaignPostgameQuits = postgameQuits;
         campaignPostgameBestScore = postgameBestScore;
         campaignPostgameBestOpponentScore = postgameBestOpponentScore;
+        campaignPostgameBlocksEnabled = postgameBlocksEnabled;
+        campaignPostgameNosEnabled = postgameNosEnabled;
+        campaignPostgameBestBlocksEnabled = postgameBestBlocksEnabled;
+        campaignPostgameBestNosEnabled = postgameBestNosEnabled;
+        campaignPostgameSettingsChanged = false;
         for (int i = 0; i < 13; ++i)
         {
             campaignEndgameAttempts[i] = attempts ? attempts[i] : 0;
@@ -375,6 +390,11 @@ struct WindowStack
             campaignEndgameFirstWinTimes[i] = firstWinTimes ? firstWinTimes[i] : 0.0f;
         }
         windowStackPushWindow_(WindowKind_CampaignLevelSelect);
+    }
+    inline void windowStackPushCampaignPostgameSettingsWindow()
+    {
+        campaignPostgameSettingsChanged = false;
+        windowStackPushWindow_(WindowKind_CampaignPostgameSettings);
     }
     inline void windowStackPushCampaignLevelDetailWindow(int levelIndex)
     {
@@ -564,6 +584,7 @@ private:
     static bool processCampaignEndgameSummaryWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processCampaignLevelSelectWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processCampaignLevelDetailWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
+    static bool processCampaignPostgameSettingsWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processTrackerEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerInstrumentsWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerSongSettingsWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
@@ -600,6 +621,7 @@ private:
     static void renderCampaignEndgameSummaryWindow(WindowStack *self, Clayton *clayton);
     static void renderCampaignLevelSelectWindow(WindowStack *self, Clayton *clayton);
     static void renderCampaignLevelDetailWindow(WindowStack *self, Clayton *clayton);
+    static void renderCampaignPostgameSettingsWindow(WindowStack *self, Clayton *clayton);
     static void renderTrackerEditorWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerInstrumentsWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerSongSettingsWindow(Clayton *clayton, Tracker *tracker);
@@ -781,6 +803,10 @@ inline bool WindowStack::processActiveWindowEvent(
 
     case WindowKind_CampaignLevelDetail:
         consumed = processCampaignLevelDetailWindowEvent(this, clayton, e);
+        return consumed;
+
+    case WindowKind_CampaignPostgameSettings:
+        consumed = processCampaignPostgameSettingsWindowEvent(this, clayton, e);
         return consumed;
 
     case WindowKind_TrackerEditor:
@@ -1064,6 +1090,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_CampaignLevelDetail:
                         renderCampaignLevelDetailWindow(this, clayton);
                         break;
+                    case WindowKind_CampaignPostgameSettings:
+                        renderCampaignPostgameSettingsWindow(this, clayton);
+                        break;
                     case WindowKind_Credits:
                         renderCreditsWindow(clayton);
                         break;
@@ -1204,6 +1233,9 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_CampaignLevelDetail:
                         renderCampaignLevelDetailWindow(this, clayton);
+                        break;
+                    case WindowKind_CampaignPostgameSettings:
+                        renderCampaignPostgameSettingsWindow(this, clayton);
                         break;
                     case WindowKind_Credits:
                         renderCreditsWindow(clayton);
@@ -1420,6 +1452,11 @@ inline bool WindowStack::processCampaignLevelSelectWindowEvent(WindowStack *self
         self->windowStackPopTopWindow_();
         return true;
     }
+    if (self->campaignLevelSelectCampaignComplete && isClaytonClicked(&clayton->campaignPostgameSettingsClick, e))
+    {
+        self->windowStackPushCampaignPostgameSettingsWindow();
+        return true;
+    }
     const bool isPointerEvent =
         e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP ||
         e.type == SDL_MOUSEMOTION || e.type == SDL_MOUSEWHEEL ||
@@ -1448,6 +1485,31 @@ inline bool WindowStack::processCampaignLevelDetailWindowEvent(WindowStack *self
         e.type == SDL_MOUSEMOTION || e.type == SDL_MOUSEWHEEL ||
         e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION;
     return isPointerEvent;
+}
+
+inline bool WindowStack::processCampaignPostgameSettingsWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
+{
+    if (!self || !clayton)
+        return false;
+    if (isClaytonClicked(&clayton->campaignPostgameSettingsCloseClick, e))
+    {
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+    if (isClaytonClicked(&clayton->campaignPostgameBlocksClick, e))
+    {
+        self->campaignPostgameBlocksEnabled = !self->campaignPostgameBlocksEnabled;
+        self->campaignPostgameSettingsChanged = true;
+        return true;
+    }
+    if (isClaytonClicked(&clayton->campaignPostgameNosClick, e))
+    {
+        self->campaignPostgameNosEnabled = !self->campaignPostgameNosEnabled;
+        self->campaignPostgameSettingsChanged = true;
+        return true;
+    }
+    return e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP ||
+           e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP;
 }
 
 inline bool WindowStack::processCreditsWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
@@ -2997,7 +3059,7 @@ inline void WindowStack::renderCampaignEndgameSummaryWindow(WindowStack *self, C
                         Clay_TextElementConfig scoreCfg = CLAY_THEME_TEXT_BODY;
                         if (self->campaignEndgameBestOpponentScores[idx] > 0 &&
                             self->campaignEndgameBestScores[idx] <= self->campaignEndgameBestOpponentScores[idx])
-                            scoreCfg.textColor = {220, 82, 74, 255};
+                            scoreCfg.textColor = kCampaignRecordLossTextColor;
                         Clay_ElementDeclaration levelCard = CLAY_THEME_BTN_PRIMARY;
                         levelCard.layout.sizing.height = CLAY_SIZING_FIXED(102);
                         levelCard.layout.layoutDirection = CLAY_TOP_TO_BOTTOM;
@@ -3048,13 +3110,16 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
              {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .layoutDirection = CLAY_LEFT_TO_RIGHT,
                          .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
         {
-            CLAY_TEXT(clayton->txl(TXL_CAMPAIGN_TITLE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+            CLAY_TEXT(
+                clayton->txl(self->campaignLevelSelectCampaignComplete
+                    ? TXL_CAMPAIGN_COMPLETE
+                    : TXL_CAMPAIGN_TITLE),
+                CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE)
+            );
             CLAY(CLAY_ID("CampaignLevelSelectHeadingSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
             CLAY(clayton->campaignLevelSelectCloseClick.clayId, CLAY_THEME_BTN_DANGER)
             { CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
         }
-        CLAY_TEXT(clayton->txl(TXL_CAMPAIGN_SELECT_DETAIL),
-                  CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
         CLAY(CLAY_ID("CampaignLevelSelectGrid"),
              {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 7,
                          .layoutDirection = CLAY_TOP_TO_BOTTOM}})
@@ -3087,7 +3152,7 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
                         Clay_TextElementConfig scoreCfg = CLAY_THEME_TEXT_BODY;
                         if (self->campaignEndgameBestOpponentScores[idx] > 0 &&
                             self->campaignEndgameBestScores[idx] <= self->campaignEndgameBestOpponentScores[idx])
-                            scoreCfg.textColor = {220, 82, 74, 255};
+                            scoreCfg.textColor = kCampaignRecordLossTextColor;
                         if (unlocked)
                         {
                             Clay_ElementDeclaration levelButton = CLAY_THEME_BTN_PRIMARY;
@@ -3158,13 +3223,51 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
                   .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},
                   CLAY_THEME_WINDOW_BORDER})
             {
-                CLAY_TEXT(CLAY_STRING("POST-CAMPAIGN:"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+            CLAY(CLAY_ID("CampaignPostgameHeading"),
+                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                             .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+            {
+                CLAY_TEXT(CLAY_STRING("POST-CAMPAIGN"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+                CLAY(CLAY_ID("CampaignPostgameHeadingSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
+                Clay_ElementDeclaration settingsButton = CLAY_THEME_BTN_HUD;
+                settingsButton.layout.sizing = {CLAY_SIZING_FIXED(112), CLAY_SIZING_FIXED(40)};
+                CLAY(clayton->campaignPostgameSettingsClick.clayId, settingsButton)
+                { CLAY_TEXT(CLAY_STRING("SETTINGS"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
+            }
                 CLAY(CLAY_ID("CampaignPostgameBestRow"),
-                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 8,
+                                 .layoutDirection = CLAY_LEFT_TO_RIGHT}})
                 {
-                    CLAY_TEXT(CLAY_STRING("Best score:"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
-                    CLAY(CLAY_ID("CampaignPostgameBestSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}) {}
-                    CLAY_TEXT(bestScoreStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+                    CLAY(CLAY_ID("CampaignPostgameBestLabel"),
+                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                    { CLAY_TEXT(CLAY_STRING("Best score:"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)); }
+                    CLAY(CLAY_ID("CampaignPostgameBestValue"),
+                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                    {
+                        Clay_TextElementConfig bestScoreCfg = CLAY_THEME_TEXT_BODY;
+                        if (self->campaignPostgameBestOpponentScore > self->campaignPostgameBestScore)
+                            bestScoreCfg.textColor = kCampaignRecordLossTextColor;
+                        CLAY_TEXT(bestScoreStr, CLAY_TEXT_CONFIG(bestScoreCfg));
+                    }
+                    CLAY(CLAY_ID("CampaignPostgameBestTools"),
+                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 8,
+                                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                    {
+                        if (self->campaignPostgameBestScore > 0)
+                        {
+                            Clay_TextElementConfig blocksCfg = CLAY_THEME_TEXT_BODY;
+                            blocksCfg.textColor = self->campaignPostgameBestBlocksEnabled
+                                ? Clay_Color{230, 230, 240, 255} : Clay_Color{115, 110, 130, 255};
+                            Clay_TextElementConfig nosCfg = CLAY_THEME_TEXT_BODY;
+                            nosCfg.textColor = self->campaignPostgameBestNosEnabled
+                                ? Clay_Color{230, 230, 240, 255} : Clay_Color{115, 110, 130, 255};
+                            CLAY_TEXT(CLAY_STRING("B"), CLAY_TEXT_CONFIG(blocksCfg));
+                            CLAY_TEXT(CLAY_STRING("N"), CLAY_TEXT_CONFIG(nosCfg));
+                        }
+                    }
                 }
                 CLAY(CLAY_ID("CampaignPostgameRecordRow"),
                      {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 12,
@@ -3198,8 +3301,45 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
                     ? Clay_Color{104, 84, 244, 255}
                     : CLAY_COLOR_BTN_PRIMARY;
                 CLAY(clayton->campaignLevelContinueClick.clayId, continueCampaignButton)
-                { CLAY_TEXT(clayton->txl(TXL_CONTINUE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
+                { CLAY_TEXT(clayton->txl(TXL_NEXT), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
             }
+        }
+    }
+}
+
+inline void WindowStack::renderCampaignPostgameSettingsWindow(WindowStack *self, Clayton *clayton)
+{
+    if (!self || !clayton)
+        return;
+    CLAY(CLAY_ID("CampaignPostgameSettingsWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(CLAY_ID("CampaignPostgameSettingsHeading"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+        {
+            CLAY_TEXT(CLAY_STRING("POST-CAMPAIGN SETTINGS"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+            CLAY(CLAY_ID("CampaignPostgameSettingsSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
+            CLAY(clayton->campaignPostgameSettingsCloseClick.clayId, CLAY_THEME_BTN_DANGER)
+            { CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
+        }
+        CLAY(CLAY_ID("CampaignPostgameSettingsToggleRow"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 8,
+                         .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+        {
+            auto renderToggle = [&](Clay_ElementId id, Clay_String label, bool enabled)
+            {
+                const Clay_Color buttonColor = enabled
+                    ? Clay_Color{100, 200, 100, 255}
+                    : Clay_Color{80, 80, 120, 255};
+                CLAY(id,
+                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
+                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                      .backgroundColor = ClayTheme_HoverColor(buttonColor, 18.0f),
+                      .cornerRadius = {8, 8, 8, 8}})
+                { CLAY_TEXT(label, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
+            };
+            renderToggle(clayton->campaignPostgameBlocksClick.clayId, CLAY_STRING("BLOCKS"), self->campaignPostgameBlocksEnabled);
+            renderToggle(clayton->campaignPostgameNosClick.clayId, CLAY_STRING("NOS"), self->campaignPostgameNosEnabled);
         }
     }
 }

@@ -57,33 +57,110 @@ namespace ChestRender
         PrizeKind prize;
     };
 
+    // Campaign chest appearance chance, rolled once when a player throw is
+    // prepared. Levels omitted from this table (currently 1 and 2) cannot
+    // spawn chests.
+    // { level, numerator, denominator }
+    // numerator: successful outcomes in the chance roll.
+    // denominator: total equally likely outcomes in the chance roll.
+    // Example: {3, 1, 15} means Level 3 has 1 successful outcome out of 15,
+    // or a 1-in-15 (6.67%) chest chance per prepared player throw.
     static constexpr SpawnChanceConfig kSpawnChanceByLevel[] = {
-        {3, 1, 15},
-        {4, 1, 15},
-        {5, 1, 14},
-        {6, 1, 13},
-        {7, 1, 12},
-        {8, 1, 11},
-        {9, 1, 10},
-        {10, 1, 9},
-        {11, 1, 8},
-        {12, 1, 7},
-        {13, 1, 6},
+        {3, 1, 15},  // Level 3: Red Desert / Malach
+        {4, 1, 15},  // Level 4: Ice / Malach
+        {5, 1, 14},  // Level 5: Suburbia / Malach
+        {6, 1, 13},  // Level 6: Neon / Dog
+        {7, 1, 12},  // Level 7: Desert / Dog
+        {8, 1, 11},  // Level 8: Timber Zone / Dog
+        {9, 1, 10},  // Level 9: Crystal Cavern / Beak
+        {10, 1, 9},  // Level 10: Gas Factory / Beak
+        {11, 1, 8},  // Level 11: Cemetery / Beak
+        {12, 1, 7},  // Level 12: Ruined City / Cow
+        {13, 1, 6},  // Level 13: Ashland / Cow
     };
 
+    // Chest rewards by campaign level. Each level's positive weights add to
+    // 100, so a weight is the percentage after that chest is collected. The
+    // entries at levels 3 and 4 are intentionally cash-only. Boom is removed
+    // and the remaining entries are reweighted when a player is not eligible
+    // for another Boom rune; see AllowBoomPrizeForInventory().
+    // Keep one config element per line, grouped under its level heading, so
+    // designers can review and edit the reward progression at a glance.
+    // clang-format off
     static constexpr PrizeWeightConfig kPrizeWeightsByLevel[] = {
-        {3, 90, PrizeKind::Money25},  {3, 10, PrizeKind::Money50},
-        {4, 80, PrizeKind::Money25},  {4, 20, PrizeKind::Money50},
-        {5, 60, PrizeKind::Money25},  {5, 30, PrizeKind::Money50}, {5, 10, PrizeKind::RuneBoom},
-        {6, 45, PrizeKind::Money25},  {6, 35, PrizeKind::Money50}, {6, 15, PrizeKind::RuneBoom}, {6, 5, PrizeKind::RuneBolt},
-        {7, 35, PrizeKind::Money25},  {7, 35, PrizeKind::Money50}, {7, 20, PrizeKind::RuneBoom}, {7, 10, PrizeKind::RuneBolt},
-        {8, 20, PrizeKind::Money25},  {8, 25, PrizeKind::Money50}, {8, 20, PrizeKind::RuneBoom}, {8, 10, PrizeKind::RuneBolt}, {8, 10, PrizeKind::RuneFreeze}, {8, 10, PrizeKind::RuneSkull}, {8, 5, PrizeKind::RuneGuardPins},
-        {9, 15, PrizeKind::Money25},  {9, 20, PrizeKind::Money50}, {9, 20, PrizeKind::RuneBoom}, {9, 15, PrizeKind::RuneBolt}, {9, 10, PrizeKind::RuneFreeze}, {9, 10, PrizeKind::RuneSkull}, {9, 10, PrizeKind::RuneGuardPins},
-        {10, 10, PrizeKind::Money25}, {10, 15, PrizeKind::Money50}, {10, 20, PrizeKind::RuneBoom}, {10, 15, PrizeKind::RuneBolt}, {10, 10, PrizeKind::RuneFreeze}, {10, 15, PrizeKind::RuneSkull}, {10, 15, PrizeKind::RuneGuardPins},
-        {11, 5, PrizeKind::Money25},  {11, 10, PrizeKind::Money50}, {11, 20, PrizeKind::RuneBoom}, {11, 15, PrizeKind::RuneBolt}, {11, 10, PrizeKind::RuneFreeze}, {11, 20, PrizeKind::RuneSkull}, {11, 10, PrizeKind::RuneGuardPins}, {11, 10, PrizeKind::RuneFootball},
-        {12, 5, PrizeKind::Money25},  {12, 10, PrizeKind::Money50}, {12, 15, PrizeKind::RuneBoom}, {12, 15, PrizeKind::RuneBolt}, {12, 10, PrizeKind::RuneFreeze}, {12, 15, PrizeKind::RuneSkull}, {12, 15, PrizeKind::RuneGuardPins}, {12, 15, PrizeKind::RuneFootball},
-        {13, 0, PrizeKind::Money25},  {13, 10, PrizeKind::Money50}, {13, 15, PrizeKind::RuneBoom}, {13, 15, PrizeKind::RuneBolt}, {13, 10, PrizeKind::RuneFreeze}, {13, 15, PrizeKind::RuneSkull}, {13, 15, PrizeKind::RuneGuardPins}, {13, 20, PrizeKind::RuneFootball},
+        // Level 3: Red Desert / Malach
+        {3, 90, PrizeKind::Money25},
+        {3, 10, PrizeKind::Money50},
+        // Level 4: Ice / Malach
+        {4, 80, PrizeKind::Money25},
+        {4, 20, PrizeKind::Money50},
+        // Level 5: Suburbia / Malach
+        {5, 60, PrizeKind::Money25},
+        {5, 30, PrizeKind::Money50},
+        {5, 10, PrizeKind::RuneFootball},
+        // Level 6: Neon / Dog
+        {6, 45, PrizeKind::Money25},
+        {6, 35, PrizeKind::Money50},
+        {6, 15, PrizeKind::RuneBoom},
+        {6, 5, PrizeKind::RuneBolt},
+        {5, 10, PrizeKind::RuneFootball},
+        // Level 7: Desert / Dog
+        {7, 35, PrizeKind::Money25},
+        {7, 35, PrizeKind::Money50},
+        {7, 20, PrizeKind::RuneBoom},
+        {7, 10, PrizeKind::RuneBolt},
+        // Level 8: Timber Zone / Dog
+        {8, 20, PrizeKind::Money25},
+        {8, 25, PrizeKind::Money50},
+        {8, 20, PrizeKind::RuneBoom},
+        {8, 10, PrizeKind::RuneBolt},
+        {8, 10, PrizeKind::RuneFreeze},
+        {8, 10, PrizeKind::RuneSkull},
+        {8, 5, PrizeKind::RuneGuardPins},
+        // Level 9: Crystal Cavern / Beak
+        {9, 15, PrizeKind::Money25},
+        {9, 20, PrizeKind::Money50},
+        {9, 20, PrizeKind::RuneBoom},
+        {9, 15, PrizeKind::RuneBolt},
+        {9, 10, PrizeKind::RuneFreeze},
+        {9, 10, PrizeKind::RuneSkull},
+        {9, 10, PrizeKind::RuneGuardPins},
+        // Level 10: Gas Factory / Beak
+        {10, 10, PrizeKind::Money25},
+        {10, 15, PrizeKind::Money50},
+        {10, 20, PrizeKind::RuneBoom},
+        {10, 15, PrizeKind::RuneBolt},
+        {10, 10, PrizeKind::RuneFreeze},
+        {10, 15, PrizeKind::RuneSkull},
+        {10, 15, PrizeKind::RuneGuardPins},
+        // Level 11: Cemetery / Beak
+        {11, 5, PrizeKind::Money25},
+        {11, 10, PrizeKind::Money50},
+        {11, 20, PrizeKind::RuneBoom},
+        {11, 15, PrizeKind::RuneBolt},
+        {11, 10, PrizeKind::RuneFreeze},
+        {11, 20, PrizeKind::RuneSkull},
+        {11, 10, PrizeKind::RuneGuardPins},
+        // Level 12: Ruined City / Cow
+        {12, 5, PrizeKind::Money25},
+        {12, 10, PrizeKind::Money50},
+        {12, 15, PrizeKind::RuneBoom},
+        {12, 15, PrizeKind::RuneBolt},
+        {12, 10, PrizeKind::RuneFreeze},
+        {12, 15, PrizeKind::RuneSkull},
+        {12, 15, PrizeKind::RuneGuardPins},
+        {12, 15, PrizeKind::RuneFootball},
+        // Level 13: Ashland / Cow
+        {13, 0, PrizeKind::Money25},
+        {13, 10, PrizeKind::Money50},
+        {13, 15, PrizeKind::RuneBoom},
+        {13, 15, PrizeKind::RuneBolt},
+        {13, 10, PrizeKind::RuneFreeze},
+        {13, 15, PrizeKind::RuneSkull},
+        {13, 15, PrizeKind::RuneGuardPins},
+        {13, 20, PrizeKind::RuneFootball},
     };
+    // clang-format on
 
     enum class CollectiblePhase
     {

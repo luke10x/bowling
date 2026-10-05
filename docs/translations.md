@@ -53,7 +53,7 @@ functions.
 Each translation entry is one line:
 
 ```cpp
-TXL_EXAMPLE_KEY = "Text shown to the player";
+TXL_EXAMPLE_KEY = "Text shown to the player"; // Used in: UI area or source file
 ```
 
 Rules:
@@ -64,6 +64,9 @@ Rules:
   other `tegel/txl_*.h` file.
 - Run `scripts/generate_txl.py` after changing translation files.
 - Keep C escape sequences intact, especially `\n`, `\"`, and `\\`.
+- Keep the trailing `// Used in: ...` context comment on every entry. It tells
+  translators where the text appears; it is not included in the generated
+  runtime table.
 - Keep printf-style placeholders compatible across languages: `%s`, `%d`,
   `%.0f`, `%.1f`, `%%`, and similar tokens must remain present and in a valid
   order for the code that formats them.
@@ -104,9 +107,9 @@ Use these localized biblical/theological forms when translating angel names:
 - Lithuanian:
   - Ezekiel: `Ezekielis`; inflect naturally when grammar requires it, e.g.
     `Ezekielį` in "beat Ezekiel" labels.
-  - Cherubel: `Cherubel`
-  - Seraphel: `Seraphel`
-  - Thrones: `Thrones`
+  - Cherubel: `Kerubas` - `Kerubą`
+  - Seraphel: `Serafelė` - `Serafelę` (Feminine noun)
+  - Thrones: `Ofanija` - `Ofaniją`  (Feminine noun)
 - Chinese:
   - Ezekiel: `以西结`
   - Cherubel: `基路伯`

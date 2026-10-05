@@ -15,7 +15,9 @@ LANG_FILES = {
     "zh_cn": SRC_DIR / "txl_zh_cn.h",
 }
 
-ENTRY_RE = re.compile(r'^\s*(TXL_[A-Z0-9_]+)\s*=\s*"((?:[^"\\]|\\.)*)"\s*;\s*$')
+# Source entries may carry a trailing translator note such as
+# `// Used in: clayton/menu_clay.h`.  The generated table deliberately omits it.
+ENTRY_RE = re.compile(r'^\s*(TXL_[A-Z0-9_]+)\s*=\s*"((?:[^"\\]|\\.)*)"\s*;\s*(?://.*)?$')
 EXTRA_WHITELISTED_CHARS = "ė"
 
 

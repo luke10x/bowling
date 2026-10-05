@@ -96,6 +96,7 @@ struct Storage
         CAMPAIGN_LEVEL_BEST_SCORES,
         CAMPAIGN_LEVEL_BEST_OPPONENT_SCORES,
         CAMPAIGN_LEVEL_BONUSES_GRANTED,
+        CAMPAIGN_GLASS_LESSON_LEARNED,
         CAMPAIGN_ACTIVE_LEVEL,
         CAMPAIGN_POSTGAME_FREEPLAY,
         CAMPAIGN_POSTGAME_STATS,
@@ -133,6 +134,7 @@ struct Storage
         "campaign_level_best_scores",
         "campaign_level_best_opponent_scores",
         "campaign_level_bonuses_granted",
+        "campaign_glass_lesson_learned",
         "campaign_active_level",
         "campaign_postgame_freeplay",
         "campaign_postgame_stats",
@@ -169,6 +171,7 @@ struct Storage
         "0,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_BEST_SCORES
         "0,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_BEST_OPPONENT_SCORES
         "0,0,0,0,0,0,0,0,0,0,0,0,0", // CAMPAIGN_LEVEL_BONUSES_GRANTED
+        "0",     // CAMPAIGN_GLASS_LESSON_LEARNED
         "0",     // CAMPAIGN_ACTIVE_LEVEL
         "0",     // CAMPAIGN_POSTGAME_FREEPLAY
         "0,0,0,0,0,0,1,1", // CAMPAIGN_POSTGAME_STATS: started,wins,losses,quits,best player,best opponent,best blocks,best nos

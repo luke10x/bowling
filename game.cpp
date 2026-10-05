@@ -918,6 +918,11 @@ struct UserContext
     float campaignOverrideEnemySkill = 0.975f;
     int campaignOverrideEnemyBallId = 24;
     bool campaignGlassToolUnlocked = false;
+    // Persistent one-time Level 5 lesson. The temporary prompt/blink state is
+    // reset per level, while learned survives replays until campaign reset.
+    bool campaignGlassLessonLearned = false;
+    bool campaignGlassCoachPromptedThisLevel = false;
+    bool campaignGlassLessonBlinkActive = false;
     bool campaignSplitCoachShownThisLevel = false;
     bool campaignOilCoachShownThisLevel = false;
     bool campaignPlayerReoiledThisLevel = false;
@@ -5486,6 +5491,7 @@ static inline BotAvatar StoryDialog_AngelAvatarForStoryId(int32_t storyId)
         case 3003:
         case 30031:
         case 30032:
+        case 3042:
         case 3103:
         case 3004:
         case 3104:
@@ -11299,6 +11305,17 @@ static inline void Campaign_SavePostgameSettings(UserContext *usr)
     usr->storage.setChar(Storage::CAMPAIGN_POSTGAME_SETTINGS, settings, std::strlen(settings));
 }
 
+static inline void Campaign_SaveGlassLessonProgress(UserContext *usr)
+{
+    if (!usr)
+        return;
+    usr->storage.setChar(
+        Storage::CAMPAIGN_GLASS_LESSON_LEARNED,
+        usr->campaignGlassLessonLearned ? "1" : "0",
+        1
+    );
+}
+
 static inline void Campaign_SaveCompletionState(UserContext *usr)
 {
     if (!usr)
@@ -11769,6 +11786,9 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     usr->unlockedHouseMask = 0;
     usr->unlockedBotMask = 0;
     usr->campaignGlassToolUnlocked = false;
+    usr->campaignGlassLessonLearned = false;
+    usr->campaignGlassCoachPromptedThisLevel = false;
+    usr->campaignGlassLessonBlinkActive = false;
     usr->pendingCampaignMidTurnStoryId = 0;
     usr->pendingCampaignCoachStoryId = 0;
     usr->campaignSplitCoachShownThisLevel = false;
@@ -11830,6 +11850,7 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     Campaign_SaveAttemptStats(usr);
     Campaign_SaveLevelResults(usr);
     Campaign_SavePostgameSettings(usr);
+    Campaign_SaveGlassLessonProgress(usr);
     Progress_SaveCrowdControlCampaignState(usr);
 }
 
@@ -13317,6 +13338,8 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->campaignGlassToolUnlocked = false;
     if (usr->campaignLevelIndex >= 5)
         usr->campaignGlassToolUnlocked = true;
+    usr->campaignGlassCoachPromptedThisLevel = false;
+    usr->campaignGlassLessonBlinkActive = false;
     usr->campaignSplitCoachShownThisLevel = false;
     usr->campaignOilCoachShownThisLevel = false;
     usr->campaignPlayerReoiledThisLevel = false;
@@ -18767,6 +18790,8 @@ void vtx::init(vtx::VertexContext *ctx)
                 usr->campaignPostgameNosEnabled = nos != 0;
             }
         }
+        n = usr->storage.getChar(Storage::CAMPAIGN_GLASS_LESSON_LEARNED, tmp, sizeof(tmp));
+        usr->campaignGlassLessonLearned = n > 0 && tmp[0] == '1';
         n = usr->storage.getChar(Storage::UNLOCKED_BALLS, tmp, sizeof(tmp));
         if (n > 0)
             usr->unlockedBallMask = (uint64_t)strtoull(tmp, nullptr, 10);
@@ -20503,6 +20528,15 @@ void vtx::loop(vtx::VertexContext *ctx)
                         );
                         usr->activeBlockSpawnFlashTime = -1.0f;
                         CampaignBlockCards_ConsumeSlot(usr->playerBlockCards, i);
+                        if (variant == CAMPAIGN_BLOCK_CARD_GLASS &&
+                            usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                            Campaign_CurrentLevel(usr).levelNumber == 5 &&
+                            !usr->campaignGlassLessonLearned)
+                        {
+                            usr->campaignGlassLessonLearned = true;
+                            usr->campaignGlassLessonBlinkActive = false;
+                            Campaign_SaveGlassLessonProgress(usr);
+                        }
                         deployedBlock = true;
                     }
                     break;
@@ -23235,13 +23269,23 @@ swing_checks_done:
                                     usr->pendingCampaignCoachStoryId = 30031;
                                 }
                                 else if (!usr->campaignOilCoachShownThisLevel &&
-                                         Campaign_CurrentLevel(usr).biome == CampaignBiome::DESERT &&
+                                         Campaign_CurrentLevel(usr).biome == CampaignBiome::RED_DESERT &&
                                          !usr->campaignPlayerReoiledThisLevel &&
                                          Scoreboard_CurrentFrameNumber(&usr->board) >= 3 &&
                                          usr->laneOilThickness <= usr->houseLane.laneOilThickness * 0.60f)
                                 {
                                     usr->campaignOilCoachShownThisLevel = true;
                                     usr->pendingCampaignCoachStoryId = 30032;
+                                }
+                                else if (CampaignBlockCards_ShouldPromptGlassLesson(
+                                             Campaign_CurrentLevel(usr).levelNumber,
+                                             Scoreboard_CurrentFrameNumber(&usr->board),
+                                             usr->campaignGlassLessonLearned,
+                                             usr->campaignGlassCoachPromptedThisLevel))
+                                {
+                                    usr->campaignGlassCoachPromptedThisLevel = true;
+                                    usr->campaignGlassLessonBlinkActive = true;
+                                    usr->pendingCampaignCoachStoryId = 3042;
                                 }
                             }
 		                    if (!timedOutThrow &&
@@ -27837,6 +27881,24 @@ END_LINE:
                                         Clay_ElementDeclaration btnTheme = CLAY_THEME_BTN_HUD;
                                         const bool enabled =
                                             CampaignBlockCards_CanUseSlot(usr->playerBlockCards, i, usr->phy.HasFracturedBlock());
+                                        const bool blinkForGlassLesson =
+                                            usr->campaignGlassLessonBlinkActive &&
+                                            usr->playerRoute == PlayerRoute::CAMPAIGN &&
+                                            Campaign_CurrentLevel(usr).levelNumber == 5;
+                                        if (blinkForGlassLesson)
+                                        {
+                                            const float pulse01 = 0.5f + 0.5f * sinf(
+                                                usr->rawTime * glm::two_pi<float>() * 2.0f
+                                            );
+                                            btnTheme.backgroundColor = (Clay_Color){
+                                                80.0f + 80.0f * pulse01,
+                                                60.0f + 160.0f * pulse01,
+                                                220.0f + 28.0f * pulse01,
+                                                255.0f
+                                            };
+                                            btnTheme.border.color = (Clay_Color){185, 240, 255, 255};
+                                            btnTheme.border.width = CLAY_BORDER_ALL(2);
+                                        }
                                         if (!enabled)
                                         {
                                             btnTheme.backgroundColor = (Clay_Color){62, 64, 83, 170};

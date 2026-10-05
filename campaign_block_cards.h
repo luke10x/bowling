@@ -150,6 +150,18 @@ inline int CampaignBlockCards_IntroTypeForLevel(int levelNumber)
     }
 }
 
+// Level 5 introduces glass. Give the player a few completed frames to
+// discover it before offering the one-time reminder.
+inline bool CampaignBlockCards_ShouldPromptGlassLesson(
+    int levelNumber,
+    int playerCompletedFrame,
+    bool glassLessonLearned,
+    bool promptAlreadyShownThisLevel)
+{
+    return levelNumber == 5 && playerCompletedFrame >= 3 &&
+           !glassLessonLearned && !promptAlreadyShownThisLevel;
+}
+
 inline int CampaignBlockCards_WeightedRandomType(
     uint32_t &rngState,
     int enabledMask,

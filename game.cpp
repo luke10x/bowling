@@ -1582,8 +1582,6 @@ struct UserContext
     Phase oilLowBlinkObservedPhase = Phase::IDLE;
     bool schoolOilReoilDueAtThrowStart = false;
     bool schoolOilReoilReminderShownForDryLane = false;
-    float nosEmptyBlinkPhaseStartS = -1000.0f;
-    float nosEmptyBlinkUntilS = -1000.0f;
     float nosButtonSlideAnimStartS = -1000.0f;
     bool nosToolbarWasVisible = false;
 
@@ -2602,34 +2600,30 @@ static inline void School_UpdateOilGuidanceUi(UserContext *usr)
     usr->clayton.oilLessonAttentionBlink01 = powf(glm::clamp(lfo01, 0.0f, 1.0f), 1.4f);
 }
 
-static inline bool NosEmptyBlink_ShouldWarn(const UserContext *usr)
-{
-    return usr && usr->electroBall.getCharge01() <= 0.001f;
-}
-
 static inline void NosEmptySfx_Stop(UserContext *usr);
-
-static inline void NosEmptyBlink_Request(UserContext *usr)
-{
-    if (!NosEmptyBlink_ShouldWarn(usr))
-        return;
-
-    const float now = usr->rawTime;
-    if (now >= usr->nosEmptyBlinkUntilS)
-        usr->nosEmptyBlinkPhaseStartS = now;
-
-    usr->nosEmptyBlinkUntilS = std::max(usr->nosEmptyBlinkUntilS, now + OilLowBlink_DurationS());
-}
 
 static inline float NosEmptyBlink_Amount01(const UserContext *usr)
 {
-    if (!usr || usr->rawTime >= usr->nosEmptyBlinkUntilS)
+    if (!usr || usr->nosEmptyVoice == FM_VOICE_INVALID)
         return 0.0f;
 
-    constexpr float BLINK_HZ = 3.0f;
-    const float phase = (usr->rawTime - usr->nosEmptyBlinkPhaseStartS) * BLINK_HZ * (glm::pi<float>() * 2.0f);
-    const float lfo01 = 0.5f - 0.5f * cosf(phase);
-    return powf(glm::clamp(lfo01, 0.0f, 1.0f), 1.4f);
+    // Keep the red pulse phase-locked to nos_empty_loop.h. Its 18 rows run
+    // for 0.90 s, with clacks at rows 0, 4, 8 and 12 (0.00/0.20/0.40/0.60 s).
+    constexpr float kEmptyNosLoopSeconds = 0.90f;
+    constexpr float kClackTimesS[] = {0.00f, 0.20f, 0.40f, 0.60f};
+    constexpr float kPulseHalfWidthS = 0.075f;
+    const float elapsedS = kEmptyNosLoopSeconds - glm::clamp(
+        usr->nosEmptySfxRestartIn, 0.0f, kEmptyNosLoopSeconds
+    );
+    float amount01 = 0.0f;
+    for (float clackTimeS : kClackTimesS)
+    {
+        const float pulse01 = 1.0f - glm::clamp(
+            std::abs(elapsedS - clackTimeS) / kPulseHalfWidthS, 0.0f, 1.0f
+        );
+        amount01 = glm::max(amount01, pulse01 * pulse01);
+    }
+    return amount01;
 }
 
 static inline void SyncNosHeld(UserContext *usr)
@@ -2643,7 +2637,6 @@ static inline void SyncNosHeld(UserContext *usr)
     if (!wasHeld && usr->nosHeld)
     {
         OilLowBlink_Request(usr);
-        NosEmptyBlink_Request(usr);
     }
 }
 
@@ -6809,7 +6802,8 @@ static inline void NosEmptySfx_Tick(UserContext *usr, bool active, float dt)
     NosEmptySfx_Stop(usr);
     usr->nosEmptyVoice = usr->sound.playSfxNosEmptyLoop();
     // nos_empty_loop.h has 18 rows at speed 3 and a 60 Hz tick: 0.90 s.
-    // Matching that duration avoids chopping its final release before restart.
+    // Matching that duration avoids chopping its final release before restart;
+    // NosEmptyBlink_Amount01 uses this same clock for its red clack pulses.
     usr->nosEmptySfxRestartIn = 0.90f;
 }
 

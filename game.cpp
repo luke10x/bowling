@@ -60,6 +60,7 @@
 #include "coins.h"
 #include "campaign_block_cards.h"
 #include "campaign_completion_flow.h"
+#include "campaign_rune_lessons.h"
 #include "campaign_enemy_ai.h"
 #include "campaign_enemy_mana_capacity.h"
 #include "campaign_endgame_buf.h"
@@ -874,6 +875,7 @@ struct UserContext
     int pendingCampaignEndStoryId = 0;
     int pendingCampaignMidTurnStoryId = 0;
     int pendingCampaignCoachStoryId = 0;
+    int pendingCampaignRuneLessonStoryId = 0;
     bool pendingCampaignBotResultWindow = false;
     int pendingCampaignBotPlayerScore = 0;
     int pendingCampaignBotEnemyScore = 0;
@@ -921,6 +923,7 @@ struct UserContext
     // Persistent one-time Level 5 lesson. The temporary prompt/blink state is
     // reset per level, while learned survives replays until campaign reset.
     bool campaignGlassLessonLearned = false;
+    int campaignRuneLessonsSeen = 0;
     bool campaignGlassCoachPromptedThisLevel = false;
     bool campaignGlassLessonBlinkActive = false;
     bool campaignSplitCoachShownThisLevel = false;
@@ -10768,9 +10771,11 @@ static inline void Chest_PlanForIdle(UserContext *usr)
         return;
     }
 
-    const int level = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount);
-    const ChestRender::SpawnChanceConfig chance = ChestRender::SpawnChanceForLevel(level);
-    const float roll = ChestRender::Deterministic01(level * 31 + usr->totalFrames + 17);
+    const int chestConfigLevel = usr->campaignPostgameFreeplayActive
+        ? ChestRender::kPostCampaignReferenceLevel
+        : glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount);
+    const ChestRender::SpawnChanceConfig chance = ChestRender::SpawnChanceForLevel(chestConfigLevel);
+    const float roll = ChestRender::Deterministic01(chestConfigLevel * 31 + usr->totalFrames + 17);
     const float threshold = chance.denominator > 0
         ? glm::clamp((float)chance.numerator / (float)chance.denominator, 0.0f, 1.0f)
         : 0.0f;
@@ -10804,7 +10809,10 @@ static inline void Chest_BeginCollected(UserContext *usr, const glm::vec3 &ballP
     usr->chestCollectMoveT = 0.0f;
     usr->chestRewardClock = 0.0f;
     usr->chestRewardYaw = usr->rawTime * ChestRender::kSpinRadiansPerSecond;
-    const float rewardRoll = ChestRender::Deterministic01(usr->campaignLevelIndex * 911 + usr->totalFrames * 17 + 101);
+    const int chestConfigLevel = usr->campaignPostgameFreeplayActive
+        ? ChestRender::kPostCampaignReferenceLevel
+        : glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount);
+    const float rewardRoll = ChestRender::Deterministic01(chestConfigLevel * 911 + usr->totalFrames * 17 + 101);
     const int boomRuneIndex = Rune_Index(RuneKind::Boom);
     const int carriedBoomRuneCount =
         (boomRuneIndex >= 0 && boomRuneIndex < kRuneKindCount) ? usr->runeCounts[boomRuneIndex] : 0;
@@ -10812,12 +10820,18 @@ static inline void Chest_BeginCollected(UserContext *usr, const glm::vec3 &ballP
         UnlockMask_BallCount(usr->unlockedBallMask),
         carriedBoomRuneCount
     );
+    int carriedRuneCount = 0;
+    for (int i = 0; i < kRuneKindCount; ++i)
+        carriedRuneCount += glm::max(0, usr->runeCounts[i]);
+    const float runePrizeChanceMultiplier =
+        ChestRender::RunePrizeChanceMultiplierForCarriedRunes(carriedRuneCount);
     Chest_ApplyPrize(
         usr,
         ChestRender::SelectPrizeForLevel(
-            glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount),
+            chestConfigLevel,
             rewardRoll,
-            allowBoomPrize
+            allowBoomPrize,
+            runePrizeChanceMultiplier
         )
     );
     usr->chestRewardPayoutSpawned = false;
@@ -11344,6 +11358,15 @@ static inline void Campaign_SaveGlassLessonProgress(UserContext *usr)
     );
 }
 
+static inline void Campaign_SaveRuneLessonProgress(UserContext *usr)
+{
+    if (!usr)
+        return;
+    char buf[16];
+    std::snprintf(buf, sizeof(buf), "%d", glm::max(0, usr->campaignRuneLessonsSeen));
+    usr->storage.setChar(Storage::CAMPAIGN_RUNE_LESSONS_SEEN, buf, std::strlen(buf));
+}
+
 static inline void Campaign_SaveCompletionState(UserContext *usr)
 {
     if (!usr)
@@ -11815,10 +11838,12 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     usr->unlockedBotMask = 0;
     usr->campaignGlassToolUnlocked = false;
     usr->campaignGlassLessonLearned = false;
+    usr->campaignRuneLessonsSeen = 0;
     usr->campaignGlassCoachPromptedThisLevel = false;
     usr->campaignGlassLessonBlinkActive = false;
     usr->pendingCampaignMidTurnStoryId = 0;
     usr->pendingCampaignCoachStoryId = 0;
+    usr->pendingCampaignRuneLessonStoryId = 0;
     usr->campaignSplitCoachShownThisLevel = false;
     usr->campaignOilCoachShownThisLevel = false;
     usr->campaignPlayerReoiledThisLevel = false;
@@ -11879,6 +11904,7 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     Campaign_SaveLevelResults(usr);
     Campaign_SavePostgameSettings(usr);
     Campaign_SaveGlassLessonProgress(usr);
+    Campaign_SaveRuneLessonProgress(usr);
     Progress_SaveCrowdControlCampaignState(usr);
 }
 
@@ -13351,6 +13377,7 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     // finale. Prevent a stale dismissal from reopening the Angel/postgame flow.
     Campaign_ClearFinaleStateForLevelSetup(usr->campaignEndgameAwaitingResultDismissal);
     usr->pendingCampaignCoachStoryId = 0;
+    usr->pendingCampaignRuneLessonStoryId = 0;
     usr->pendingMiniGameKind = MiniGameKind::NONE;
     usr->activeMiniGameKind = MiniGameKind::NONE;
     usr->pendingBonusChoiceWindow = false;
@@ -18860,6 +18887,8 @@ void vtx::init(vtx::VertexContext *ctx)
         }
         n = usr->storage.getChar(Storage::CAMPAIGN_GLASS_LESSON_LEARNED, tmp, sizeof(tmp));
         usr->campaignGlassLessonLearned = n > 0 && tmp[0] == '1';
+        n = usr->storage.getChar(Storage::CAMPAIGN_RUNE_LESSONS_SEEN, tmp, sizeof(tmp));
+        usr->campaignRuneLessonsSeen = n > 0 ? glm::max(0, atoi(tmp)) : 0;
         n = usr->storage.getChar(Storage::UNLOCKED_BALLS, tmp, sizeof(tmp));
         if (n > 0)
             usr->unlockedBallMask = (uint64_t)strtoull(tmp, nullptr, 10);
@@ -19329,6 +19358,22 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->dialog.dialogAppearDelayLeft = 0.0f;
         usr->dialog.openedThisFrame = true;
         usr->pendingCampaignCoachStoryId = 0;
+    }
+
+    // A rune lesson follows the chest that awarded it. Let the chest's own
+    // summary finish first, then stop play before the next throw.
+    if (usr->pendingCampaignRuneLessonStoryId != 0 &&
+        usr->windowStack.count == 0 &&
+        !usr->dialog.active &&
+        !Chest_IsRewardActive(usr) &&
+        !usr->chestSummaryActive &&
+        usr->gameMode == UserContext::GameMode::BOT &&
+        usr->phase == UserContext::Phase::IDLE)
+    {
+        usr->dialog.open(usr->pendingCampaignRuneLessonStoryId);
+        usr->dialog.dialogAppearDelayLeft = 0.0f;
+        usr->dialog.openedThisFrame = true;
+        usr->pendingCampaignRuneLessonStoryId = 0;
     }
 
     usr->auroraVibe.update(deltaTime);
@@ -29388,6 +29433,17 @@ if (usr->chestCollectiblePhase == ChestRender::CollectiblePhase::Payout &&
                 );
             }
             Progress_SaveUnlocksAndBank(usr);
+            const CampaignRuneLessonPickup lessonPickup =
+                (usr->chestRewardRune == RuneKind::Boom) ? CampaignRuneLessonPickup::Boom :
+                (usr->chestRewardRune == RuneKind::Bolt) ? CampaignRuneLessonPickup::Bolt :
+                CampaignRuneLessonPickup::Other;
+            const CampaignRuneLessonDecision lesson = CampaignRuneLesson_OnPickup(
+                usr->campaignRuneLessonsSeen, lessonPickup
+            );
+            usr->campaignRuneLessonsSeen = lesson.updatedFlags;
+            Campaign_SaveRuneLessonProgress(usr);
+            if (lesson.storyId != 0)
+                usr->pendingCampaignRuneLessonStoryId = lesson.storyId;
         }
         const glm::vec2 target = usr->placeOfRunes[runeIndex] + glm::vec2(30.0f, 30.0f);
         (void)usr->coinLane.spawnFlyAnimation(

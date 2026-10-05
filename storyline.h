@@ -408,6 +408,46 @@ static constexpr StorylineNode STORYLINES[] = {
         /*next_storyline=*/0,
     },
     {
+        /*storyline_id=*/3050,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Now you have magic to use against me?\n"
+                 "Put it into the ball's spin circle to cast it.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3051,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Oh wow, you can cause an explosion?\n"
+                 "It is up to you whether destroying your ball is worth a little damage.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3052,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"I see you got some serious magic.\n"
+                 "You can destroy my balls, but I will try to evade what you throw at me.\n",
+        /*choice_group=*/CHOICE_SCHOOL_OK,
+        /*next_storyline=*/0,
+    },
+    {
+        /*storyline_id=*/3053,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Now you have magic to use against me?\n"
+                 "Put it into the ball's spin circle to cast it.\n",
+        /*choice_group=*/CHOICE_NONE,
+        /*next_storyline=*/3051,
+    },
+    {
+        /*storyline_id=*/3054,
+        /*speaker=*/SPEAKER_ANGEL,
+        /*text=*/"Now you have magic to use against me?\n"
+                 "Put it into the ball's spin circle to cast it.\n",
+        /*choice_group=*/CHOICE_NONE,
+        /*next_storyline=*/3052,
+    },
+    {
         /*storyline_id=*/3103,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"You adapted.\n"
@@ -895,6 +935,11 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
             case 30031: return "Pastebejau daug splitu.\nGal bandai pataikyti i keglius is centro.\nVerčiau ivaziuok i juos truputi is sono.\nTai daznai padeda isvengti splitu.\n";
             case 30032: return "Tu dykumoje, o as vis dar nemaciau, kad naudotum alyva.\nGeriau panaudok ja, kol takas nenubaude tavo isdidumo.\nAr atidaryti alyvos langa dabar?\n";
             case 3042: return "Pastebėjau, kad nemeti stiklo atgal, nors aš metu jį į tave.\nTu irgi gali mesti stiklą į mane!\n";
+            case 3050:
+            case 3053:
+            case 3054: return "Dabar turi magijos prieš mane?\nĮdėk ją į kamuolio sukimosi ratą, kad ją panaudotum.\n";
+            case 3051: return "Oho, gali sukelti sprogimą?\nTik tu sprendi, ar verta sunaikinti savo kamuolį dėl nedidelės žalos.\n";
+            case 3052: return "Matau, gavai rimtos magijos.\nGali sunaikinti mano kamuolius, bet mėginsiu išsisukti nuo to, ką mesi į mane.\n";
             case 3103: return "Prisitaikei.\nToliau ledas: takas šypsosis ir meluos.\n";
             case 3004: return "Ledas ilgas, slidus ir kantrus.\nMažiau tikėk, daugiau slysk. Jei reikia tokio kamuolio, eik į parduotuvę.\n";
             case 3104: return "Atlaikei.\nEime į neoną. Pirma pamokysiu stiklu, tada perduosiu kitam.\n";
@@ -963,6 +1008,11 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
             case 30031: return "スプリットが多いね。\n中央からピンを打とうとしているのかもしれない。\n少し横から入るといい。\nたいていスプリットを防ぎやすい。\n";
             case 30032: return "砂漠にいるのに、まだオイルを使っていないね。\nレーンに罰される前に使った方がいい。\n今オイル画面を開こうか？\n";
             case 3042: return "僕が君にガラスを投げているのに、君は投げ返していないね。\n君も僕にガラスを投げられるよ！\n";
+            case 3050:
+            case 3053:
+            case 3054: return "これで私に使える魔法を手に入れたね。\n球の回転サークルに入れて、魔法を使うんだ。\n";
+            case 3051: return "おや、爆発を起こせるのか？\n少しのダメージのために自分の球を壊す価値があるかは、君次第だ。\n";
+            case 3052: return "本格的な魔法を手に入れたようだね。\n私の球を壊せるが、君が投げるものは避けようとするよ。\n";
             case 3103: return "順応したね。\n次は氷だ。あのレーンは笑いながら嘘をつく。\n";
             case 3004: return "氷は長く、滑り、忍耐強い。\n信じすぎず、もっと滑らせろ。必要なら店で合う球を探せ。\n";
             case 3104: return "耐えたね。\nネオンへ行こう。まずガラスで教え、それから別の者に渡す。\n";
@@ -1032,6 +1082,11 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
         case 30031: return "我注意到你打出了很多分瓶。\n也许你正从中间去撞球瓶。\n试着从侧面切进去。\n这样通常更不容易分瓶。\n";
         case 30032: return "你在沙漠里，我却还没看见你用油。\n最好在球道惩罚你的自尊之前用上它。\n要我现在帮你打开油道窗口吗？\n";
         case 3042: return "我一直向你丢玻璃，你却还没有丢回来。\n你也可以向我丢玻璃！\n";
+        case 3050:
+        case 3053:
+        case 3054: return "现在你有能对我使用的魔法了？\n把它放进球的旋转圆环里，就能施放魔法。\n";
+        case 3051: return "哦，你能引发爆炸？\n要不要为了这一点伤害毁掉自己的球，由你决定。\n";
+        case 3052: return "看来你得到了很厉害的魔法。\n你可以毁掉我的球，但我会尽力躲开你朝我丢来的东西。\n";
         case 3103: return "你适应过来了。\n接下来是冰面，那条球道会一边微笑，一边说谎。\n";
         case 3004: return "冰面很长，很滑，也很有耐心。\n少一点相信，多一点滑行；如果需要一颗会说这种语言的球，就去商店。\n";
         case 3104: return "你挺过去了。\n现在跟我去霓虹。我想先用玻璃给你上一课，然后再把你交给别人。\n";

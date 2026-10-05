@@ -57,6 +57,11 @@ namespace ChestRender
         PrizeKind prize;
     };
 
+    // Post-campaign random games deliberately use Level 12 (Ruined City) as
+    // their chest reference. Their biome is random, but chest spawn and prize
+    // rates stay fixed so the random scenery never changes progression odds.
+    static constexpr int kPostCampaignReferenceLevel = 12;
+
     // Campaign chest appearance chance, rolled once when a player throw is
     // prepared. Levels omitted from this table (currently 1 and 2) cannot
     // spawn chests.
@@ -83,7 +88,9 @@ namespace ChestRender
     // 100, so a weight is the percentage after that chest is collected. The
     // entries at levels 3 and 4 are intentionally cash-only. Boom is removed
     // and the remaining entries are reweighted when a player is not eligible
-    // for another Boom rune; see AllowBoomPrizeForInventory().
+    // for another Boom rune; see AllowBoomPrizeForInventory(). The live
+    // hoarding modifier is applied separately at collection time, so these
+    // remain the base, designer-authored reward rates.
     // Keep one config element per line, grouped under its level heading, so
     // designers can review and edit the reward progression at a glance.
     // clang-format off
@@ -327,7 +334,28 @@ namespace ChestRender
         return ownedBallCount >= 2 && carriedBoomRuneCount <= 0;
     }
 
-    inline PrizeKind SelectPrizeForLevel(int level, float roll01, bool allowBoomPrize = true)
+    inline bool PrizeIsRune(PrizeKind prize)
+    {
+        return prize == PrizeKind::RuneBoom || prize == PrizeKind::RuneBolt ||
+               prize == PrizeKind::RuneFreeze || prize == PrizeKind::RuneSkull ||
+               prize == PrizeKind::RuneGuardPins || prize == PrizeKind::RuneFootball;
+    }
+
+    // Four carried runes are free. Every rune beyond that halves the chance
+    // that a chest awards any rune: five = 1/2, six = 1/4, seven = 1/8, etc.
+    // The caller calculates this from the live inventory, so spending runes
+    // immediately restores the configured level rates.
+    inline float RunePrizeChanceMultiplierForCarriedRunes(int carriedRuneCount)
+    {
+        const int excess = glm::max(0, carriedRuneCount - 4);
+        return std::ldexp(1.0f, -excess);
+    }
+
+    inline PrizeKind SelectPrizeForLevel(
+        int level,
+        float roll01,
+        bool allowBoomPrize = true,
+        float runePrizeChanceMultiplier = 1.0f)
     {
         int totalWeight = 0;
         for (const PrizeWeightConfig &cfg : kPrizeWeightsByLevel)
@@ -338,10 +366,59 @@ namespace ChestRender
         if (totalWeight <= 0)
             return PrizeKind::Money25;
 
-        int pick = glm::clamp((int)std::floor(glm::clamp(roll01, 0.0f, 0.999999f) * (float)totalWeight), 0, totalWeight - 1);
+        // Preserve the original configured distribution exactly while no
+        // hoarding penalty applies.
+        if (runePrizeChanceMultiplier >= 0.999999f)
+        {
+            int pick = glm::clamp((int)std::floor(glm::clamp(roll01, 0.0f, 0.999999f) * (float)totalWeight), 0, totalWeight - 1);
+            for (const PrizeWeightConfig &cfg : kPrizeWeightsByLevel)
+            {
+                if (cfg.level != level || cfg.weight <= 0 || (!allowBoomPrize && cfg.prize == PrizeKind::RuneBoom))
+                    continue;
+                if (pick < cfg.weight)
+                    return cfg.prize;
+                pick -= cfg.weight;
+            }
+            return PrizeKind::Money25;
+        }
+
+        int runeWeight = 0;
+        int moneyWeight = 0;
+        for (const PrizeWeightConfig &cfg : kPrizeWeightsByLevel)
+        {
+            if (cfg.level != level || cfg.weight <= 0 ||
+                (!allowBoomPrize && cfg.prize == PrizeKind::RuneBoom))
+                continue;
+            if (PrizeIsRune(cfg.prize))
+                runeWeight += cfg.weight;
+            else
+                moneyWeight += cfg.weight;
+        }
+
+        const float baseRuneChance = (float)runeWeight / (float)totalWeight;
+        const float runeChance = glm::clamp(
+            baseRuneChance * glm::max(0.0f, runePrizeChanceMultiplier), 0.0f, 1.0f
+        );
+        const float clampedRoll = glm::clamp(roll01, 0.0f, 0.999999f);
+        const bool chooseRune = runeWeight > 0 && clampedRoll < runeChance;
+        const int categoryWeight = chooseRune ? runeWeight : moneyWeight;
+        // Every configured level currently has a cash prize. Retain a safe
+        // fallback for malformed or future tables rather than dividing by zero.
+        if (categoryWeight <= 0)
+            return PrizeKind::Money25;
+
+        const float categoryRoll = chooseRune
+            ? clampedRoll / glm::max(runeChance, 0.000001f)
+            : (clampedRoll - runeChance) / glm::max(1.0f - runeChance, 0.000001f);
+        int pick = glm::clamp(
+            (int)std::floor(glm::clamp(categoryRoll, 0.0f, 0.999999f) * (float)categoryWeight),
+            0, categoryWeight - 1
+        );
         for (const PrizeWeightConfig &cfg : kPrizeWeightsByLevel)
         {
             if (cfg.level != level || cfg.weight <= 0 || (!allowBoomPrize && cfg.prize == PrizeKind::RuneBoom))
+                continue;
+            if (PrizeIsRune(cfg.prize) != chooseRune)
                 continue;
             if (pick < cfg.weight)
                 return cfg.prize;

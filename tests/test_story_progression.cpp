@@ -74,6 +74,19 @@ TEST_CASE("Campaign routed start story nodes exist")
     REQUIRE(Story_FindNode(30020) != nullptr);
 }
 
+TEST_CASE("Rune lesson story chains keep first-rune guidance before warnings")
+{
+    const StorylineNode *firstBoom = Story_FindNode(3053);
+    const StorylineNode *firstBolt = Story_FindNode(3054);
+    REQUIRE(firstBoom != nullptr);
+    REQUIRE(firstBolt != nullptr);
+    CHECK(firstBoom->next_storyline == 3051);
+    CHECK(firstBolt->next_storyline == 3052);
+    CHECK(Story_FindNode(3050) != nullptr);
+    CHECK(Story_FindNode(3051) != nullptr);
+    CHECK(Story_FindNode(3052) != nullptr);
+}
+
 TEST_CASE("Completed-school level 1 intro does not offer school again")
 {
     const StorylineNode *n = Story_FindNode(41);

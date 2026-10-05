@@ -40,3 +40,19 @@ TEST_CASE("Later Boom and Bolt lessons appear once independently")
           (CAMPAIGN_RUNE_LESSON_FIRST_RUNE | CAMPAIGN_RUNE_LESSON_BOOM |
            CAMPAIGN_RUNE_LESSON_BOLT));
 }
+
+TEST_CASE("Rune lesson opens after the earning throw before either next turn path")
+{
+    // First or ordinary player throw: the player remains at idle.
+    CHECK(CampaignRuneLesson_CanOpenAfterThrow(
+        /*enemyTurn=*/false, /*phaseIsIdle=*/true, /*enemyLaunched=*/false));
+    CHECK_FALSE(CampaignRuneLesson_CanOpenAfterThrow(
+        /*enemyTurn=*/false, /*phaseIsIdle=*/false, /*enemyLaunched=*/false));
+
+    // Final player throw: ownership can change directly to the enemy's
+    // pre-launch state, without ever exposing a player IDLE frame.
+    CHECK(CampaignRuneLesson_CanOpenAfterThrow(
+        /*enemyTurn=*/true, /*phaseIsIdle=*/false, /*enemyLaunched=*/false));
+    CHECK_FALSE(CampaignRuneLesson_CanOpenAfterThrow(
+        /*enemyTurn=*/true, /*phaseIsIdle=*/false, /*enemyLaunched=*/true));
+}

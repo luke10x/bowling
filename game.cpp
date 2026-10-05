@@ -5521,6 +5521,12 @@ static inline BotAvatar StoryDialog_CurrentAngelAvatar(const UserContext *usr)
     if (!usr || !usr->dialog.active)
         return BotAvatar::ANGEL;
 
+    if (usr->dialog.angelAvatarOverride >= (int32_t)BotAvatar::ANGEL &&
+        usr->dialog.angelAvatarOverride <= (int32_t)BotAvatar::THRONE)
+    {
+        return (BotAvatar)usr->dialog.angelAvatarOverride;
+    }
+
     for (int32_t i = usr->dialog.lineCount - 1; i >= 0; --i)
     {
         const DialogBox::Line &line = usr->dialog.lines[i];
@@ -19361,16 +19367,26 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
 
     // A rune lesson follows the chest that awarded it. Let the chest's own
-    // summary finish first, then stop play before the next throw.
+    // summary and the throw resolution finish first, then stop play before
+    // either the next player throw or the enemy's pre-launch animation.
     if (usr->pendingCampaignRuneLessonStoryId != 0 &&
         usr->windowStack.count == 0 &&
         !usr->dialog.active &&
         !Chest_IsRewardActive(usr) &&
         !usr->chestSummaryActive &&
         usr->gameMode == UserContext::GameMode::BOT &&
-        usr->phase == UserContext::Phase::IDLE)
+        CampaignRuneLesson_CanOpenAfterThrow(
+            IsEnemyTurn(usr),
+            usr->phase == UserContext::Phase::IDLE,
+            usr->enemyLaunched
+        ))
     {
         usr->dialog.open(usr->pendingCampaignRuneLessonStoryId);
+        // Rune advice is a taunt from the rival on this lane, including a
+        // randomized post-campaign rival—not a fixed Ezekiel dialogue.
+        usr->dialog.angelAvatarOverride = (int32_t)usr->botAvatar;
+        usr->dialog.angelSpeakerNameOverride =
+            BotAvatar_DisplayName(usr->language, usr->botAvatar);
         usr->dialog.dialogAppearDelayLeft = 0.0f;
         usr->dialog.openedThisFrame = true;
         usr->pendingCampaignRuneLessonStoryId = 0;

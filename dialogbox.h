@@ -60,6 +60,12 @@ struct DialogBox
     bool waitingChoice = false;
     bool closeRequested = false;
 
+    // Some contextual lessons are spoken by the opponent currently on the
+    // lane rather than by the fixed speaker authored in their story node.
+    // The name is a static localized string owned by the caller.
+    int32_t angelAvatarOverride = -1;
+    const char *angelSpeakerNameOverride = nullptr;
+
     // One-shot event output for the game
     int32_t emittedEvent = EVENT_NONE;
     // Defer events until the dialog finishes (so actions like opening windows happen after story ends).
@@ -79,6 +85,8 @@ struct DialogBox
         activeChoiceGroup = CHOICE_NONE;
         pendingAutoNextStoryId = 0;
         pendingAutoNextTimer = 0.0f;
+        angelAvatarOverride = -1;
+        angelSpeakerNameOverride = nullptr;
         loadNode(*n);
     }
 
@@ -94,6 +102,8 @@ struct DialogBox
         activeChoiceGroup = CHOICE_NONE;
         pendingAutoNextStoryId = 0;
         pendingAutoNextTimer = 0.0f;
+        angelAvatarOverride = -1;
+        angelSpeakerNameOverride = nullptr;
         typeTimer = 0.0f;
     }
 
@@ -110,6 +120,8 @@ struct DialogBox
         activeChoiceGroup = CHOICE_NONE;
         pendingAutoNextStoryId = 0;
         pendingAutoNextTimer = 0.0f;
+        angelAvatarOverride = -1;
+        angelSpeakerNameOverride = nullptr;
         typeTimer = 0.0f;
     }
 
@@ -447,7 +459,8 @@ struct DialogBox
                                 continue;
 
                             const char *speakerName = Story_SpeakerUsesAngelAvatar(l.speaker)
-                                ? Story_AngelNameForStoryId(language, l.storyId)
+                                ? (angelSpeakerNameOverride ? angelSpeakerNameOverride
+                                                            : Story_AngelNameForStoryId(language, l.storyId))
                                 : Story_SpeakerName(language, l.speaker);
 
                             // Slightly different tint for player replies.

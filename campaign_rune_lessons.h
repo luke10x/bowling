@@ -22,6 +22,17 @@ struct CampaignRuneLessonDecision
     int updatedFlags = 0;
 };
 
+// A chest lesson belongs directly after the throw that earned its rune. On a
+// normal player follow-up that means player idle; on a frame-ending throw the
+// turn may already belong to the enemy, so use its safe pre-launch pause.
+static inline bool CampaignRuneLesson_CanOpenAfterThrow(
+    bool enemyTurn,
+    bool phaseIsIdle,
+    bool enemyLaunched)
+{
+    return (!enemyTurn && phaseIsIdle) || (enemyTurn && !enemyLaunched);
+}
+
 // Story IDs 3053 and 3054 are chained two-message variants: first-rune
 // guidance followed by the Boom or Bolt warning respectively.
 static inline CampaignRuneLessonDecision CampaignRuneLesson_OnPickup(

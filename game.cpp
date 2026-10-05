@@ -12241,11 +12241,11 @@ static inline const char *Campaign_OpponentDisplayName(TxlLanguage language, Cam
         case CampaignOpponent::MALACH:
             return localized("Ezekiel", "Ezekielis", "エゼキエル", "以西结");
         case CampaignOpponent::DOG:
-            return localized("Cherubel", "Cherubel", "ケルビム", "基路伯");
+            return localized("Cherubel", "Kerubas", "ケルビム", "基路伯");
         case CampaignOpponent::BEAK:
-            return localized("Seraphel", "Seraphel", "セラフィム", "撒拉弗");
+            return localized("Seraphel", "Serafelė", "セラフィム", "撒拉弗");
         case CampaignOpponent::COW:
-            return localized("Thrones", "Thrones", "座天使", "座天使");
+            return localized("Thrones", "Ofanija", "座天使", "座天使");
         default:
             return "Solo";
     }
@@ -12264,11 +12264,11 @@ static inline const char *BotAvatar_DisplayName(TxlLanguage language, BotAvatar 
     switch (avatar)
     {
         case BotAvatar::CHERUB:
-            return localized("Cherubel", "Cherubel", "ケルビム", "基路伯");
+            return localized("Cherubel", "Kerubas", "ケルビム", "基路伯");
         case BotAvatar::SERAPH:
-            return localized("Seraphel", "Seraphel", "セラフィム", "撒拉弗");
+            return localized("Seraphel", "Serafelė", "セラフィム", "撒拉弗");
         case BotAvatar::THRONE:
-            return localized("Thrones", "Thrones", "座天使", "座天使");
+            return localized("Thrones", "Ofanija", "座天使", "座天使");
         case BotAvatar::ANGEL:
         default:
             return localized("Ezekiel", "Ezekielis", "エゼキエル", "以西结");

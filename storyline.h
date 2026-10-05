@@ -88,16 +88,15 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You are in a bowling lane.\n"
-                 "Your first milestone is to score 100 points in a single game.\n"
-                 "If you do, you will earn a magic amulet.\n",
+        /*text=*/"Lost soul, thou hast entered the Unseen Realm, the world of spirits.\n"
+                 "Learn its runes and score 100, lest thy path close before thee.\n",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/2,
     },
     {
         /*storyline_id=*/2,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Do you want a tutorial?\n",
+        /*text=*/"Wilt thou enter training?\n",
         /*choice_group=*/CHOICE_TUTORIAL_YES_NO,
         /*next_storyline=*/0,
     },
@@ -106,15 +105,15 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/10,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You did not reach 100 points.\n"
-                 "Perhaps school would help you more than pride will.\n",
+        /*text=*/"Thou didst not reach 100.\n"
+                 "Perchance training will serve thee better than pride.\n",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/11,
     },
     {
         /*storyline_id=*/11,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Do you want to go to school now, or try level 1 again first?\n",
+        /*text=*/"Wilt thou enter training now, or try the Unseen Realm once more?\n",
         /*choice_group=*/CHOICE_LEVEL1_SCHOOL_OFFER,
         /*next_storyline=*/0,
     },
@@ -123,23 +122,23 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/20,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You cleared the initial test.\n"
-                 "Now I can reveal myself: I am Ezekiel, and I will bowl against you.\n",
+        /*text=*/"Thou hast passed the first sign.\n"
+                 "I am Ezekiel. I shall train thee and test thee, that thou mayest be saved.\n",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/21,
     },
     {
         /*storyline_id=*/21,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Do you want to go to school first, or continue to level 2 now?\n",
+        /*text=*/"Wilt thou enter training first, or face Ezekiel now?\n",
         /*choice_group=*/CHOICE_FIRST_WIN_NEXT,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/22,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You cleared the initial test.\n"
-                 "Now I can reveal myself: I am Ezekiel, and I will bowl against you.\n",
+        /*text=*/"Thou hast passed the first sign.\n"
+                 "I am Ezekiel. I shall train thee and test thee, that thou mayest be saved.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -147,8 +146,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/30,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You cannot leave school yet.\n"
-                 "Complete the lessons first.\n",
+        /*text=*/"Thou canst not leave training yet.\n"
+                 "Complete the trials first.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -333,26 +332,26 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/40,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Ezekiel, your angel saviour for this lane.\n"
-                 "Score 100 in level 1 to pass. I will be watching from a distance.\n"
-                 "If you want help first, school is open.\n",
+        /*text=*/"I am Ezekiel, thy angel saviour.\n"
+                 "The Unseen Realm is a world of spirits and runes. Score 100 to pass its first sign.\n"
+                 "If thou needest guidance, training is open.\n",
         /*choice_group=*/CHOICE_LEVEL1_SCHOOL_OFFER,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/41,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Ezekiel, your angel saviour for this lane.\n"
-                 "Score 100 in level 1 to pass. I will be watching from a distance.\n",
+        /*text=*/"I am Ezekiel, thy angel saviour.\n"
+                 "The Unseen Realm is a world of spirits and runes. Score 100 to pass its first sign.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/30020,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You cleared the initial test.\n"
-                 "Now I can reveal myself: I am Ezekiel, and level 2 is against me.\n"
-                 "Do you want to go to school first, or continue now?\n",
+        /*text=*/"Thou hast passed the first sign.\n"
+                 "I am Ezekiel. I shall train and test thee; at the end await Thrones.\n"
+                 "Wilt thou enter training first, or continue now?\n",
         /*choice_group=*/CHOICE_FIRST_WIN_NEXT,
         /*next_storyline=*/0,
     },
@@ -360,24 +359,24 @@ static constexpr StorylineNode STORYLINES[] = {
         /*storyline_id=*/3002,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"I am Ezekiel.\n"
-                 "I watched your first clear from a distance.\n"
-                 "You have touch, and I want to see whether you can hold it under pressure.\n",
+                 "Thou seekest salvation; I shall measure thy hand and thy resolve.\n"
+                 "Come, and let the first trial begin.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3102,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Good.\n"
-                 "Now leave the comfort of a normal lane and follow me into the desert.\n",
+        /*text=*/"Well done.\n"
+                 "Leave the gentle lane and follow me into the Desert of Sins.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3003,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"This desert lane burns its oil fast.\n"
-                 "Watch the front, and when your turn is coming, think about oil before pride.\n",
+        /*text=*/"This desert is dry from corruption.\n"
+                 "Anoint the lane with oil and frankincense; re-oiling cleans corruption as fire doth.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -451,33 +450,32 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/3103,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You adapted.\n"
-                 "Next comes ice, where the lane smiles and lies at the same time.\n",
+        /*text=*/"Thou hast endured the desert.\n"
+                 "Now comes coldness, where the path is eager to make thee slip.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3004,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Ice is long, slick, and patient.\n"
-                 "Trust less, slide more, and visit the shop if you need a ball that speaks this language.\n",
+        /*text=*/"Coldness makes all things slip.\n"
+                 "So may a soul slip from the path of salvation, or from the womb that bore it. Walk surely.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3104,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You made it through.\n"
-                 "Now come to Neon. I want to teach you with glass before I hand you to anyone else.\n",
+        /*text=*/"Thou hast not slipped away.\n"
+                 "Now comes the broken window: a city's ruin begins with a small breach.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3040,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Neon is our classroom now.\n"
-                 "While you throw, I will sometimes drop glass into your lane.\n"
-                 "Do not panic. Learn what it does.\n",
+        /*text=*/"This is as far as I may go toward Gomorah.\n"
+                 "Beyond the broken glass is Cherubel's realm; I cannot follow thee there.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -493,8 +491,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/3140,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Class is over.\n"
-                 "Cherubel has been pacing under the Neon lights and wants the lane now.\n",
+        /*text=*/"Ezekiel's training is ended.\n"
+                 "Cherubel waits beyond the broken window.\n",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/3141,
     },
@@ -510,25 +508,24 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/3005,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Cherubel.\n"
-                 "I like matches with bite, and I like players who push back.\n"
-                 "Show me whether you fold or answer.\n",
+        /*text=*/"I am Cherubel. Who is so bold as to enter Gomorah, where every sin doth flourish?\n"
+                 "Through glass, the energy of sin crystallizes into Minerals. Gather them well.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3105,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Not bad.\n"
-                 "Next we go back to a normal lane, and this time I let you use NOS.\n",
+        /*text=*/"Thou hast entered Gomorah.\n"
+                 "Now we go to the Desert of Power, where Minerals may be turned into strength.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3006,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Now you can use NOS while you throw.\n"
-                 "Do not tap it like a toy. Hold it when the ball already has speed and drive through the lane.\n",
+        /*text=*/"Through glass came gold; through gold came Minerals.\n"
+                 "Turn Minerals into energy with Nitro, and take thy portion of this world's drained power.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -543,118 +540,113 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/3106,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Take that power into the desert.\n"
-                 "Before my last round with you, I will also let you throw wood into my path.\n",
+        /*text=*/"Carry that power onward.\n"
+                 "The last road before the mines is choked with wood.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3007,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Desert again.\n"
-                 "This time you can place wood when I am the one throwing.\n"
-                 "Use it like an argument, not like decoration.\n",
+        /*text=*/"Cut the wood; this world is being made a desert.\n"
+                 "Yet use the timber to stop the balls. Thou wilt need it against Seraphel.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3107,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You survived me.\n"
-                 "Seraphel has been watching in silence, which is usually worse.\n",
+        /*text=*/"Thou hast passed my last trial.\n"
+                 "I enter not Seraphel's Mineral Mines. Go, and fare thee well.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3008,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Seraphel.\n"
-                 "The desert keeps only what can hold its shape.\n"
-                 "I do not bark. I wait, and then I decide.\n",
+        /*text=*/"I am Seraphel. These are the Mineral Mines of King Solomon.\n"
+                 "Be fierce in thy work, for the buried power is not given freely.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3108,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You interest me.\n"
-                 "Come onto the ice and keep your balance while I keep my secrets.\n",
+        /*text=*/"The mines have yielded.\n"
+                 "Come to the Powerplant, where Minerals become the energy of destruction.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3009,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Ice rewards calm hands.\n"
-                 "Do not confuse restraint with weakness.\n",
+        /*text=*/"Here Minerals are made into power.\n"
+                 "Gomorah hath earned this ruin by its corruption; thou helpest set the works in motion.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3109,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"One more chapter in Neon.\n"
-                 "Before my last level, I am giving you bricks to throw into the argument.\n",
+        /*text=*/"The engines awaken.\n"
+                 "One task remains for me: the gates of Gomorah.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3010,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Neon strips away disguise.\n"
-                 "You can use bricks on my turns now. Make them count.\n",
+        /*text=*/"Gomorah's sinful multitude must be reduced.\n"
+                 "This is my last task with thee; Thrones now labour within the city, and I enter not there.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3110,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Take the win if you can.\n"
-                 "Someone larger, louder, and far less patient is already on her way.\n",
+        /*text=*/"Thou hast done what I required.\n"
+                 "Go now to Thrones, whose weight already bears upon Gomorah.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3011,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Thrones.\n"
-                 "I know my weight, I know my worth, and I am not here to make this easy for you.\n"
-                 "Let's see if your game is as brave as your climb.\n",
+        /*text=*/"I am Thrones. I know my weight, and the impact I make upon Gomorah.\n"
+                 "Help me blaze the city to ashes.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3111,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You handled the city lights.\n"
-                 "One more level waits, and in it I allow concrete.\n",
+        /*text=*/"Gomorah burns.\n"
+                 "One final work remains beyond its ashes.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3012,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am still Thrones, and this is the final class.\n"
-                 "Now you may place concrete when I throw.\n"
-                 "Clear this and the whole campaign is complete.\n",
+        /*text=*/"This is Judgment Day.\n"
+                 "The whole earth must be laid waste for its ancient sins; the angels blow their trumpets.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3112,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Thrones, and you defeated me.\n"
-                 "The concrete held, the parade ended, and every level is clear.\n"
-                 "That is the end of the campaign.\n",
+        /*text=*/"It came to pass: the earth was made ash.\n"
+                 "Thou hast helped destroy evil. Thy trial is ended.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/32000,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Ezekiel, and now I can say it plainly:\n"
-                 "you defeated all of us and finished the campaign.\n"
-                 "What do you want to do next?\n",
+        /*text=*/"I am Ezekiel, and now it may be spoken plainly:\n"
+                 "thou hast passed the trials and helped bring evil to its end.\n"
+                 "What wilt thou do next?\n",
         /*choice_group=*/CHOICE_CAMPAIGN_ENDGAME,
         /*next_storyline=*/0,
     },
@@ -663,7 +655,7 @@ static constexpr StorylineNode STORYLINES[] = {
 static constexpr StoryChoiceOption STORY_OPTIONS[] = {
     {
         /*choice_id=*/CHOICE_GO_TO_SCHOOL,
-        /*option=*/"Go to school",
+        /*option=*/"Enter training",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_GO_TO_SCHOOL,
     },
@@ -681,13 +673,13 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
     },
     {
         /*choice_id=*/CHOICE_FIRST_FAIL_GO_SCHOOL,
-        /*option=*/"Go to school",
+        /*option=*/"Enter training",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_GO_TO_SCHOOL,
     },
     {
         /*choice_id=*/CHOICE_LEVEL1_SCHOOL_OFFER,
-        /*option=*/"Go to school",
+        /*option=*/"Enter training",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_GO_TO_SCHOOL,
     },
@@ -699,7 +691,7 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
     },
     {
         /*choice_id=*/CHOICE_FIRST_WIN_NEXT,
-        /*option=*/"Go to school",
+        /*option=*/"Enter training",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_GO_TO_SCHOOL,
     },
@@ -885,19 +877,19 @@ static inline const char *Story_AngelNameForStoryId(TxlLanguage language, int32_
         case 3106:
         case 3007:
         case 3107:
-            return localized("Cherubel", "Cherubel", "ケルビム", "基路伯");
+            return localized("Cherubel", "Kerubas", "ケルビム", "基路伯");
         case 3008:
         case 3108:
         case 3009:
         case 3109:
         case 3010:
         case 3110:
-            return localized("Seraphel", "Seraphel", "セラフィム", "撒拉弗");
+            return localized("Seraphel", "Serafelė", "セラフィム", "撒拉弗");
         case 3011:
         case 3111:
         case 3012:
         case 3112:
-            return localized("Thrones", "Thrones", "座天使", "座天使");
+            return localized("Thrones", "Ofanija", "座天使", "座天使");
         default:
             return localized("Ezekiel", "Ezekielis", "エゼキエル", "以西结");
     }
@@ -909,18 +901,18 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
     {
         switch (storylineId)
         {
-            case 1: return "Tu esi boulingo take.\nPirmas tikslas - surinkti 100 tasku per viena zaidima.\nJei pavyks, gausi magiska amuleta.\n";
-            case 2: return "Ar nori pamokos?\n";
-            case 10: return "100 tasku nepasiekei.\nGal dabar mokykla pades labiau nei isdidumas.\n";
-            case 11: return "Ar nori dabar eiti i mokykla, ar dar karta bandyti 1 lygi?\n";
-            case 20: return "Pradini isbandyma iveikei.\nDabar galiu pasirodyti: as Ezekielis, ir zaisiu pries tave.\n";
-            case 21: return "Ar pirma nori eiti i mokykla, ar dabar testi i 2 lygi?\n";
-            case 22: return "Pradini isbandyma iveikei.\nDabar galiu pasirodyti: as Ezekielis, ir zaisiu pries tave.\n";
+            case 1: return "Paklydusioji siela, įžengei į Dausas, dvasių pasaulį.\nPažink jo runas ir surink 100, idant kelias tau neužsivertų.\n";
+            case 2: return "Ar stosi į pratybas?\n";
+            case 10: return "Šimto nesurinkai.\nGal pratybos tau labiau pasitarnaus negu puikybė.\n";
+            case 11: return "Ar dabar eisi į pratybas, ar dar sykį mėginsi Dausas?\n";
+            case 20: return "Pirmąjį ženklą įveikei.\nAš Ezekielis. Mokysiu ir bandysiu tave, idant būtum išgelbėtas.\n";
+            case 21: return "Ar pirma stosi į pratybas, ar dabar stosi prieš Ezekielį?\n";
+            case 22: return "Pirmąjį ženklą įveikei.\nAš Ezekielis. Mokysiu ir bandysiu tave, idant būtum išgelbėtas.\n";
             case 30: return "Dar negali palikti mokyklos.\nPirma baik pamoką.\n";
             case 31: return "Ar tikrai?\nTai nutrauks dabartini pamokos bandyma ir prades pasirinkta pamoka.\n";
             case 32: return "Pradeti dabartine pamoka is naujo?\nDabartinis sios pamokos bandymas bus atstatytas.\n";
-            case 40: return "As Ezekielis, tavo angelas siame take.\nSurink 100 tasku 1 lygyje, kad ji iveiktum. Stebesiu is tolo.\nJei pirma nori pagalbos, mokykla atidaryta.\n";
-            case 41: return "As Ezekielis, tavo angelas siame take.\nSurink 100 tasku 1 lygyje, kad ji iveiktum. Stebesiu is tolo.\n";
+            case 40: return "Aš Ezekielis, tavo angelas gelbėtojas.\nDausos yra dvasių ir runų pasaulis. Surink 100, idant pereitum pirmąjį ženklą.\nJei geidi vedimo, pratybos atvertos.\n";
+            case 41: return "Aš Ezekielis, tavo angelas gelbėtojas.\nDausos yra dvasių ir runų pasaulis. Surink 100, idant pereitum pirmąjį ženklą.\n";
             case 1000: return "2 pamoka. Kamuolio mase.\nCia mokysimes mases.\nKiekvienas kamuolys turi savo mase, todel kitaip jauciasi ir rieda.\nPirmas testas - lengvais kamuoliais pataikyti i keglius.\nBaigimui reikes pataikyti ir sunkiu kamuoliu.\n";
             case 1010: return "Puiku! Mases testa islaikei.\n";
             case 1012: return "Kad islaikytum testa, mases slankikli nustatyk i lengva arba sunku gala.\nMetimas per viduri i pazanga neiskaiciuojamas.\n";
@@ -938,10 +930,10 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
             case 1072: return "Puiku! Straikas.\nBaigei mokykla.\nGali sugrizti bet kada.\n";
             case 1080: return "Matau, kad sunku.\nGal pabandyk si kamuoli?\n";
             case 1021: return "Sukima gali dar treniruoti zigzago monetu pamokoje.\n3 pamoka dabar atrakinta.\n";
-            case 30020: return "Pradini isbandyma iveikei.\nDabar galiu pasirodyti: as Ezekielis, o 2 lygis bus pries mane.\nAr pirma nori eiti i mokykla, ar testi dabar?\n";
-            case 3002: return "Aš Ezekielis.\nIš toli mačiau tavo pirmą pergalę.\nJauti žaidimą. Pažiūrėsiu, ar išlaikysi spaudimą.\n";
-            case 3102: return "Neblogai.\nPalik patogų paprastą taką ir eik su manimi į dykumą.\n";
-            case 3003: return "Dykumos takas greitai netenka alyvos.\nStebėk pradžią. Savo ėjime pirma galvok apie alyvą, tada apie ego.\n";
+            case 30020: return "Pirmąjį ženklą įveikei.\nAš Ezekielis. Mokysiu ir bandysiu tave; gale laukia Ofanija.\nAr pirma stosi į pratybas, ar tęsi dabar?\n";
+            case 3002: return "Aš Ezekielis.\nIeškai išganymo; matuosiu tavo ranką ir valią.\nEikš, teprasideda pirmas bandymas.\n";
+            case 3102: return "Gerai padarei.\nPalik ramų taką ir sek mane į Nuodėmių dykumą.\n";
+            case 3003: return "Ši dykuma sausa nuo sugedimo.\nPatepk taką alyva ir smilkalais; pertepimas apvalo sugedimą, kaip ugnis apvalo.\n";
             case 30031: return "Pastebejau daug splitu.\nGal bandai pataikyti i keglius is centro.\nVerčiau ivaziuok i juos truputi is sono.\nTai daznai padeda isvengti splitu.\n";
             case 30032: return "Tu dykumoje, o as vis dar nemaciau, kad naudotum alyva.\nGeriau panaudok ja, kol takas nenubaude tavo isdidumo.\nAr atidaryti alyvos langa dabar?\n";
             case 3042: return "Pastebėjau, kad nemeti stiklo atgal, nors aš metu jį į tave.\nTu irgi gali mesti stiklą į mane!\n";
@@ -950,31 +942,31 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
             case 3054: return "Dabar turi magijos prieš mane?\nĮdėk ją į kamuolio sukimosi ratą, kad ją panaudotum.\n";
             case 3051: return "Oho, gali sukelti sprogimą?\nTik tu sprendi, ar verta sunaikinti savo kamuolį dėl nedidelės žalos.\n";
             case 3052: return "Matau, gavai rimtos magijos.\nGali sunaikinti mano kamuolius, bet mėginsiu išsisukti nuo to, ką mesi į mane.\n";
-            case 3103: return "Prisitaikei.\nToliau ledas: takas šypsosis ir meluos.\n";
-            case 3004: return "Ledas ilgas, slidus ir kantrus.\nMažiau tikėk, daugiau slysk. Jei reikia tokio kamuolio, eik į parduotuvę.\n";
-            case 3104: return "Atlaikei.\nEime į neoną. Pirma pamokysiu stiklu, tada perduosiu kitam.\n";
-            case 3040: return "Neonas dabar mūsų klasė.\nKai mesi, kartais į tavo taką įmesiu stiklą.\nNepanikuok. Pirma suprask, ką jis daro.\n";
+            case 3103: return "Dykumą atlaikei.\nDabar šaltis, kur kelias nori tave išslydinti.\n";
+            case 3004: return "Šaltis viską daro slidu.\nTaip siela gali nuslysti nuo išganymo kelio ar iš ją nešiojusios įsčios. Eik tvirtai.\n";
+            case 3104: return "Nenuszlydai.\nDabar laukia išdužęs langas: miesto pražūtis prasideda nuo mažos properšos.\n";
+            case 3040: return "Čia man leista eiti tik iki Gomoros.\nAnapus išdužusio stiklo — Kerubo valdos; ten tavęs lydėti negaliu.\n";
             case 3041: return "Štai taip. Palietei stiklą.\nMano ėjimų metu galėsi mesti stiklą atgal.\nStebėk ėjimo mygtuką.\n";
-            case 3140: return "Pamoka baigta.\nCherubel jau ilgai vaikšto po neonu. Dabar jis nori šio tako.\n";
-            case 3141: return "Pries atsakydamas Cherubeliui, uzeik i parduotuve.\nSkirtingi kamuoliai turi skirtingas savybes, ir verta rasti tai, kas tinka tavo zaidimui.\nAr atidaryti parduotuve dabar?\n";
-            case 3005: return "Aš Cherubel.\nMėgstu aštrias kovas ir žaidėjus, kurie kerta atgal.\nParodyk, ar trauksiesi, ar atsakysi.\n";
-            case 3105: return "Neblogai.\nKitą lygį grįšime į paprastą taką. Šįkart leidžiu NOS.\n";
-            case 3006: return "Dabar mesdamas gali naudoti NOS.\nNespausk be reikalo. Laikyk, kai kamuolys jau greitas, ir stumk galią per visą taką.\n";
+            case 3140: return "Ezekielio pratybos baigtos.\nKerubas laukia anapus išdužusio lango.\n";
+            case 3141: return "Prieš atsakydamas Kerubui, užeik į parduotuvę.\nSkirtingi kamuoliai turi skirtingas savybes, ir verta rasti tai, kas tinka tavo žaidimui.\nAr atidaryti parduotuvę dabar?\n";
+            case 3005: return "Aš Kerubas. Kas toks drąsus žengia į Gomorą, kur visos nuodėmės žydi?\nPer stiklą nuodėmių jėga kristalėja į Mineralus. Rink juos rūpestingai.\n";
+            case 3105: return "Įžengei į Gomorą.\nDabar keliausime į Galios dykumą, kur Mineralai virsta jėga.\n";
+            case 3006: return "Per stiklą atėjo auksas, per auksą — Mineralai.\nPaversk Mineralus energija per Nitro ir pasiimk dalį išsiurbtos pasaulio galios.\n";
             case 30061: return "Dabar turi NOS, bet vis dar jo nenaudoji.\nPripildžiau tavo energiją. Kamuoliui jau judant laikyk NOS pedalą.\n";
-            case 3106: return "Nešk šią jėgą į dykumą.\nPrieš paskutinį mūsų lygį leisiu mesti medį į mano kelią.\n";
-            case 3007: return "Vėl dykuma.\nKai mesiu aš, galėsi dėti medį.\nTegu tai būna atsakymas, ne puošmena.\n";
-            case 3107: return "Mane atlaikei.\nSeraphel tyliai stebėjo. Paprastai tai blogiau.\n";
-            case 3008: return "Aš Seraphel.\nDykuma palieka tik tai, kas išlaiko formą.\nAš neloju. Laukiu, tada nusprendžiu.\n";
-            case 3108: return "Tu mane domini.\nEik ant ledo ir laikyk pusiausvyrą, kol aš saugosiu paslaptis.\n";
-            case 3009: return "Ledas apdovanoja ramias rankas.\nNepainiok santūrumo su silpnumu.\n";
-            case 3109: return "Neone liko dar vienas skyrius.\nPrieš paskutinį mano lygį gausi plytas.\n";
-            case 3010: return "Neonas nuplėšia kaukes.\nDabar mano ėjimų metu gali naudoti plytas. Išnaudok jas.\n";
-            case 3110: return "Pasiimk pergalę, jei gali.\nJau ateina garsesnė, didesnė ir daug mažiau kantri varžovė.\n";
-            case 3011: return "Aš Thrones.\nŽinau savo svorį ir vertę. Neatėjau tau palengvinti kelio.\nPažiūrėkim, ar tavo žaidimas toks drąsus kaip kilimas.\n";
-            case 3111: return "Miesto šviesas atlaikei.\nLiko vienas lygis, ir jame leisiu betoną.\n";
-            case 3012: return "Aš vis dar Thrones, ir tai paskutinė pamoka.\nDabar, kai mesiu aš, gali dėti betoną.\nĮveik šį lygį ir kampanija baigta.\n";
-            case 3112: return "Tu mane nugalėjai.\nBetonas atlaikė, paradas baigėsi, visi lygiai įveikti.\nTai kampanijos pabaiga.\n";
-            case 32000: return "Aš Ezekielis, ir dabar galiu pasakyti tiesiai:\ntu nugalėjai mus visus ir baigei kampaniją.\nKą nori daryti toliau?\n";
+            case 3106: return "Nešk šią galią pirmyn.\nPaskutinis kelias prie kasyklų užgultas medžiais.\n";
+            case 3007: return "Kirski medžius; šis pasaulis paverčiamas dykuma.\nBet medžiu stabdyk kamuolius. Jo reikės prieš Serafelę.\n";
+            case 3107: return "Paskutinį mano bandymą įveikei.\nĮ Serafelės Mineralų kasyklas neinu. Eik, ir tebūna tau gerai.\n";
+            case 3008: return "Aš Serafelė. Tai Karaliaus Saliamono Mineralų kasyklos.\nBūk nuožmus darbe, nes palaidota galia lengvai neduodama.\n";
+            case 3108: return "Kasyklos davė derlių.\nAteik į Jėgainę, kur Mineralai virsta naikinimo energija.\n";
+            case 3009: return "Čia Mineralai paverčiami galia.\nGomora užsitraukė pražūtį sugedimu; tu padedi pajudinti šiuos darbus.\n";
+            case 3109: return "Varikliai pabudo.\nMan lieka viena užduotis: Gomoros vartai.\n";
+            case 3010: return "Gomoros nuodėmingą minią reikia sumažinti.\nTai mano paskutinė užduotis su tavimi; Ofanija jau dirba mieste, o aš ten neinu.\n";
+            case 3110: return "Padarei, ko reikalavau.\nEik pas Ofaniją, kurios svoris jau gula ant Gomoros.\n";
+            case 3011: return "Aš Ofanija. Žinau savo svorį ir smūgį, kurį duodu Gomorai.\nPadėk man miestą paversti pelenais.\n";
+            case 3111: return "Gomora liepsnoja.\nAnapus jos pelenų laukia paskutinis darbas.\n";
+            case 3012: return "Tai Teismo diena.\nVisa žemė turi būti sunaikinta už senąsias nuodėmes; angelai pučia trimitus.\n";
+            case 3112: return "Ir taip nutiko: žemė virto pelenais.\nPadėjai sunaikinti blogį. Tavo išbandymas baigtas.\n";
+            case 32000: return "Aš Ezekielis, ir dabar galima tarti aiškiai:\ntu perėjai bandymus ir padėjai blogį sunaikinti.\nKą darysi toliau?\n";
             default: return fallback;
         }
     }
@@ -1134,7 +1126,7 @@ static inline const char *Story_OptionText(TxlLanguage language, const StoryChoi
     {
         if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "Yes") == 0) return "Taip";
         if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "No") == 0) return "Ne";
-        if (strcmp(opt.option, "Go to school") == 0) return "Eiti į mokyklą";
+        if (strcmp(opt.option, "Enter training") == 0) return "Eiti į pratybas";
         if (strcmp(opt.option, "Not now") == 0) return "Ne dabar";
         if (strcmp(opt.option, "Compete vs Ezekiel") == 0) return "Varžytis su Ezekieliu";
         if (strcmp(opt.option, "Compete vs Angel") == 0) return "Varžytis su angelu";
@@ -1156,7 +1148,7 @@ static inline const char *Story_OptionText(TxlLanguage language, const StoryChoi
     {
         if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "Yes") == 0) return "はい";
         if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "No") == 0) return "いいえ";
-        if (strcmp(opt.option, "Go to school") == 0) return "学校へ行く";
+        if (strcmp(opt.option, "Enter training") == 0) return "学校へ行く";
         if (strcmp(opt.option, "Not now") == 0) return "今はやめる";
         if (strcmp(opt.option, "Compete vs Ezekiel") == 0) return "エゼキエルと対戦";
         if (strcmp(opt.option, "Compete vs Angel") == 0) return "天使と対戦";
@@ -1179,7 +1171,7 @@ static inline const char *Story_OptionText(TxlLanguage language, const StoryChoi
 
     if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "Yes") == 0) return "是";
     if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "No") == 0) return "否";
-    if (strcmp(opt.option, "Go to school") == 0) return "去学校";
+    if (strcmp(opt.option, "Enter training") == 0) return "去学校";
     if (strcmp(opt.option, "Not now") == 0) return "现在先不去";
     if (strcmp(opt.option, "Compete vs Ezekiel") == 0) return "和以西结对战";
     if (strcmp(opt.option, "Compete vs Angel") == 0) return "和天使对战";

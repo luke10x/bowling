@@ -91,16 +91,13 @@ TEST_CASE("Result actions distinguish campaign and random levels")
     CHECK(Campaign_ResultActionsForState(false, false, false).next == true);
 }
 
-TEST_CASE("A shop purchase after a normal campaign victory continues directly")
+TEST_CASE("A shop exit after a normal campaign result resumes directly")
 {
-    CHECK(Campaign_ShouldAdvanceAfterResultShopPurchase(
-        /*campaignLevel=*/true, /*playerWon=*/true, /*nextAvailable=*/true,
-        /*finaleGreetingPending=*/false
+    CHECK(Campaign_ShouldResumeAfterResultShopExit(
+        /*campaignLevel=*/true, /*finaleGreetingPending=*/false
     ));
-    CHECK_FALSE(Campaign_ShouldAdvanceAfterResultShopPurchase(true, false, true, false));
-    CHECK_FALSE(Campaign_ShouldAdvanceAfterResultShopPurchase(false, true, true, false));
-    CHECK_FALSE(Campaign_ShouldAdvanceAfterResultShopPurchase(true, true, false, false));
-    CHECK_FALSE(Campaign_ShouldAdvanceAfterResultShopPurchase(true, true, true, true));
+    CHECK_FALSE(Campaign_ShouldResumeAfterResultShopExit(false, false));
+    CHECK_FALSE(Campaign_ShouldResumeAfterResultShopExit(true, true));
 }
 
 TEST_CASE("End-story shop decisions continue a normal campaign victory directly")

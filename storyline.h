@@ -564,63 +564,63 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/3008,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Seraphel. These are the Mineral Mines of King Solomon.\n"
-                 "Be fierce in thy work, for the buried power is not given freely.\n",
+        /*text=*/"The plague is upon Gomorah, yet I cannot enter the city.\n"
+                 "From here we reduce its sinful population. This is my last task with thee.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3108,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"The mines have yielded.\n"
-                 "Come to the Powerplant, where Minerals become the energy of destruction.\n",
+        /*text=*/"Thou hast done what I required.\n"
+                 "Go now to Thrones, who waits within Gomorah.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3009,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Here Minerals are made into power.\n"
-                 "Gomorah hath earned this ruin by its corruption; thou helpest set the works in motion.\n",
+        /*text=*/"I am Seraphel. These are the Mineral Mines of King Solomon.\n"
+                 "Be fierce in thy work, for the buried power is not given freely.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3109,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"The engines awaken.\n"
-                 "One task remains for me: the gates of Gomorah.\n",
+        /*text=*/"The mines have yielded.\n"
+                 "Come to the Powerplant: the energy must be extracted.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3010,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Gomorah's sinful multitude must be reduced.\n"
-                 "This is my last task with thee; Thrones now labour within the city, and I enter not there.\n",
+        /*text=*/"Here Minerals are made into power.\n"
+                 "Extract their strength, for these are sinners and deserve not to keep it.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3110,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Thou hast done what I required.\n"
-                 "Go now to Thrones, whose weight already bears upon Gomorah.\n",
+        /*text=*/"The engines have taken their due.\n"
+                 "I sent a plague upon Gomorah; come to the cemetery beyond the city.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3011,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Thrones. I know my weight, and the impact I make upon Gomorah.\n"
-                 "Help me blaze the city to ashes.\n",
+        /*text=*/"I am Thrones. Gomorah came to lawlessness, and for its deeds it cannot continue to exist.\n"
+                 "I know my weight and the impact I make; help me blaze the city to ashes.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3111,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Gomorah burns.\n"
+        /*text=*/"Gomorah burns, and its smoke rises.\n"
                  "One final work remains beyond its ashes.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
@@ -629,7 +629,7 @@ static constexpr StorylineNode STORYLINES[] = {
         /*storyline_id=*/3012,
         /*speaker=*/SPEAKER_ANGEL,
         /*text=*/"This is Judgment Day.\n"
-                 "The whole earth must be laid waste for its ancient sins; the angels blow their trumpets.\n",
+                 "The heavens are rolled away, the earth is weighed, and the old world is given to fire.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -956,15 +956,15 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
             case 3106: return "Nešk šią galią pirmyn.\nPaskutinis kelias prie kasyklų užgultas medžiais.\n";
             case 3007: return "Kirski medžius; šis pasaulis paverčiamas dykuma.\nBet medžiu stabdyk kamuolius. Jo reikės prieš Serafelę.\n";
             case 3107: return "Paskutinį mano bandymą įveikei.\nĮ Serafelės Mineralų kasyklas neinu. Eik, ir tebūna tau gerai.\n";
-            case 3008: return "Aš Serafelė. Tai Karaliaus Saliamono Mineralų kasyklos.\nBūk nuožmus darbe, nes palaidota galia lengvai neduodama.\n";
-            case 3108: return "Kasyklos davė derlių.\nAteik į Jėgainę, kur Mineralai virsta naikinimo energija.\n";
-            case 3009: return "Čia Mineralai paverčiami galia.\nGomora užsitraukė pražūtį sugedimu; tu padedi pajudinti šiuos darbus.\n";
-            case 3109: return "Varikliai pabudo.\nMan lieka viena užduotis: Gomoros vartai.\n";
-            case 3010: return "Gomoros nuodėmingą minią reikia sumažinti.\nTai mano paskutinė užduotis su tavimi; Ofanija jau dirba mieste, o aš ten neinu.\n";
-            case 3110: return "Padarei, ko reikalavau.\nEik pas Ofaniją, kurios svoris jau gula ant Gomoros.\n";
-            case 3011: return "Aš Ofanija. Žinau savo svorį ir smūgį, kurį duodu Gomorai.\nPadėk man miestą paversti pelenais.\n";
-            case 3111: return "Gomora liepsnoja.\nAnapus jos pelenų laukia paskutinis darbas.\n";
-            case 3012: return "Tai Teismo diena.\nVisa žemė turi būti sunaikinta už senąsias nuodėmes; angelai pučia trimitus.\n";
+            case 3008: return "Maras apėmė Gomorą, bet į miestą įeiti negaliu.\nIš čia mažiname jos nuodėmingą gyventojų skaičių. Tai mano paskutinė užduotis su tavimi.\n";
+            case 3108: return "Padarei, ko reikalavau.\nEik pas Ofaniją, kuri laukia Gomoroje.\n";
+            case 3009: return "Aš Serafelė. Tai Karaliaus Saliamono Mineralų kasyklos.\nBūk nuožmus darbe, nes palaidota galia lengvai neduodama.\n";
+            case 3109: return "Kasyklos davė derlių.\nAteik į Jėgainę: energija turi būti išgauta.\n";
+            case 3010: return "Čia Mineralai paverčiami galia.\nIštrauk jų stiprybę, nes tai nusidėjėliai ir neverti jos laikyti.\n";
+            case 3110: return "Varikliai pasiėmė savo dalį.\nPasiunčiau marą į Gomorą; ateik į kapines už miesto.\n";
+            case 3011: return "Aš Ofanija. Gomora pasidavė nedorybei, ir dėl savo darbų nebegali toliau gyvuoti.\nŽinau savo svorį ir smūgį; padėk man miestą paversti pelenais.\n";
+            case 3111: return "Gomora liepsnoja, ir jos dūmai kyla.\nAnapus jos pelenų laukia paskutinis darbas.\n";
+            case 3012: return "Tai Teismo diena.\nDangus susisuka, žemė pasveriama, o senasis pasaulis atiduodamas ugniai.\n";
             case 3112: return "Ir taip nutiko: žemė virto pelenais.\nPadėjai sunaikinti blogį. Tavo išbandymas baigtas.\n";
             case 32000: return "Aš Ezekielis, ir dabar galima tarti aiškiai:\ntu perėjai bandymus ir padėjai blogį sunaikinti.\nKą darysi toliau?\n";
             default: return fallback;

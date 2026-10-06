@@ -50,16 +50,15 @@ static inline CampaignResultActions Campaign_ResultActionsForState(
     return {true, false};
 }
 
-// Buying from the Shop opened by a normal campaign victory is a detour on the
-// way to the next level, not a second result decision.  The first Level 13
-// clear is excluded because its result must lead into the finale greeting.
-static inline bool Campaign_ShouldAdvanceAfterResultShopPurchase(
+// The Shop opened from a normal campaign result is a detour, not another
+// result decision. Closing it or buying a ball resumes the campaign: a win
+// starts the next level and a loss repeats the current one. The first Level
+// 13 clear remains excluded because its result must lead into the finale.
+static inline bool Campaign_ShouldResumeAfterResultShopExit(
     bool campaignLevel,
-    bool playerWon,
-    bool nextAvailable,
     bool finaleGreetingPending)
 {
-    return campaignLevel && playerWon && nextAvailable && !finaleGreetingPending;
+    return campaignLevel && !finaleGreetingPending;
 }
 
 // The optional shop offered by a campaign end-story is a detour between two

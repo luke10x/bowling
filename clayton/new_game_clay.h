@@ -284,6 +284,11 @@ inline void renderNewGameWindow(Clayton *clayton)
         "%s",
         clayton->newGameButtonLabel ? clayton->newGameButtonLabel : Txl_Get(clayton->uiLanguage, TXL_TRY_AGAIN)
     );
+    Clay_String repeatButton = ClayArena_FormatString(
+        arena,
+        "%s",
+        Txl_Get(clayton->uiLanguage, TXL_REPEAT)
+    );
     Clay_String coinsLabel = clayton->txl(TXL_COINS_OBTAINED);
     Clay_String coinsAmount = ClayArena_FormatString(arena, "$ %d", clayton->newGameCoinsAnimated);
     Clay_String shopLabel = ClayArena_FormatString(
@@ -463,7 +468,7 @@ inline void renderNewGameWindow(Clayton *clayton)
                                      .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
                           .backgroundColor = CLAY_COLOR_BTN_DANGER,
                           .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG}})
-                    { CLAY_TEXT(CLAY_STRING("REPEAT"), CLAY_TEXT_CONFIG(buttonCfg)); }
+                    { CLAY_TEXT(repeatButton, CLAY_TEXT_CONFIG(buttonCfg)); }
                 }
                 CLAY(
                 clayton->playAgainClick.clayId,

@@ -1548,9 +1548,9 @@ struct UserContext
 
     bool shouldShowShop = false;
     bool shopRestockResumeAfterShop = false;
-    // Set only for a Shop opened from a normal campaign victory result.  A
-    // successful purchase should then continue to the next level directly.
-    bool resultShopAdvanceCampaignOnPurchase = false;
+    // Set for a Shop opened from a normal campaign result. Every exit resumes
+    // the campaign directly instead of returning to a retry/result modal.
+    bool resultShopResumeCampaignOnExit = false;
     // The end-story shop offer is an optional detour between campaign levels.
     // Every exit path from it advances; it must never reveal a retry modal.
     bool campaignEndStoryShopAdvancePending = false;
@@ -13402,7 +13402,7 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->enemyNeedsReplacementBall = false;
     usr->enemyRetargetStrength = glm::clamp(cfg.enemySkill, 0.0f, 1.0f);
     usr->pendingCampaignEndStoryId = 0;
-    usr->resultShopAdvanceCampaignOnPurchase = false;
+    usr->resultShopResumeCampaignOnExit = false;
     usr->campaignEndStoryShopAdvancePending = false;
     usr->pendingCampaignBotResultWindow = false;
     usr->pendingCampaignEndgameSummaryWindow = false;
@@ -21875,13 +21875,13 @@ void vtx::loop(vtx::VertexContext *ctx)
         continueAfterReplayReset();
     };
 
-    auto continueAfterResultShopPurchase = [&]()
+    auto continueAfterResultShopExit = [&]()
     {
-        if (!usr->resultShopAdvanceCampaignOnPurchase)
+        if (!usr->resultShopResumeCampaignOnExit)
             return false;
-        usr->resultShopAdvanceCampaignOnPurchase = false;
-        // The shop replaced a Victory/Next modal. Take its same Next action
-        // after a successful purchase instead of reopening a stale result.
+        usr->resultShopResumeCampaignOnExit = false;
+        // The shop replaced the result modal. The normal result action resets
+        // the next level after a win, or repeats the current level after a loss.
         usr->windowStack.resultNextRequested = true;
         return true;
     };
@@ -21925,7 +21925,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     else
                     {
                         BallShop_CloseAfterAction(usr);
-                        if (continueAfterEndStoryShop() || continueAfterResultShopPurchase())
+                        if (continueAfterEndStoryShop() || continueAfterResultShopExit())
                         {
                             // The result action below performs the level advance.
                         }
@@ -21957,7 +21957,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     if (changedBall)
                         BallShop_PlayEquipFeedback(usr);
                     BallShop_CloseAfterAction(usr);
-                    if (continueAfterEndStoryShop() || continueAfterResultShopPurchase())
+                    if (continueAfterEndStoryShop() || continueAfterResultShopExit())
                     {
                         // The result action below performs the level advance.
                     }
@@ -21984,16 +21984,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->shopRestockResumeAfterShop = false;
             continueAfterReplayReset();
         }
-        else if (usr->resultShopAdvanceCampaignOnPurchase)
+        else if (continueAfterResultShopExit())
         {
-            // Closing without a purchase returns to the original Victory/Next
-            // result; it must never degrade to the default Try Again window.
-            usr->resultShopAdvanceCampaignOnPurchase = false;
-            if (usr->phase == UserContext::Phase::RESULT && usr->windowStack.count == 0)
-            {
-                Campaign_SetResultWindowLabels(usr, /*advanced=*/true);
-                usr->windowStack.windowStackPushNewGameWindow();
-            }
+            // The queued result action below resumes the campaign immediately.
         }
     }
     if (usr->windowStack.shopRestockVisitRequested)
@@ -22013,14 +22006,12 @@ void vtx::loop(vtx::VertexContext *ctx)
     if (usr->windowStack.newGameShopRequested)
     {
         usr->windowStack.newGameShopRequested = false;
-        usr->resultShopAdvanceCampaignOnPurchase =
-            Campaign_ShouldAdvanceAfterResultShopPurchase(
+        usr->resultShopResumeCampaignOnExit =
+            Campaign_ShouldResumeAfterResultShopExit(
                 usr->playerRoute == PlayerRoute::CAMPAIGN && !usr->campaignPostgameFreeplayActive,
-                usr->clayton.newGameVictory,
-                usr->clayton.newGameNextAvailable,
                 usr->campaignEndgameAwaitingResultDismissal
             );
-        if (usr->resultShopAdvanceCampaignOnPurchase)
+        if (usr->resultShopResumeCampaignOnExit)
             usr->windowStack.windowStackCloseTopWindow();
         BallShop_Open(usr, BallShopTab_SHOP);
         // Losses and non-campaign results retain their result window beneath

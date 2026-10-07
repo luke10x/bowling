@@ -3211,18 +3211,21 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
         }
         if (self->campaignLevelSelectCampaignComplete)
         {
-            char bestScore[64], wonRecord[32], lostRecord[32], quitRecord[32];
+            char bestScore[64];
             if (self->campaignPostgameBestScore > 0)
                 snprintf(bestScore, sizeof(bestScore), "%d-%d", self->campaignPostgameBestScore, self->campaignPostgameBestOpponentScore);
             else
                 snprintf(bestScore, sizeof(bestScore), "?-?");
-            snprintf(wonRecord, sizeof(wonRecord), "WON %d", self->campaignPostgameWins);
-            snprintf(lostRecord, sizeof(lostRecord), "LOST %d", self->campaignPostgameLosses);
-            snprintf(quitRecord, sizeof(quitRecord), "QUIT %d", self->campaignPostgameQuits);
             Clay_String bestScoreStr = ClayArena_AllocString(arena, bestScore);
-            Clay_String wonRecordStr = ClayArena_AllocString(arena, wonRecord);
-            Clay_String lostRecordStr = ClayArena_AllocString(arena, lostRecord);
-            Clay_String quitRecordStr = ClayArena_AllocString(arena, quitRecord);
+            Clay_String wonRecordStr = ClayArena_FormatString(
+                arena, Txl_Get(clayton->uiLanguage, TXL_POST_CAMPAIGN_WON_FMT), self->campaignPostgameWins
+            );
+            Clay_String lostRecordStr = ClayArena_FormatString(
+                arena, Txl_Get(clayton->uiLanguage, TXL_POST_CAMPAIGN_LOST_FMT), self->campaignPostgameLosses
+            );
+            Clay_String quitRecordStr = ClayArena_FormatString(
+                arena, Txl_Get(clayton->uiLanguage, TXL_POST_CAMPAIGN_QUIT_FMT), self->campaignPostgameQuits
+            );
             CLAY(CLAY_ID("CampaignPostgameApplet"),
                  {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                              .padding = {16, 16, 12, 12}, .childGap = 8,
@@ -3235,12 +3238,12 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
                  {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .layoutDirection = CLAY_LEFT_TO_RIGHT,
                              .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
             {
-                CLAY_TEXT(CLAY_STRING("POST-CAMPAIGN"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+                CLAY_TEXT(clayton->txl(TXL_POST_CAMPAIGN), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
                 CLAY(CLAY_ID("CampaignPostgameHeadingSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
                 Clay_ElementDeclaration settingsButton = CLAY_THEME_BTN_HUD;
                 settingsButton.layout.sizing = {CLAY_SIZING_FIXED(112), CLAY_SIZING_FIXED(40)};
                 CLAY(clayton->campaignPostgameSettingsClick.clayId, settingsButton)
-                { CLAY_TEXT(CLAY_STRING("SETTINGS"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
+                { CLAY_TEXT(clayton->txl(TXL_SETTINGS), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
             }
                 CLAY(CLAY_ID("CampaignPostgameBestRow"),
                      {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 8,
@@ -3249,7 +3252,7 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
                     CLAY(CLAY_ID("CampaignPostgameBestLabel"),
                          {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                                      .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
-                    { CLAY_TEXT(CLAY_STRING("Best score:"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)); }
+                    { CLAY_TEXT(clayton->txl(TXL_POST_CAMPAIGN_BEST_SCORE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)); }
                     CLAY(CLAY_ID("CampaignPostgameBestValue"),
                          {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                                      .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
@@ -3272,8 +3275,8 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
                             Clay_TextElementConfig nosCfg = CLAY_THEME_TEXT_BODY;
                             nosCfg.textColor = self->campaignPostgameBestNosEnabled
                                 ? Clay_Color{230, 230, 240, 255} : Clay_Color{115, 110, 130, 255};
-                            CLAY_TEXT(CLAY_STRING("B"), CLAY_TEXT_CONFIG(blocksCfg));
-                            CLAY_TEXT(CLAY_STRING("N"), CLAY_TEXT_CONFIG(nosCfg));
+                            CLAY_TEXT(clayton->txl(TXL_BLOCKS_SHORT), CLAY_TEXT_CONFIG(blocksCfg));
+                            CLAY_TEXT(clayton->txl(TXL_NOS_SHORT), CLAY_TEXT_CONFIG(nosCfg));
                         }
                     }
                 }
@@ -3325,7 +3328,7 @@ inline void WindowStack::renderCampaignPostgameSettingsWindow(WindowStack *self,
              {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .layoutDirection = CLAY_LEFT_TO_RIGHT,
                          .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
         {
-            CLAY_TEXT(CLAY_STRING("POST-CAMPAIGN SETTINGS"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+            CLAY_TEXT(clayton->txl(TXL_POST_CAMPAIGN_SETTINGS), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
             CLAY(CLAY_ID("CampaignPostgameSettingsSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
             CLAY(clayton->campaignPostgameSettingsCloseClick.clayId, CLAY_THEME_BTN_DANGER)
             { CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
@@ -3346,8 +3349,8 @@ inline void WindowStack::renderCampaignPostgameSettingsWindow(WindowStack *self,
                       .cornerRadius = {8, 8, 8, 8}})
                 { CLAY_TEXT(label, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
             };
-            renderToggle(clayton->campaignPostgameBlocksClick.clayId, CLAY_STRING("BLOCKS"), self->campaignPostgameBlocksEnabled);
-            renderToggle(clayton->campaignPostgameNosClick.clayId, CLAY_STRING("NOS"), self->campaignPostgameNosEnabled);
+            renderToggle(clayton->campaignPostgameBlocksClick.clayId, clayton->txl(TXL_BLOCKS), self->campaignPostgameBlocksEnabled);
+            renderToggle(clayton->campaignPostgameNosClick.clayId, clayton->txl(TXL_NOS), self->campaignPostgameNosEnabled);
         }
     }
 }

@@ -22057,11 +22057,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->campaignEndgameAwaitingResultDismissal) ==
             CampaignFinaleFlow::AngelGreeting)
         {
-            usr->campaignEndgameAwaitingResultDismissal = false;
             usr->campaignEndStoryShopAdvancePending = false;
             usr->pendingCampaignPostgameChoiceDialog = true;
-            // Stay in RESULT so the post-campaign fireworks remain visible behind
-            // the final result until the Angel greeting takes over.
+            // Keep the first-clear finale state through Ezekiel's greeting so
+            // the same fireworks continue behind the dialog. The postgame
+            // choice or a reset clears the celebration through its own flow.
             return;
         }
         LogToIdle(usr, "PLAY_AGAIN");

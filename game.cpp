@@ -13658,11 +13658,8 @@ static inline void Campaign_StartFreshRunAfterReset(UserContext *usr)
     if (!usr)
         return;
 
-    // Campaign reset preserves school graduation.  A graduate starts the new
-    // campaign directly at Malach instead of being sent through level 1 again.
-    if (Campaign_ShouldApplySchoolPassOnResume(
-            usr->schoolDone, usr->campaignLevelIndex, usr->campaignLevelWins[0]))
-        Campaign_GraduateSchoolPastFirstLevel(usr);
+    // A reset is an intentional new campaign, not a persisted-save resume.
+    // It must begin at level 1 even when the player previously finished school.
     Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
     Run_ResetBoardsAndMode(usr, usr->gameMode);
     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);

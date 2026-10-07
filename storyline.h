@@ -901,14 +901,14 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
     {
         switch (storylineId)
         {
-            case 1: return "Paklydusioji siela, įžengei į Dausas, dvasių pasaulį.\nPažink jo runas ir surink 100, idant kelias tau neužsivertų.\n";
-            case 2: return "Ar stosi į pratybas?\n";
-            case 10: return "Šimto nesurinkai.\nGal pratybos tau labiau pasitarnaus negu puikybė.\n";
+            case 1: return "Įžengei į Dausas, dvasių pasaulį.\nBet ar pajėgsi surinkti 100?\n";
+            case 2: return "Ar norėtumei atlikti pratybas?\n";
+            case 10: return "Šimto nesurinkai.\nGal pratybos tau butų labiau į naudą negu puikybė?\n";
             case 11: return "Ar dabar eisi į pratybas, ar dar sykį mėginsi Dausas?\n";
-            case 20: return "Pirmąjį ženklą įveikei.\nAš Ezekielis. Mokysiu ir bandysiu tave, idant būtum išgelbėtas.\n";
-            case 21: return "Ar pirma stosi į pratybas, ar dabar stosi prieš Ezekielį?\n";
-            case 22: return "Pirmąjį ženklą įveikei.\nAš Ezekielis. Mokysiu ir bandysiu tave, idant būtum išgelbėtas.\n";
-            case 30: return "Dar negali palikti mokyklos.\nPirma baik pamoką.\n";
+            case 20: return "Pirmąjį ženklą įveikei.\nŠtai aš - Ezekielis. Klausym manęs įdėmiai, aš tau viską parodysiu.\n Neklausysi - prapulsi!\n";
+            case 21: return "Ar pirma atliksi pratybas, ar jau dabar stosi prieš Ezekielį?\n";
+            case 22: return "Pirmąjį ženklą įveikei.\nŠtai aš - Ezekielis. Klausym manęs įdėmiai, aš tau viską parodysiu.\n Neklausysi - prapulsi!\n";
+            case 30: return "Dar negali palikti pratybų.\nPirma baik pamoką.\n";
             case 31: return "Ar tikrai?\nTai nutrauks dabartini pamokos bandyma ir prades pasirinkta pamoka.\n";
             case 32: return "Pradeti dabartine pamoka is naujo?\nDabartinis sios pamokos bandymas bus atstatytas.\n";
             case 40: return "Aš Ezekielis, tavo angelas gelbėtojas.\nDausos yra dvasių ir runų pasaulis. Surink 100, idant pereitum pirmąjį ženklą.\nJei geidi vedimo, pratybos atvertos.\n";

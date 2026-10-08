@@ -2908,6 +2908,7 @@ inline void WindowStack::renderCreditsWindow(Clayton *clayton)
         )
         {
             CLAY_TEXT(authorLine, CLAY_TEXT_CONFIG(bodyCfg));
+            CLAY_TEXT(clayton->txl(TXL_CREDITS_TRACKER), CLAY_TEXT_CONFIG(bodyCfg));
             CLAY_TEXT(clayton->txl(TXL_CREDITS_CHARACTER_BASE), CLAY_TEXT_CONFIG(bodyCfg));
             CLAY_TEXT(clayton->txl(TXL_CREDITS_MIXAMO), CLAY_TEXT_CONFIG(bodyCfg));
             CLAY_TEXT(clayton->txl(TXL_CREDITS_TECH), CLAY_TEXT_CONFIG(bodyCfg));

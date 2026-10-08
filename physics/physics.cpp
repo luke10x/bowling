@@ -35,6 +35,7 @@
 #include <thread>
 
 #include "physics.h"
+#include "../lane_pushback.h"
 
 namespace Layers
 {
@@ -937,10 +938,7 @@ void Physics::physics_init(
     // The lane render mesh can include gutters / side geometry, which makes the AABB
     // much wider than the playable lane surface. For stable gameplay, clamp the collider
     // width to the same standard lane surface width used by rendering.
-    constexpr float kLaneSurfaceWidthM = 41.857f * 0.0254f;
-    constexpr float kLaneHalfWidthM = 0.5f * kLaneSurfaceWidthM;
-    constexpr float kLaneHalfWidthMarginM = 0.02f;
-    halfX = kLaneHalfWidthM + kLaneHalfWidthMarginM;
+    halfX = LanePushback::PLAYABLE_HALF_WIDTH_M;
 
     JPH::Vec3 halfExtents(halfX, std::max(0.02f, halfY), halfZ);
     // Keep collider centered to the lane mesh bounds (X/Z). We clamp the width above, so even if the
@@ -1185,7 +1183,10 @@ void Physics::physics_step(float deltaSeconds, float physicsInterval)
                 float x = pos.GetX();
                 float z = pos.GetZ();
 
-                bool onLane = pos.GetY() < 0.25f;
+                // Do not keep applying an oil/hook force after the ball has left
+                // the lane. That used to pull gutter balls sideways under the
+                // lane while gravity was dropping them.
+                bool onLane = LanePushback::IsBallOnPlayableLane(x, pos.GetY());
                 bool verticalStable = fabs(vel.GetY()) < 0.5f;
                 bool movingForward = fabs(vel.GetZ()) > 0.2f;
                 if (onLane && verticalStable && movingForward)
@@ -1898,7 +1899,7 @@ void Physics::apply_lane_pushback(float peakZ, float halfWidth, float maxStrengt
     // ------------------------------------------------
 
     // Ball height check (your ball radius is 0.108m normally)
-    bool onLane = pos.GetY() < 0.25f; // small tolerance
+    bool onLane = LanePushback::IsBallOnPlayableLane(x, pos.GetY());
 
     // Not flying or bouncing
     bool verticalStable = fabs(vel.GetY()) < 0.5f;

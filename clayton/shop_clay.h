@@ -69,6 +69,11 @@ Shop_TabColor(Clay_ElementId id, bool active, Clay_Color activeColor, Clay_Color
     return active ? activeColor : Shop_ButtonHoverColor(id, inactiveColor, inactiveRgbLift);
 }
 
+// All labels reserve the same compact column so every stat track begins after
+// the longest label and takes the rest of the row. Values are UI units and are
+// scaled at render time.
+static constexpr float SHOP_STAT_LABEL_WIDTH = 68.0f;
+
 // Helper: Draw a single stat row with label + bar
 void DrawStatRow(ClayArena *arena, const char *label, float value /* 0.0 to 1.0 */, int nr)
 {
@@ -77,7 +82,12 @@ void DrawStatRow(ClayArena *arena, const char *label, float value /* 0.0 to 1.0 
         char buf[64];
         int len = snprintf(buf, sizeof(buf), "%s", label);
         Clay_String lable = ClayArena_AllocString(arena, buf);
-        CLAY_TEXT(lable, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_STAT));
+        CLAY(CLAY_IDI("StatLabel", nr),
+             {.layout = {.sizing = {CLAY_SIZING_FIXED(SHOP_STAT_LABEL_WIDTH), CLAY_SIZING_FIT()},
+                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+        {
+            CLAY_TEXT(lable, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_STAT));
+        }
         CLAY(CLAY_IDI("StatBarBg", nr), CLAY_THEME_STAT_BAR_BG)
         {
             CLAY(CLAY_IDI("StatBarFill", nr), CLAY_THEME_STAT_BAR_FILL(value))
@@ -156,6 +166,7 @@ void DrawCatalogItem(
     float skid,
     float bite,
     bool canAfford,
+    bool alreadyOwned,
     int nr
 )
 {
@@ -164,6 +175,8 @@ void DrawCatalogItem(
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
     Clay_TextElementConfig scoreCfg = CLAY_THEME_TEXT_LARGE;
     Clay_TextElementConfig priceCfg = CLAY_THEME_TEXT_PRICE;
+    Clay_TextElementConfig ownedPriceCfg = CLAY_THEME_TEXT_PRICE;
+    ownedPriceCfg.textColor = {170, 170, 170, 255};
     Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
     Clay_TextElementConfig rarityCfg = CLAY_THEME_TEXT_RARITY;
     Clay_ElementDeclaration rarityBadgeDecl = CLAY_THEME_RARITY_BADGE;
@@ -174,6 +187,11 @@ void DrawCatalogItem(
         .bottomRight = 0,
     };
     Clay_LayoutConfig rarityBadgeLayoutCfg = rarityBadgeDecl.layout;
+    // The tag reaches the header's right, top, and bottom edges as one clean
+    // label, rather than appearing to be pressed only against the right edge.
+    rarityBadgeLayoutCfg.sizing.height = CLAY_SIZING_GROW();
+    rarityBadgeLayoutCfg.padding.top = 0;
+    rarityBadgeLayoutCfg.padding.bottom = 0;
 
     ClayArena *arena = &clayton->clayArena;
 
@@ -344,7 +362,7 @@ void DrawCatalogItem(
                     char buf[64];
                     int len = snprintf(buf, sizeof(buf), "$%.0f", price);
                     Clay_String lable = ClayArena_AllocString(arena, buf);
-                    CLAY_TEXT(lable, CLAY_TEXT_CONFIG(priceCfg));
+                    CLAY_TEXT(lable, CLAY_TEXT_CONFIG(alreadyOwned ? ownedPriceCfg : priceCfg));
                 }
                 // Stats section
                 CLAY(
@@ -586,6 +604,7 @@ void Carousel_Render(
                     item->skid,
                     item->bite,
                     carousel->bank >= item->price,
+                    ballShop && ballShop->activeTab == BallShopTab_INVENTORY,
                     i
                 );
             }

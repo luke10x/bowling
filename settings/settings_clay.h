@@ -133,24 +133,6 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                 }
             )
             {
-                CLAY_TEXT(
-                    ClayArena_FormatString(
-                        &clayton->clayArena,
-                        Txl_Get(clayton->uiLanguage, TXL_SNOWFLAKES_FMT),
-                        settings->snowflakeCount,
-                        settings->maxSnowflakes
-                    ),
-                    CLAY_TEXT_CONFIG(bodyCfg)
-                );
-                ClaytonSlider_Render(&settings->snowflakeSlider, clayton, Txl_Get(clayton->uiLanguage, TXL_SNOWFLAKE_DENSITY), "");
-                if (settings->snowflakeCount == 0)
-                {
-                    CLAY_TEXT(
-                        clayton->txl(TXL_SNOW_DISABLED),
-                        CLAY_TEXT_CONFIG(bodyCfg)
-                    );
-                }
-
 #ifdef __EMSCRIPTEN__
                 CLAY(
                     CLAY_ID("SettingsUpdateSection"),
@@ -226,7 +208,7 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                     CLAY(
                         CLAY_ID("SettingsResetProgressButtons"),
                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 10,
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                                    .layoutDirection = CLAY_TOP_TO_BOTTOM}}
                     )
                     {
                         CLAY(clayton->settingsResetCampaignClick.clayId, resetProgressButton)

@@ -464,8 +464,13 @@ struct Clayton
     void loadFontsForLanguage(TxlLanguage language)
     {
         uiLanguage = language;
-        const int atlasW = 512;
-        const int atlasH = 512;
+        // CJK locales need considerably more glyphs than the Latin UI.  Keep
+        // every requested translation glyph in the atlas: otherwise the
+        // later entries (such as the post-campaign block and NOS markers)
+        // silently fail to pack and render as empty text.
+        const bool usesCjkGlyphs = language == TXL_LANG_ZH_CN || language == TXL_LANG_JP_JP;
+        const int atlasW = usesCjkGlyphs ? 1024 : 512;
+        const int atlasH = usesCjkGlyphs ? 1024 : 512;
         const TxlEmbeddedFont uiFont = Txl_UiFont(language);
         const TxlEmbeddedFont symbolFont = Txl_SymbolFont();
         const TxlEmbeddedFont monoFont = Txl_MonoFont();

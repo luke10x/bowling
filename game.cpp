@@ -11910,6 +11910,10 @@ static inline void Progress_ResetFull(UserContext *usr)
     if (!usr)
         return;
 
+    // Factory reset starts by restoring every persisted application setting to
+    // Storage's defaults. Progress_ResetCampaign then writes the fresh campaign
+    // state back, so the current run can begin immediately.
+    usr->storage.reset();
     Progress_ResetCampaign(usr, /*resetInventory=*/true);
     usr->school = School{};
     School_Init(&usr->school);
@@ -25596,8 +25600,15 @@ END_LINE:
                         usr->houseLane.leftOilFadeStartM,
                         usr->houseLane.leftOilFadeEndM,
                 LaneOilDisplayFill01(usr),
-		                glm::clamp(usr->lanePushbackStrength / 50.0f, 0.0f, 1.0f)
-		            );
+                // Keep the purple pushback cue in step with the force fed to
+                // physics: depleted oil weakens both the real correction and
+                // its map indication.
+                glm::clamp(
+                    usr->lanePushbackStrength * glm::clamp(usr->laneOilThickness, 0.0f, 1.0f) / 50.0f,
+                    0.0f,
+                    1.0f
+                )
+            );
 
 	            usr->oilRenderTex.unbind(
 	                ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
@@ -28974,6 +28985,14 @@ END_LINE:
                 usr->clayton.shopActionEnabled = hasSelectedShopBall && !selectedShopBallLost;
                 if (selectedShopBallLost)
                     usr->clayton.shopDisabledActionLabel = "LOST";
+                else if (hasSelectedShopBall &&
+                         usr->carousel.items[idx].id == usr->selectedBallId)
+                {
+                    // The equipped ball is already active; present its state instead
+                    // of offering a redundant select action.
+                    usr->clayton.shopActionEnabled = false;
+                    usr->clayton.shopDisabledActionLabel = Txl_Get(usr->language, TXL_CURRENT);
+                }
             }
             else if (hasSelectedShopBall)
             {

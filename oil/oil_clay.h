@@ -199,116 +199,98 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                             1.0f
                         );
 
-                        // Keep the values in one fixed-width, right-aligned column.
-                        // 112 px accommodates the longest supported formatted value
-                        // (for example, "0.0000m/m") while leaving the label column
-                        // flexible for every locale.
-                        constexpr float OIL_VALUE_COLUMN_WIDTH = 112.0f;
+                        // Build one text column and one growing data column. The
+                        // left side measures to its longest localized key; formatted
+                        // values and all indicator tracks then share the remainder.
                         Clay_TextElementConfig metricLabelCfg = CLAY_THEME_TEXT_BODY;
-                        auto metricRow = [&](Clay_ElementId id, Clay_String label, Clay_String value)
+                        auto labelRow = [&](Clay_ElementId id, Clay_String label)
                         {
                             CLAY(
                                 id,
                                 {.layout = {
-                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                    .childGap = 8,
+                                    .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIXED(22)},
                                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
                                 }}
                             )
                             {
-                                CLAY(
-                                    CLAY_IDI("OilMetricLabel", id.id),
-                                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}
-                                )
-                                {
-                                    CLAY_TEXT(label, CLAY_TEXT_CONFIG(metricLabelCfg));
-                                }
-                                CLAY(
-                                    CLAY_IDI("OilMetricValue", id.id),
-                                    {.layout = {
-                                        .sizing = {CLAY_SIZING_FIXED(OIL_VALUE_COLUMN_WIDTH), CLAY_SIZING_FIT()},
-                                        .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
-                                    }}
-                                )
-                                {
-                                    CLAY_TEXT(value, CLAY_TEXT_CONFIG(bodyCfg));
-                                }
+                                CLAY_TEXT(label, CLAY_TEXT_CONFIG(metricLabelCfg));
                             }
                         };
-                        metricRow(
-                            CLAY_ID("OilMetricMax"),
-                            clayton->txl(TXL_MAX_OIL_LEVEL),
-                            ClayArena_FormatString(&clayton->clayArena, "%.1fmm", maxOilMm)
-                        );
-                        metricRow(
-                            CLAY_ID("OilMetricCurrent"),
-                            clayton->txl(TXL_CURRENT_OIL_LEVEL),
-                            ClayArena_FormatString(&clayton->clayArena, "%.1fmm", curOilMm)
-                        );
-                        metricRow(
-                            CLAY_ID("OilMetricCarrydown"),
-                            clayton->txl(TXL_CARRYDOWN),
-                            ClayArena_FormatString(&clayton->clayArena, "%.3fm/m", carryPerM)
-                        );
-                        metricRow(
-                            CLAY_ID("OilMetricDecay"),
-                            clayton->txl(TXL_OIL_DECAY),
-                            ClayArena_FormatString(&clayton->clayArena, "%.4f/m", decayPerM)
-                        );
-
-                        // A shared label column keeps every indicator bar aligned and equal-width.
-                        constexpr float OIL_INDICATOR_LABEL_WIDTH = 112.0f;
-
-                        // Bar 1: Oil remaining vs track max
-                        CLAY(CLAY_ID("OilBarRow"), CLAY_THEME_STAT_ROW)
+                        auto valueRow = [&](Clay_ElementId id, Clay_String value)
                         {
-                            CLAY(
-                                CLAY_ID("OilBarLabel"),
-                                {.layout = {.sizing = {CLAY_SIZING_FIXED(OIL_INDICATOR_LABEL_WIDTH), CLAY_SIZING_FIT()}}}
-                            )
-                            {
-                                CLAY_TEXT(clayton->txl(TXL_OIL), CLAY_TEXT_CONFIG(labelCfg));
-                            }
-                            CLAY(CLAY_ID("OilBarBg"), CLAY_THEME_STAT_BAR_BG)
-                            {
-                                CLAY(CLAY_ID("OilBarFill"), CLAY_THEME_STAT_BAR_FILL(oilFill01)) {}
-                            }
-                        }
-
-                        // Bar 2: Surface slipperiness (inverse friction)
-                        CLAY(CLAY_ID("SlipBarRow"), CLAY_THEME_STAT_ROW)
+                            CLAY(id, {.layout = {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(22)},
+                                .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
+                            }})
+                            { CLAY_TEXT(value, CLAY_TEXT_CONFIG(bodyCfg)); }
+                        };
+                        auto indicatorLabelRow = [&](Clay_ElementId id, Clay_String label)
                         {
-                            CLAY(
-                                CLAY_ID("SlipBarLabel"),
-                                {.layout = {.sizing = {CLAY_SIZING_FIXED(OIL_INDICATOR_LABEL_WIDTH), CLAY_SIZING_FIT()}}}
-                            )
-                            {
-                                CLAY_TEXT(clayton->txl(TXL_SLIPPERY), CLAY_TEXT_CONFIG(labelCfg));
-                            }
-                            CLAY(CLAY_ID("SlipBarBg"), CLAY_THEME_STAT_BAR_BG)
-                            {
-                                Clay_ElementDeclaration slipFill = CLAY_THEME_STAT_BAR_FILL(slip01);
-                                slipFill.backgroundColor = {62, 218, 238, 255};
-                                CLAY(CLAY_ID("SlipBarFill"), slipFill) {}
-                            }
-                        }
-
-                        // Bar 3: the current oil-powered correction toward lane center.
-                        CLAY(CLAY_ID("PushbackBarRow"), CLAY_THEME_STAT_ROW)
+                            CLAY(id, {.layout = {
+                                .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIXED(18)},
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                            }})
+                            { CLAY_TEXT(label, CLAY_TEXT_CONFIG(labelCfg)); }
+                        };
+                        auto indicatorBarRow = [&](Clay_ElementId id, float value, Clay_Color color)
                         {
-                            CLAY(
-                                CLAY_ID("PushbackBarLabel"),
-                                {.layout = {.sizing = {CLAY_SIZING_FIXED(OIL_INDICATOR_LABEL_WIDTH), CLAY_SIZING_FIT()}}}
-                            )
+                            CLAY(id, {.layout = {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)},
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                            }})
                             {
-                                CLAY_TEXT(clayton->txl(TXL_PUSHBACK), CLAY_TEXT_CONFIG(labelCfg));
+                                Clay_ElementDeclaration fill = CLAY_THEME_STAT_BAR_FILL(value);
+                                fill.backgroundColor = color;
+                                CLAY(CLAY_IDI("OilIndicatorBg", id.id), CLAY_THEME_STAT_BAR_BG)
+                                { CLAY(CLAY_IDI("OilIndicatorFill", id.id), fill) {} }
                             }
-                            CLAY(CLAY_ID("PushbackBarBg"), CLAY_THEME_STAT_BAR_BG)
+                        };
+
+                        CLAY(CLAY_ID("OilTrackColumns"), {.layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .childGap = 8,
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                        }})
+                        {
+                            CLAY(CLAY_ID("OilTrackLabels"), {.layout = {
+                                .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                                .childGap = 8,
+                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                            }})
                             {
-                                Clay_ElementDeclaration pushbackFill = CLAY_THEME_STAT_BAR_FILL(pushback01);
-                                pushbackFill.backgroundColor = {158, 92, 232, 255};
-                                CLAY(CLAY_ID("PushbackBarFill"), pushbackFill) {}
+                                CLAY(CLAY_ID("OilMetricLabels"), {.layout = {.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()}, .childGap = 4, .layoutDirection = CLAY_TOP_TO_BOTTOM}})
+                                {
+                                    labelRow(CLAY_ID("OilMetricMaxLabel"), clayton->txl(TXL_MAX_OIL_LEVEL));
+                                    labelRow(CLAY_ID("OilMetricCurrentLabel"), clayton->txl(TXL_CURRENT_OIL_LEVEL));
+                                    labelRow(CLAY_ID("OilMetricCarrydownLabel"), clayton->txl(TXL_CARRYDOWN));
+                                    labelRow(CLAY_ID("OilMetricDecayLabel"), clayton->txl(TXL_OIL_DECAY));
+                                }
+                                CLAY(CLAY_ID("OilIndicatorLabels"), {.layout = {.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()}, .childGap = 4, .layoutDirection = CLAY_TOP_TO_BOTTOM}})
+                                {
+                                    indicatorLabelRow(CLAY_ID("OilBarLabel"), clayton->txl(TXL_OIL));
+                                    indicatorLabelRow(CLAY_ID("SlipBarLabel"), clayton->txl(TXL_SLIPPERY));
+                                    indicatorLabelRow(CLAY_ID("PushbackBarLabel"), clayton->txl(TXL_PUSHBACK));
+                                }
+                            }
+                            CLAY(CLAY_ID("OilTrackData"), {.layout = {
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                .childGap = 8,
+                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                            }})
+                            {
+                                CLAY(CLAY_ID("OilMetricValues"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 4, .layoutDirection = CLAY_TOP_TO_BOTTOM}})
+                                {
+                                    valueRow(CLAY_ID("OilMetricMaxValue"), ClayArena_FormatString(&clayton->clayArena, "%.1fmm", maxOilMm));
+                                    valueRow(CLAY_ID("OilMetricCurrentValue"), ClayArena_FormatString(&clayton->clayArena, "%.1fmm", curOilMm));
+                                    valueRow(CLAY_ID("OilMetricCarrydownValue"), ClayArena_FormatString(&clayton->clayArena, "%.3fm/m", carryPerM));
+                                    valueRow(CLAY_ID("OilMetricDecayValue"), ClayArena_FormatString(&clayton->clayArena, "%.4f/m", decayPerM));
+                                }
+                                CLAY(CLAY_ID("OilIndicatorBars"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 4, .layoutDirection = CLAY_TOP_TO_BOTTOM}})
+                                {
+                                    indicatorBarRow(CLAY_ID("OilBarRow"), oilFill01, CLAY_COLOR_STAT_FILL);
+                                    indicatorBarRow(CLAY_ID("SlipBarRow"), slip01, {62, 218, 238, 255});
+                                    indicatorBarRow(CLAY_ID("PushbackBarRow"), pushback01, {158, 92, 232, 255});
+                                }
                             }
                         }
                     }

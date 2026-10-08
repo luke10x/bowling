@@ -69,25 +69,27 @@ Shop_TabColor(Clay_ElementId id, bool active, Clay_Color activeColor, Clay_Color
     return active ? activeColor : Shop_ButtonHoverColor(id, inactiveColor, inactiveRgbLift);
 }
 
-// All labels reserve the same compact column so every stat track begins after
-// the longest label and takes the rest of the row. Values are UI units and are
-// scaled at render time.
-static constexpr float SHOP_STAT_LABEL_WIDTH = 68.0f;
-
-// Helper: Draw a single stat row with label + bar
-void DrawStatRow(ClayArena *arena, const char *label, float value /* 0.0 to 1.0 */, int nr)
+// The label and bar columns are built separately: the label column fits its
+// longest translation while the bar column takes every remaining pixel.
+void DrawStatLabelRow(ClayArena *arena, const char *label, int nr)
 {
-    CLAY(CLAY_IDI("StatRow", nr), CLAY_THEME_STAT_ROW)
+    CLAY(CLAY_IDI("StatLabelRow", nr),
+         {.layout = {.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIXED(18)},
+                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
     {
         char buf[64];
-        int len = snprintf(buf, sizeof(buf), "%s", label);
+        snprintf(buf, sizeof(buf), "%s", label);
         Clay_String lable = ClayArena_AllocString(arena, buf);
-        CLAY(CLAY_IDI("StatLabel", nr),
-             {.layout = {.sizing = {CLAY_SIZING_FIXED(SHOP_STAT_LABEL_WIDTH), CLAY_SIZING_FIT()},
-                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
-        {
-            CLAY_TEXT(lable, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_STAT));
-        }
+        CLAY_TEXT(lable, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_STAT));
+    }
+}
+
+void DrawStatBarRow(float value /* 0.0 to 1.0 */, int nr)
+{
+    CLAY(CLAY_IDI("StatBarRow", nr),
+         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)},
+                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+    {
         CLAY(CLAY_IDI("StatBarBg", nr), CLAY_THEME_STAT_BAR_BG)
         {
             CLAY(CLAY_IDI("StatBarFill", nr), CLAY_THEME_STAT_BAR_FILL(value))
@@ -375,10 +377,32 @@ void DrawCatalogItem(
                      }}
                 )
                 {
-                    DrawStatRow(arena, Txl_Get(clayton->uiLanguage, TXL_MASS), mass, nr + 1000);
-                    DrawStatRow(arena, Txl_Get(clayton->uiLanguage, TXL_SPIN), spin, nr + 2000);
-                    DrawStatRow(arena, Txl_Get(clayton->uiLanguage, TXL_SKID), skid, nr + 3000);
-                    DrawStatRow(arena, Txl_Get(clayton->uiLanguage, TXL_BITE), bite, nr + 4000);
+                    CLAY(CLAY_IDI("StatsColumns", nr),
+                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                     .childGap = 6,
+                                     .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+                    {
+                        CLAY(CLAY_IDI("StatLabels", nr),
+                             {.layout = {.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_GROW()},
+                                         .childGap = 4,
+                                         .layoutDirection = CLAY_TOP_TO_BOTTOM}})
+                        {
+                            DrawStatLabelRow(arena, Txl_Get(clayton->uiLanguage, TXL_MASS), nr + 1000);
+                            DrawStatLabelRow(arena, Txl_Get(clayton->uiLanguage, TXL_SPIN), nr + 2000);
+                            DrawStatLabelRow(arena, Txl_Get(clayton->uiLanguage, TXL_SKID), nr + 3000);
+                            DrawStatLabelRow(arena, Txl_Get(clayton->uiLanguage, TXL_BITE), nr + 4000);
+                        }
+                        CLAY(CLAY_IDI("StatBars", nr),
+                             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                         .childGap = 4,
+                                         .layoutDirection = CLAY_TOP_TO_BOTTOM}})
+                        {
+                            DrawStatBarRow(mass, nr + 1000);
+                            DrawStatBarRow(spin, nr + 2000);
+                            DrawStatBarRow(skid, nr + 3000);
+                            DrawStatBarRow(bite, nr + 4000);
+                        }
+                    }
                 }
 
                 // // Buy button (disabled if can't afford)

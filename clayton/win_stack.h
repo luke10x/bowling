@@ -77,6 +77,7 @@ enum WindowKind // I like it
     WindowKind_MiniGameExitConfirm,
     WindowKind_LanguageSelect,
     WindowKind_TrackerEditor,
+    WindowKind_TrackerSelectionEdit,
     WindowKind_TrackerInstruments,
     WindowKind_TrackerSongSettings,
     WindowKind_TrackerSaveConfirm,
@@ -318,6 +319,7 @@ struct WindowStack
     inline void windowStackPushLanguageWindow() { windowStackPushWindow_(WindowKind_LanguageSelect); }
     inline void windowStackPushCreditsWindow() { windowStackPushWindow_(WindowKind_Credits); }
     inline void windowStackPushTrackerEditorWindow() { windowStackPushWindow_(WindowKind_TrackerEditor); }
+    inline void windowStackPushTrackerSelectionEditWindow() { windowStackPushWindow_(WindowKind_TrackerSelectionEdit); }
     inline void windowStackPushTrackerInstrumentsWindow() { windowStackPushWindow_(WindowKind_TrackerInstruments); }
     inline void windowStackPushTrackerSongSettingsWindow() { windowStackPushWindow_(WindowKind_TrackerSongSettings); }
     inline void windowStackPushTrackerSaveConfirmWindow() { windowStackPushWindow_(WindowKind_TrackerSaveConfirm); }
@@ -586,6 +588,7 @@ private:
     static bool processCampaignLevelDetailWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processCampaignPostgameSettingsWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processTrackerEditorWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
+    static bool processTrackerSelectionEditWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerInstrumentsWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerSongSettingsWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
     static bool processTrackerSaveConfirmWindowEvent(WindowStack *self, Tracker *tracker, SDL_Event e);
@@ -623,6 +626,7 @@ private:
     static void renderCampaignLevelDetailWindow(WindowStack *self, Clayton *clayton);
     static void renderCampaignPostgameSettingsWindow(WindowStack *self, Clayton *clayton);
     static void renderTrackerEditorWindow(Clayton *clayton, Tracker *tracker);
+    static void renderTrackerSelectionEditWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerInstrumentsWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerSongSettingsWindow(Clayton *clayton, Tracker *tracker);
     static void renderTrackerSaveConfirmWindow(Clayton *clayton, Tracker *tracker);
@@ -815,6 +819,12 @@ inline bool WindowStack::processActiveWindowEvent(
         {
             windowStackPopTopWindow_();
         }
+        return consumed;
+
+    case WindowKind_TrackerSelectionEdit:
+        consumed = processTrackerSelectionEditWindowEvent(this, tracker, e);
+        if (tracker && !tracker->selectionEditWindowOpen)
+            windowStackPopTopWindow_();
         return consumed;
 
     case WindowKind_TrackerInstruments:
@@ -1114,6 +1124,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_TrackerEditor:
                         renderTrackerEditorWindow(clayton, tracker);
                         break;
+                    case WindowKind_TrackerSelectionEdit:
+                        renderTrackerSelectionEditWindow(clayton, tracker);
+                        break;
                     case WindowKind_TrackerInstruments:
                         renderTrackerInstrumentsWindow(clayton, tracker);
                         break;
@@ -1260,6 +1273,9 @@ inline void WindowStack::renderWindowStack(
                     break;
                     case WindowKind_TrackerEditor:
                         renderTrackerEditorWindow(clayton, tracker);
+                        break;
+                    case WindowKind_TrackerSelectionEdit:
+                        renderTrackerSelectionEditWindow(clayton, tracker);
                         break;
                     case WindowKind_TrackerInstruments:
                         renderTrackerInstrumentsWindow(clayton, tracker);
@@ -2232,6 +2248,11 @@ inline bool WindowStack::processTrackerEditorWindowEvent(WindowStack * /*self*/,
     return Tracker_HandleEditorWindowEvent(tracker, e);
 }
 
+inline bool WindowStack::processTrackerSelectionEditWindowEvent(WindowStack * /*self*/, Tracker *tracker, SDL_Event e)
+{
+    return Tracker_HandleSelectionEditWindowEvent(tracker, e);
+}
+
 inline bool WindowStack::processTrackerInstrumentsWindowEvent(WindowStack * /*self*/, Tracker *tracker, SDL_Event e)
 {
     return Tracker_HandleInstrumentsWindowEvent(tracker, e);
@@ -2729,6 +2750,11 @@ inline void WindowStack::renderMinigamesWindow(Clayton *clayton)
 inline void WindowStack::renderTrackerEditorWindow(Clayton *clayton, Tracker *tracker)
 {
     Tracker_BuildEditor(tracker, clayton);
+}
+
+inline void WindowStack::renderTrackerSelectionEditWindow(Clayton *clayton, Tracker *tracker)
+{
+    Tracker_BuildSelectionEditWindow(tracker, clayton);
 }
 
 inline void WindowStack::renderTrackerInstrumentsWindow(Clayton *clayton, Tracker *tracker)

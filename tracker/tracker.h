@@ -121,6 +121,8 @@ enum TrackerNumEditTarget
     TRACKER_NUM_EDIT_OPERATOR_MUL,
     TRACKER_NUM_EDIT_OPERATOR_DT,
     TRACKER_NUM_EDIT_OPERATOR_RS,
+    TRACKER_NUM_EDIT_SELECTION_TRANSPOSE,
+    TRACKER_NUM_EDIT_SELECTION_VOLUME,
     TRACKER_NUM_EDIT_MACRO_TARGET,
 };
 
@@ -539,6 +541,17 @@ struct Tracker
     bool clipboardBannerUsesEditSelection = false;
     char clipboardBannerText[64] = {};
     TrackerClipboard clipboard = {};
+    // The selected cells are kept intact while the bulk-edit dialog previews its
+    // offsets. This makes Cancel exact, even after either slider was moved many times.
+    TrackerCell selectionEditOriginal[TRACKER_MAX_ROWS][TRACKER_CHANNELS] = {};
+    int selectionEditRowStart = 0;
+    int selectionEditChannelStart = 0;
+    int selectionEditRows = 0;
+    int selectionEditChannels = 0;
+    int selectionEditTranspose = 0;
+    int selectionEditVolume = 0;
+    bool selectionEditWindowOpen = false;
+    bool selectionEditWindowRequested = false;
     TrackerCellFlashRange cellFlashes[TRACKER_CELL_FLASH_RANGE_COUNT] = {};
     TrackerPartFlash partFlashes[TRACKER_PART_FLASH_COUNT] = {};
     int nextCellFlash = 0;
@@ -772,6 +785,13 @@ struct Tracker
     Clayton_Click cutButton;
     Clayton_Click pasteButton;
     Clayton_Click editSelectionButton;
+    Clayton_Click selectionEditOpenButton;
+    Clayton_Click selectionEditCancelButton;
+    Clayton_Click selectionEditSaveButton;
+    Clayton_Click selectionEditMakeExplicitButton;
+    Clayton_Click selectionEditDeleteVolumeButton;
+    Clayton_Click selectionEditTransposeValueButton;
+    Clayton_Click selectionEditVolumeValueButton;
     Clayton_Click instrumentsButton;
     Clayton_Click songSettingsButton;
     Clayton_Click oscilloscopeButton;
@@ -4019,6 +4039,8 @@ inline void Tracker_ClearNumEdit(Tracker *self)
     self->pendingNumEditAllowedValueCount = 0;
 }
 
+inline void Tracker_ApplySelectionEditPreview(Tracker *self);
+
 inline void Tracker_ApplyNumEditValue(Tracker *self, int32_t value)
 {
     if (!self || self->pendingNumEditTarget == TRACKER_NUM_EDIT_NONE)
@@ -4145,6 +4167,14 @@ inline void Tracker_ApplyNumEditValue(Tracker *self, int32_t value)
     case TRACKER_NUM_EDIT_OPERATOR_RS:
         op.RS = (uint8_t)value;
         Tracker_MarkPatchDirty(self);
+        break;
+    case TRACKER_NUM_EDIT_SELECTION_TRANSPOSE:
+        self->selectionEditTranspose = value;
+        Tracker_ApplySelectionEditPreview(self);
+        break;
+    case TRACKER_NUM_EDIT_SELECTION_VOLUME:
+        self->selectionEditVolume = value;
+        Tracker_ApplySelectionEditPreview(self);
         break;
     case TRACKER_NUM_EDIT_MACRO_TARGET:
     {
@@ -4874,6 +4904,13 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->cutButton, "TrackerCut");
     initClaytonClick(&self->pasteButton, "TrackerPaste");
     initClaytonClick(&self->editSelectionButton, "TrackerEditSelection");
+    initClaytonClick(&self->selectionEditOpenButton, "TrackerSelectionEditOpen");
+    initClaytonClick(&self->selectionEditCancelButton, "TrackerSelectionEditCancel");
+    initClaytonClick(&self->selectionEditSaveButton, "TrackerSelectionEditSave");
+    initClaytonClick(&self->selectionEditMakeExplicitButton, "TrackerSelectionEditMakeExplicit");
+    initClaytonClick(&self->selectionEditDeleteVolumeButton, "TrackerSelectionEditDeleteVolume");
+    initClaytonClick(&self->selectionEditTransposeValueButton, "TrackerSelectionEditTransposeValue");
+    initClaytonClick(&self->selectionEditVolumeValueButton, "TrackerSelectionEditVolumeValue");
     initClaytonClick(&self->instrumentsButton, "TrackerInstruments");
     initClaytonClick(&self->songSettingsButton, "TrackerSongSettings");
     initClaytonClick(&self->oscilloscopeButton, "TrackerOscilloscope");
@@ -5403,6 +5440,139 @@ inline int Tracker_SelectedChannelCount(const Tracker *self)
 inline bool Tracker_HasSelection(const Tracker *self)
 {
     return Tracker_ActiveSelectionSource(self) != TRACKER_SELECTION_NONE;
+}
+
+inline void Tracker_ApplySelectionEditPreview(Tracker *self)
+{
+    if (!self || !self->selectionEditWindowOpen) return;
+    static const char *names[12] = {"C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"};
+    for (int r = 0; r < self->selectionEditRows; r++)
+    {
+        for (int ch = 0; ch < self->selectionEditChannels; ch++)
+        {
+            TrackerCell cell = self->selectionEditOriginal[r][ch];
+            char *text = cell.text;
+            int note = 0;
+            int octave = 0;
+            if (Tracker_ParseCellNoteOctave(text, &note, &octave))
+            {
+                const int semitone = std::max(0, std::min(83, (octave - 1) * 12 + note + self->selectionEditTranspose));
+                note = semitone % 12;
+                octave = semitone / 12 + 1;
+                text[0] = names[note][0];
+                text[1] = names[note][1];
+                text[2] = (char)('0' + octave);
+            }
+            const int volume = Tracker_ParseCellVolume(text);
+            if (volume >= 0)
+                Tracker_WriteHexByte(text + 5, std::max(0, std::min(0x7f, volume + self->selectionEditVolume)));
+            self->cells[self->selectionEditRowStart + r][self->selectionEditChannelStart + ch] = cell;
+        }
+    }
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
+}
+
+inline bool Tracker_SelectionEditTransposeWouldClamp(const Tracker *self)
+{
+    if (!self || !self->selectionEditWindowOpen) return false;
+    for (int r = 0; r < self->selectionEditRows; r++)
+        for (int ch = 0; ch < self->selectionEditChannels; ch++)
+        {
+            const char *text = self->selectionEditOriginal[r][ch].text;
+            int note = 0, octave = 0;
+            if (Tracker_ParseCellNoteOctave(text, &note, &octave) &&
+                ((octave - 1) * 12 + note + self->selectionEditTranspose < 0 ||
+                 (octave - 1) * 12 + note + self->selectionEditTranspose > 83)) return true;
+        }
+    return false;
+}
+
+inline bool Tracker_SelectionEditVolumeWouldClamp(const Tracker *self)
+{
+    if (!self || !self->selectionEditWindowOpen) return false;
+    for (int r = 0; r < self->selectionEditRows; r++)
+        for (int ch = 0; ch < self->selectionEditChannels; ch++)
+        {
+            const char *text = self->selectionEditOriginal[r][ch].text;
+            const int volume = Tracker_ParseCellVolume(text);
+            if (volume >= 0 && (volume + self->selectionEditVolume < 0 || volume + self->selectionEditVolume > 0x7f)) return true;
+        }
+    return false;
+}
+
+inline bool Tracker_SelectionEditWouldClamp(const Tracker *self)
+{
+    return Tracker_SelectionEditTransposeWouldClamp(self) || Tracker_SelectionEditVolumeWouldClamp(self);
+}
+
+inline void Tracker_OpenSelectionEdit(Tracker *self)
+{
+    if (!self || !Tracker_HasSelection(self)) return;
+    self->selectionEditRowStart = Tracker_SelectedRowStart(self);
+    self->selectionEditChannelStart = Tracker_SelectedChannelStart(self);
+    self->selectionEditRows = Tracker_SelectedRowCount(self);
+    self->selectionEditChannels = Tracker_SelectedChannelCount(self);
+    for (int r = 0; r < self->selectionEditRows; r++)
+        for (int ch = 0; ch < self->selectionEditChannels; ch++)
+            self->selectionEditOriginal[r][ch] = self->cells[self->selectionEditRowStart + r][self->selectionEditChannelStart + ch];
+    self->selectionEditTranspose = 0;
+    self->selectionEditVolume = 0;
+    self->selectionEditWindowOpen = true;
+}
+
+inline void Tracker_CancelSelectionEdit(Tracker *self)
+{
+    if (!self || !self->selectionEditWindowOpen) return;
+    for (int r = 0; r < self->selectionEditRows; r++)
+        for (int ch = 0; ch < self->selectionEditChannels; ch++)
+            self->cells[self->selectionEditRowStart + r][self->selectionEditChannelStart + ch] = self->selectionEditOriginal[r][ch];
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
+    self->selectionEditWindowOpen = false;
+}
+
+inline void Tracker_SaveSelectionEdit(Tracker *self)
+{
+    if (!self || !self->selectionEditWindowOpen) return;
+    Tracker_FlashCellRange(self, self->selectionEditRowStart, self->selectionEditRowStart + self->selectionEditRows - 1,
+                           self->selectionEditChannelStart, self->selectionEditChannelStart + self->selectionEditChannels - 1,
+                           TRACKER_CHANGE_FLASH_EDIT);
+    self->selectionEditWindowOpen = false;
+}
+
+inline void Tracker_MakeSelectionVolumesExplicit(Tracker *self)
+{
+    if (!self || !self->selectionEditWindowOpen) return;
+    for (int r = 0; r < self->selectionEditRows; r++)
+        for (int ch = 0; ch < self->selectionEditChannels; ch++)
+        {
+            const int row = self->selectionEditRowStart + r;
+            const int channel = self->selectionEditChannelStart + ch;
+            TrackerCell &cell = self->cells[row][channel];
+            if (!Tracker_CellHasPlayableNote(cell.text)) continue;
+            int volume = Tracker_ParseCellVolume(cell.text);
+            if (volume < 0) volume = Tracker_FindInheritedVolume(self, row, channel);
+            Tracker_WriteHexByte(cell.text + 5, volume < 0 ? 0x7f : volume);
+        }
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
+    Tracker_SaveSelectionEdit(self);
+}
+
+inline void Tracker_DeleteSelectionVolumes(Tracker *self)
+{
+    if (!self || !self->selectionEditWindowOpen) return;
+    for (int r = 0; r < self->selectionEditRows; r++)
+        for (int ch = 0; ch < self->selectionEditChannels; ch++)
+        {
+            TrackerCell &cell = self->cells[self->selectionEditRowStart + r][self->selectionEditChannelStart + ch];
+            if (Tracker_ParseCellVolume(cell.text) >= 0)
+                std::memcpy(cell.text + 5, "..", 2);
+        }
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
+    Tracker_SaveSelectionEdit(self);
 }
 
 inline void Tracker_SetClipboardBanner(Tracker *self, const char *text, bool usesEditSelection, bool error)

@@ -17713,11 +17713,14 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
         const bool tempoChanged =
             (prevTickRate != 0 && prevTickRate != tickRate) ||
             (prevTicksPerRow != 0 && prevTicksPerRow != ticksPerRow);
-        if (songLengthDirty || playbackArrangementDirty || songIdChanged || !songWasActive || tempoChanged)
+        // Redeclaring an edited pattern can clear the synth's active voices even
+        // though the song remains marked active. Restart ordinary pattern edits
+        // too, then below return to the row the listener was hearing.
+        if (patternDirty || songLengthDirty || playbackArrangementDirty || songIdChanged || !songWasActive || tempoChanged)
             xfm_song_play(usr->sound.musicModule, songId, true);
         xfm_song_set_loop_range(usr->sound.musicModule, loopStartRow, loopEndRow);
         xfm_song_set_loop_reset_state(usr->sound.musicModule, usr->tracker.loopEnabled);
-        if (!songLengthDirty && (songIdChanged || !songWasActive))
+        if (!songLengthDirty && (patternDirty || songIdChanged || !songWasActive))
         {
             const int jumpRow = selectionOverrideActive ?
                 Tracker_LivePlaybackRowFromSongRow(&usr->tracker, usr->tracker.playRow, true) :
@@ -20321,6 +20324,13 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->tracker.editorWindowRequested = false;
                     usr->windowStack.windowStackPushTrackerEditorWindow();
+                }
+                if (usr->tracker.selectionEditWindowRequested)
+                {
+                    usr->tracker.selectionEditWindowRequested = false;
+                    Tracker_OpenSelectionEdit(&usr->tracker);
+                    if (usr->tracker.selectionEditWindowOpen)
+                        usr->windowStack.windowStackPushTrackerSelectionEditWindow();
                 }
                 if (usr->tracker.instrumentEditorWindowRequested)
                 {

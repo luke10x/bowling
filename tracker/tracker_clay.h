@@ -451,7 +451,7 @@ inline void Tracker_BuildPartTitleContent(
                         CLAY_IDI("TrackerPartProgressFill", titleKey),
                         {.layout = {.sizing = {CLAY_SIZING_PERCENT(fill01), CLAY_SIZING_GROW()}},
                          .backgroundColor = progressVisual.selectionMode ? (Clay_Color){112, 210, 132, 195} : (Clay_Color){94, 196, 228, 180},
-                         .cornerRadius = {4, 4, 4, 4}}
+                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG}}
                     ) {}
                 }
             }
@@ -2548,7 +2548,7 @@ inline void Tracker_BuildOperatorEditor(Tracker *self, Clayton *clayton)
                         fillId,
                         {.layout = {.sizing = {CLAY_SIZING_PERCENT(t), CLAY_SIZING_GROW()}},
                          .backgroundColor = {120, 146, 214, 255},
-                         .cornerRadius = {4, 4, 4, 4}}
+                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG}}
                     ) {}
                 }
                 Clay_ElementId valueId = valueClick ? valueClick->clayId : CLAY_IDI("TrackerOperatorSliderValue", barId.id);
@@ -5097,10 +5097,12 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 Clay_ElementDeclaration copyBtn = CLAY_THEME_BTN_PRIMARY;
                 Clay_ElementDeclaration cutBtn = CLAY_THEME_BTN_PRIMARY;
                 Clay_ElementDeclaration pasteBtn = CLAY_THEME_BTN_PRIMARY;
+                Clay_ElementDeclaration editBtn = CLAY_THEME_BTN_PRIMARY;
                 Clay_ElementDeclaration editSelBtn = CLAY_THEME_BTN_PRIMARY;
                 if (!hasSelection) copyBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
                 if (!hasSelection) cutBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
                 if (!canPaste) pasteBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
+                if (!hasSelection) editBtn.backgroundColor = CLAY_COLOR_BTN_DISABLED;
                 if (hasSelection)
                 {
                     Clay_Color playSelectionBtn = {38, 92, 58, 255};
@@ -5108,6 +5110,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                     Clay_Color activeSelectionBtn = usingEditSelection ? editSelectionBtn : playSelectionBtn;
                     copyBtn.backgroundColor = activeSelectionBtn;
                     cutBtn.backgroundColor = activeSelectionBtn;
+                    editBtn.backgroundColor = activeSelectionBtn;
                     if (canPaste)
                         pasteBtn.backgroundColor = activeSelectionBtn;
                 }
@@ -5126,6 +5129,15 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                     pasteBtn.backgroundColor,
                     canPaste ? 16.0f : 10.0f
                 );
+                editBtn.backgroundColor = Tracker_ButtonHoverColor(
+                    self->selectionEditOpenButton.clayId,
+                    editBtn.backgroundColor,
+                    hasSelection ? 16.0f : 10.0f
+                );
+                CLAY(self->selectionEditOpenButton.clayId, editBtn)
+                {
+                    CLAY_TEXT(CLAY_STRING("EDIT"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
                 editSelBtn.backgroundColor = Tracker_ButtonHoverColor(
                     self->editSelectionButton.clayId,
                     self->editSelectionEnabled ? (Clay_Color){176, 156, 42, 255} : (Clay_Color){50, 54, 68, 255},
@@ -5148,12 +5160,6 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                     Clay_String editSelLabel = self->editSelectionEnabled ? CLAY_STRING("DES") : CLAY_STRING("SEL");
                     CLAY_TEXT(editSelLabel, CLAY_TEXT_CONFIG(buttonCfg));
                 }
-                CLAY(
-                    CLAY_ID("TrackerStatusSpacer"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}
-                )
-                {
-                }
                 Clay_Color selectionBoxColor = hasSelection ?
                     (usingEditSelection ? (Clay_Color){176, 156, 42, 255} : (Clay_Color){38, 92, 58, 255}) :
                     (Clay_Color){76, 80, 92, 255};
@@ -5162,13 +5168,12 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                     statusMutedValueCfg.textColor;
                 CLAY(
                     CLAY_ID("TrackerSelectionStatus"),
-                    {.layout = {.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIXED(44)},
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                 .childGap = 2,
-                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_TOP},
                                 .layoutDirection = CLAY_TOP_TO_BOTTOM}}
                 )
                 {
-                    CLAY_TEXT(CLAY_STRING("selection"), CLAY_TEXT_CONFIG(statusTitleCfg));
                     CLAY(
                         CLAY_ID("TrackerSelectionValue"),
                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(24)},
@@ -5194,6 +5199,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                             CLAY_TEXT(CLAY_STRING("]"), CLAY_TEXT_CONFIG(selectionValueCfg));
                         }
                     }
+                    CLAY_TEXT(CLAY_STRING("selection"), CLAY_TEXT_CONFIG(statusTitleCfg));
                 }
                 Clay_Color clipboardBoxColor = self->clipboard.valid ?
                     (canPaste ? (Clay_Color){98, 168, 110, 255} : (Clay_Color){164, 68, 68, 255}) :
@@ -5203,13 +5209,12 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                     statusMutedValueCfg.textColor;
                 CLAY(
                     CLAY_ID("TrackerClipboardStatus"),
-                    {.layout = {.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIXED(44)},
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                 .childGap = 2,
-                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP},
+                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_TOP},
                                 .layoutDirection = CLAY_TOP_TO_BOTTOM}}
                 )
                 {
-                    CLAY_TEXT(CLAY_STRING("clipboard"), CLAY_TEXT_CONFIG(statusTitleCfg));
                     CLAY(
                         CLAY_ID("TrackerClipboardValue"),
                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(24)},
@@ -5239,12 +5244,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                             CLAY_TEXT(CLAY_STRING("]"), CLAY_TEXT_CONFIG(clipboardValueCfg));
                         }
                     }
-                }
-                CLAY(
-                    CLAY_ID("TrackerStatusSpacerAfter"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}
-                )
-                {
+                    CLAY_TEXT(CLAY_STRING("clipboard"), CLAY_TEXT_CONFIG(statusTitleCfg));
                 }
                 if (self->clipboardBannerFlashTime > 0.0f && self->clipboardBannerText[0] != '\0')
                 {
@@ -5433,6 +5433,112 @@ inline bool Tracker_EditorVirtualKeyAtPoint(Tracker *self, float x, float y, int
         }
     }
     return false;
+}
+
+inline void Tracker_BuildSelectionEditWindow(Tracker *self, Clayton *clayton)
+{
+    if (!self || !clayton || !self->selectionEditWindowOpen) return;
+    ClayArena *arena = &clayton->clayArena;
+    Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
+    Clay_TextElementConfig buttonCfg = bodyCfg;
+    buttonCfg = CLAY_THEME_TEXT_BUTTON;
+    const bool transposeClamped = Tracker_SelectionEditTransposeWouldClamp(self);
+    const bool volumeClamped = Tracker_SelectionEditVolumeWouldClamp(self);
+    const bool clamped = transposeClamped || volumeClamped;
+    CLAY(CLAY_ID("TrackerSelectionEditWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(CLAY_ID("TrackerSelectionEditTitle"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}})
+        { CLAY_TEXT(CLAY_STRING("EDIT SELECTED"), CLAY_TEXT_CONFIG(titleCfg)); }
+        CLAY(CLAY_ID("TrackerSelectionEditVolumeActions"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 10, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+        {
+            Clay_ElementDeclaration explicitBtn = CLAY_THEME_BTN_PRIMARY;
+            explicitBtn.layout.sizing.width = CLAY_SIZING_GROW();
+            Clay_ElementDeclaration deleteVolumeBtn = CLAY_THEME_BTN_DANGER;
+            deleteVolumeBtn.layout.sizing.width = CLAY_SIZING_GROW();
+            CLAY(self->selectionEditMakeExplicitButton.clayId, explicitBtn) { CLAY_TEXT(CLAY_STRING("MAKE EXPLICIT"), CLAY_TEXT_CONFIG(buttonCfg)); }
+            CLAY(self->selectionEditDeleteVolumeButton.clayId, deleteVolumeBtn) { CLAY_TEXT(CLAY_STRING("DELETE VOLUME"), CLAY_TEXT_CONFIG(buttonCfg)); }
+        }
+        auto slider = [&](const char *label, int value, int minValue, int maxValue, Clay_ElementId barId, bool hex, bool sliderClamped, Clayton_Click *valueClick) {
+            Clay_Color fill = sliderClamped ? (Clay_Color){194, 66, 66, 255} : (Clay_Color){88, 170, 126, 255};
+            Clay_String labelText = {.isStaticallyAllocated = false, .length = (int32_t)std::strlen(label), .chars = label};
+            CLAY(CLAY_IDI("TrackerSelectionEditSliderRow", barId.id), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(32)}, .childGap = 10, .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+            {
+                CLAY(CLAY_IDI("TrackerSelectionEditLabel", barId.id), {.layout = {.sizing = {CLAY_SIZING_FIXED(96), CLAY_SIZING_GROW()}}})
+                { CLAY_TEXT(labelText, CLAY_TEXT_CONFIG(bodyCfg)); }
+                CLAY(barId, {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(18)}, .layoutDirection = CLAY_LEFT_TO_RIGHT}, .backgroundColor = {34, 37, 50, 255}, .cornerRadius = {4,4,4,4}})
+                {
+                    float fraction = (float)(value - minValue) / (float)(maxValue - minValue);
+                    CLAY(CLAY_IDI("TrackerSelectionEditFill", barId.id), {.layout = {.sizing = {CLAY_SIZING_PERCENT(fraction), CLAY_SIZING_GROW()}}, .backgroundColor = fill, .cornerRadius = {4,4,4,4}}) {}
+                }
+                CLAY(valueClick->clayId, {.layout = {.sizing = {CLAY_SIZING_FIXED(54), CLAY_SIZING_GROW()}, .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER}}})
+                {
+                    Clay_String text = hex ?
+                        ClayArena_FormatString(arena, "%c%02X", value < 0 ? '-' : '+', std::abs(value)) :
+                        ClayArena_FormatString(arena, "%+d", value);
+                    Clay_TextElementConfig valueCfg = bodyCfg;
+                    if (sliderClamped) valueCfg.textColor = {255, 118, 118, 255};
+                    CLAY_TEXT(text, CLAY_TEXT_CONFIG(valueCfg));
+                }
+            }
+        };
+        slider("TRANSPOSE", self->selectionEditTranspose, -24, 24, CLAY_ID("TrackerSelectionEditTransposeBar"), false, transposeClamped, &self->selectionEditTransposeValueButton);
+        slider("VOLUME", self->selectionEditVolume, -32, 32, CLAY_ID("TrackerSelectionEditVolumeBar"), true, volumeClamped, &self->selectionEditVolumeValueButton);
+        // Always reserve this line so the action buttons never jump when a
+        // preview first reaches a value that must be capped.
+        Clay_TextElementConfig warningCfg = bodyCfg;
+        warningCfg.fontSize = 13;
+        warningCfg.textColor = clamped ? (Clay_Color){255, 118, 118, 255} : (Clay_Color){255, 118, 118, 0};
+        CLAY_TEXT(CLAY_STRING("OUT-OF-RANGE VALUES ARE CAPPED"), CLAY_TEXT_CONFIG(warningCfg));
+        CLAY(CLAY_ID("TrackerSelectionEditActions"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 10, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+        {
+            Clay_ElementDeclaration cancelBtn = CLAY_THEME_BTN_DANGER;
+            cancelBtn.layout.sizing.width = CLAY_SIZING_GROW();
+            Clay_ElementDeclaration saveBtn = CLAY_THEME_BTN_PRIMARY;
+            saveBtn.layout.sizing.width = CLAY_SIZING_GROW();
+            CLAY(self->selectionEditCancelButton.clayId, cancelBtn) { CLAY_TEXT(CLAY_STRING("CANCEL"), CLAY_TEXT_CONFIG(buttonCfg)); }
+            CLAY(self->selectionEditSaveButton.clayId, saveBtn) { CLAY_TEXT(CLAY_STRING("SAVE"), CLAY_TEXT_CONFIG(buttonCfg)); }
+        }
+    }
+}
+
+inline bool Tracker_HandleSelectionEditWindowEvent(Tracker *self, const SDL_Event &e)
+{
+    if (!self || !self->selectionEditWindowOpen) return false;
+    if (isClaytonClicked(&self->selectionEditCancelButton, e)) { Tracker_CancelSelectionEdit(self); return true; }
+    if (isClaytonClicked(&self->selectionEditSaveButton, e)) { Tracker_SaveSelectionEdit(self); return true; }
+    if (isClaytonClicked(&self->selectionEditMakeExplicitButton, e)) { Tracker_MakeSelectionVolumesExplicit(self); return true; }
+    if (isClaytonClicked(&self->selectionEditDeleteVolumeButton, e)) { Tracker_DeleteSelectionVolumes(self); return true; }
+    if (isClaytonClicked(&self->selectionEditTransposeValueButton, e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_SELECTION_TRANSPOSE, -1, self->selectionEditTranspose, -24, 24, 10, true, "Transpose");
+        return true;
+    }
+    if (isClaytonClicked(&self->selectionEditVolumeValueButton, e))
+    {
+        Tracker_RequestNumEdit(self, TRACKER_NUM_EDIT_SELECTION_VOLUME, -1, self->selectionEditVolume, -32, 32, 16, true, "Volume");
+        return true;
+    }
+    if (Tracker_SliderPointerEvent(e))
+    {
+        const float x = Tracker_SliderPointerX(e);
+        if (Tracker_CapturedSlider(self, CLAY_ID("TrackerSelectionEditTransposeBar"), e))
+        {
+            self->selectionEditTranspose = Tracker_ValueFromSliderX(CLAY_ID("TrackerSelectionEditTransposeBar"), x, -24, 24);
+            Tracker_ApplySelectionEditPreview(self);
+            Tracker_ClearSliderCaptureOnUp(self, e);
+            return true;
+        }
+        if (Tracker_CapturedSlider(self, CLAY_ID("TrackerSelectionEditVolumeBar"), e))
+        {
+            self->selectionEditVolume = Tracker_ValueFromSliderX(CLAY_ID("TrackerSelectionEditVolumeBar"), x, -32, 32);
+            Tracker_ApplySelectionEditPreview(self);
+            Tracker_ClearSliderCaptureOnUp(self, e);
+            return true;
+        }
+    }
+    if (self->sliderDragging && e.type == SDL_MOUSEBUTTONUP) Tracker_ClearSliderCaptureOnUp(self, e);
+    return Tracker_SliderPointerEvent(e) && Clay_PointerOver(CLAY_ID("TrackerSelectionEditWindow"));
 }
 
 inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
@@ -7388,6 +7494,12 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     if (isClaytonClicked(&self->pasteButton, e))
     {
         Tracker_PasteSelection(self);
+        return true;
+    }
+    if (isClaytonClicked(&self->selectionEditOpenButton, e))
+    {
+        if (Tracker_HasSelection(self))
+            self->selectionEditWindowRequested = true;
         return true;
     }
     if (isClaytonClicked(&self->editSelectionButton, e))

@@ -552,6 +552,7 @@ struct Tracker
     int selectionEditVolume = 0;
     bool selectionEditWindowOpen = false;
     bool selectionEditWindowRequested = false;
+    bool selectionEditPreviewDirty = false;
     TrackerCellFlashRange cellFlashes[TRACKER_CELL_FLASH_RANGE_COUNT] = {};
     TrackerPartFlash partFlashes[TRACKER_PART_FLASH_COUNT] = {};
     int nextCellFlash = 0;
@@ -4332,8 +4333,8 @@ inline void Tracker_TogglePartCollapsed(Tracker *self, int partIndex)
     part.collapseAnimT = 0.0f;
     part.collapseAnimFrom = current;
     part.collapseAnimTo = target;
-    self->patternDirty = true;
-    self->copyOnWriteRequested = true;
+    // Collapse is saved by Tracker_BuildPartPatternText(), but it is only a
+    // tracker-layout change. Do not redeclare or copy the live audio pattern.
     self->scrollY = std::max(0.0f, std::min(Tracker_MaxScroll(self), self->scrollY));
 }
 
@@ -5471,6 +5472,7 @@ inline void Tracker_ApplySelectionEditPreview(Tracker *self)
     }
     self->patternDirty = true;
     self->copyOnWriteRequested = true;
+    self->selectionEditPreviewDirty = true;
 }
 
 inline bool Tracker_SelectionEditTransposeWouldClamp(const Tracker *self)
@@ -5529,6 +5531,7 @@ inline void Tracker_CancelSelectionEdit(Tracker *self)
             self->cells[self->selectionEditRowStart + r][self->selectionEditChannelStart + ch] = self->selectionEditOriginal[r][ch];
     self->patternDirty = true;
     self->copyOnWriteRequested = true;
+    self->selectionEditPreviewDirty = true;
     self->selectionEditWindowOpen = false;
 }
 
@@ -5557,6 +5560,7 @@ inline void Tracker_MakeSelectionVolumesExplicit(Tracker *self)
         }
     self->patternDirty = true;
     self->copyOnWriteRequested = true;
+    self->selectionEditPreviewDirty = true;
     Tracker_SaveSelectionEdit(self);
 }
 
@@ -5572,6 +5576,7 @@ inline void Tracker_DeleteSelectionVolumes(Tracker *self)
         }
     self->patternDirty = true;
     self->copyOnWriteRequested = true;
+    self->selectionEditPreviewDirty = true;
     Tracker_SaveSelectionEdit(self);
 }
 

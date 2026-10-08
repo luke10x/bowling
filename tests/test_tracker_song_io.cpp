@@ -3682,7 +3682,7 @@ TEST_CASE("Collapsed part directive is accepted in saved song files")
     CHECK_FALSE(tracker.parts[1].collapsed);
 }
 
-TEST_CASE("Toggling part collapse marks custom song memory dirty")
+TEST_CASE("Toggling part collapse persists in song text without dirtying playback")
 {
     Tracker tracker {};
     setTrackerPatternState(
@@ -3698,8 +3698,9 @@ TEST_CASE("Toggling part collapse marks custom song memory dirty")
 
     Tracker_TogglePartCollapsed(&tracker, 0);
 
-    CHECK(tracker.patternDirty);
-    CHECK(tracker.copyOnWriteRequested);
+    CHECK_FALSE(tracker.patternDirty);
+    CHECK_FALSE(tracker.copyOnWriteRequested);
+    CHECK(Tracker_BuildPartPatternText(&tracker).find("COLLAPSED\n") != std::string::npos);
 }
 
 TEST_CASE("Skipped part round trips and is omitted from flat playback rows")

@@ -17651,6 +17651,8 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
     bool patternDirty = usr->tracker.patternDirty;
     bool songLengthDirty = usr->tracker.songLengthDirty;
     bool playbackArrangementDirty = usr->tracker.playbackArrangementDirty;
+    const bool selectionEditPreviewDirty = usr->tracker.selectionEditPreviewDirty;
+    usr->tracker.selectionEditPreviewDirty = false;
     bool committed = Tracker_CommitPatternToUserSong(usr);
 
     // Channel selection acts as "solo": only selected channels should play.
@@ -17708,19 +17710,25 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
     xfm_song_declare(usr->sound.musicModule, songId, pattern, tickRate, ticksPerRow);
     if (usr->tracker.playing)
     {
+        // The first bulk edit may copy a built-in song into the user-song slot.
+        // Its rows have the same shape, so preserve the active channel/transport
+        // state while switching that live state to the new pattern ID.
+        if (selectionEditPreviewDirty && !songLengthDirty && !playbackArrangementDirty &&
+            usr->sound.musicModule->active_song.active)
+            usr->sound.musicModule->active_song.song_id = songId;
         bool songWasActive = usr->sound.musicModule->active_song.active;
         bool songIdChanged = usr->sound.musicModule->active_song.song_id != songId;
         const bool tempoChanged =
             (prevTickRate != 0 && prevTickRate != tickRate) ||
             (prevTicksPerRow != 0 && prevTicksPerRow != ticksPerRow);
-        // Redeclaring an edited pattern can clear the synth's active voices even
-        // though the song remains marked active. Restart ordinary pattern edits
-        // too, then below return to the row the listener was hearing.
-        if (patternDirty || songLengthDirty || playbackArrangementDirty || songIdChanged || !songWasActive || tempoChanged)
+        // Editing cells updates the declared events in place. Keep the active
+        // transport running so bulk-edit slider previews never re-trigger song
+        // playback; only structural/transport changes need a restart.
+        if (songLengthDirty || playbackArrangementDirty || songIdChanged || !songWasActive || tempoChanged)
             xfm_song_play(usr->sound.musicModule, songId, true);
         xfm_song_set_loop_range(usr->sound.musicModule, loopStartRow, loopEndRow);
         xfm_song_set_loop_reset_state(usr->sound.musicModule, usr->tracker.loopEnabled);
-        if (!songLengthDirty && (patternDirty || songIdChanged || !songWasActive))
+        if (!songLengthDirty && (songIdChanged || !songWasActive))
         {
             const int jumpRow = selectionOverrideActive ?
                 Tracker_LivePlaybackRowFromSongRow(&usr->tracker, usr->tracker.playRow, true) :

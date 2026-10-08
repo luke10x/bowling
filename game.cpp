@@ -10861,14 +10861,8 @@ static inline void Chest_SpawnAvailable(UserContext *usr)
     usr->chestSpawnedThisThrow = true;
     usr->chestCollectiblePos = Chest_CollectibleSpawnPos(usr);
     usr->sound.playSfxChestSpawn();
-    usr->particles.burstBallEquipSpiral(usr->chestCollectiblePos);
-    usr->particles.burstMiniSparks(
-        usr->chestCollectiblePos,
-        glm::vec2(0.0f, -1.0f),
-        1.0f,
-        glm::vec4(1.0f, 0.88f, 0.28f, 1.0f),
-        1.6f
-    );
+    // The chest itself is the cue. Its old burst resembled a ball-reward
+    // animation and made an unexplained spark effect appear at level start.
 }
 
 static inline void Chest_Tick(UserContext *usr, float realDeltaTime, const glm::vec3 &ballPos)

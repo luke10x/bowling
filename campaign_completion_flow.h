@@ -30,6 +30,27 @@ enum class CampaignResetScope
     Factory = 1,
 };
 
+// Tool reminders teach a mechanic on its introductory campaign level. They
+// are per-run, not saved knowledge: replaying that level repeats the prompt.
+enum class CampaignToolReminder
+{
+    Glass,
+    Nos,
+};
+
+static inline bool Campaign_ShouldPromptToolReminder(
+    CampaignToolReminder reminder,
+    int levelNumber,
+    int completedPlayerFrame,
+    bool promptedThisRun)
+{
+    constexpr int kPromptFrame = 3;
+    const int teachingLevel = reminder == CampaignToolReminder::Glass ? 5 : 7;
+    return levelNumber == teachingLevel &&
+           completedPlayerFrame >= kPromptFrame &&
+           !promptedThisRun;
+}
+
 struct CampaignResultActions
 {
     bool repeat = false;
@@ -72,11 +93,6 @@ static inline bool Campaign_ShouldAdvanceAfterEndStoryShopDecision(
     return campaignLevel && playerWon && !finaleGreetingPending;
 }
 
-static inline bool CampaignReset_PreservesBallInventory(CampaignResetScope scope)
-{
-    return scope == CampaignResetScope::CampaignOnly;
-}
-
 // Campaign progress advances as soon as a level is won, but its optional bonus
 // round must retain the completed level's environment while its choice modal is
 // visible and while the round is active.
@@ -93,12 +109,14 @@ static inline bool Campaign_ShouldOfferLevelBonus(
     int levelNumber,
     int finalLevelNumber,
     bool bonusConfigured,
-    bool alreadyGranted)
+    bool alreadyGranted,
+    int winsAfterThisResult = 1)
 {
     return levelNumber > 0 &&
-           levelNumber < finalLevelNumber &&
-           bonusConfigured &&
-           !alreadyGranted;
+        levelNumber < finalLevelNumber &&
+        bonusConfigured &&
+        !alreadyGranted &&
+        winsAfterThisResult <= 1;
 }
 
 static inline CampaignFinaleFlow Campaign_FinalResultFlowForState(

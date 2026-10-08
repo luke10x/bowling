@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cstdint>
 
+#include "campaign_completion_flow.h"
+
 enum CampaignBlockCardType
 {
     CAMPAIGN_BLOCK_CARD_WOOD = 0,
@@ -151,15 +153,15 @@ inline int CampaignBlockCards_IntroTypeForLevel(int levelNumber)
 }
 
 // Level 5 introduces glass. Give the player a few completed frames to
-// discover it before offering the one-time reminder.
+// discover it before offering the reminder on each run of that level.
 inline bool CampaignBlockCards_ShouldPromptGlassLesson(
     int levelNumber,
     int playerCompletedFrame,
-    bool glassLessonLearned,
     bool promptAlreadyShownThisLevel)
 {
-    return levelNumber == 5 && playerCompletedFrame >= 3 &&
-           !glassLessonLearned && !promptAlreadyShownThisLevel;
+    return Campaign_ShouldPromptToolReminder(
+        CampaignToolReminder::Glass, levelNumber, playerCompletedFrame, promptAlreadyShownThisLevel
+    );
 }
 
 inline int CampaignBlockCards_WeightedRandomType(

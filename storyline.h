@@ -35,7 +35,7 @@
 #define EVENT_OPEN_OIL_WINDOW 2010
 #define EVENT_OPEN_SHOP_WINDOW 2011
 #define EVENT_CONTINUE_CAMPAIGN_AFTER_SHOP_OFFER 2012
-#define EVENT_CAMPAIGN_POSTGAME_CONTINUE 2012
+#define EVENT_CAMPAIGN_POSTGAME_CONTINUE 2016
 #define EVENT_OPEN_RESET_PROGRESS_CONFIRM 2013
 #define EVENT_SCHOOL_CONFIRM_LESSON_SWITCH 2014
 #define EVENT_SCHOOL_CANCEL_LESSON_SWITCH 2015
@@ -118,7 +118,8 @@ static constexpr StorylineNode STORYLINES[] = {
         /*next_storyline=*/0,
     },
 
-    // Win path (>= 100)
+    // Used after Level 1 is won with 100+ points while school is unfinished.
+    // This automatically chains to node 21 for the training-or-Level-2 choice.
     {
         /*storyline_id=*/20,
         /*speaker=*/SPEAKER_ANGEL,
@@ -127,6 +128,7 @@ static constexpr StorylineNode STORYLINES[] = {
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/21,
     },
+    // Used only as the continuation of node 20's first-win message.
     {
         /*storyline_id=*/21,
         /*speaker=*/SPEAKER_ANGEL,
@@ -134,6 +136,8 @@ static constexpr StorylineNode STORYLINES[] = {
         /*choice_group=*/CHOICE_FIRST_WIN_NEXT,
         /*next_storyline=*/0,
     },
+    // Used after Level 1 is won with 100+ points when school is already done.
+    // This replaces nodes 20 -> 21 so training is not offered a second time.
     {
         /*storyline_id=*/22,
         /*speaker=*/SPEAKER_ANGEL,
@@ -329,6 +333,7 @@ static constexpr StorylineNode STORYLINES[] = {
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
+    // Used when replaying Level 1 after a failed attempt while school remains unfinished.
     {
         /*storyline_id=*/40,
         /*speaker=*/SPEAKER_ANGEL,
@@ -336,14 +341,6 @@ static constexpr StorylineNode STORYLINES[] = {
                  "The Unseen Realm is a world of spirits and runes. Score 100 to pass its first sign.\n"
                  "If thou needest guidance, training is open.\n",
         /*choice_group=*/CHOICE_LEVEL1_SCHOOL_OFFER,
-        /*next_storyline=*/0,
-    },
-    {
-        /*storyline_id=*/41,
-        /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Ezekiel, thy angel saviour.\n"
-                 "The Unseen Realm is a world of spirits and runes. Score 100 to pass its first sign.\n",
-        /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
@@ -793,12 +790,6 @@ static constexpr StoryChoiceOption STORY_OPTIONS[] = {
     },
     {
         /*choice_id=*/CHOICE_CAMPAIGN_ENDGAME,
-        /*option=*/"Reset Campaign",
-        /*goto_storyline=*/0,
-        /*trigger_event=*/EVENT_OPEN_RESET_PROGRESS_CONFIRM,
-    },
-    {
-        /*choice_id=*/CHOICE_CAMPAIGN_ENDGAME,
         /*option=*/"Keep Playing",
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_CAMPAIGN_POSTGAME_CONTINUE,
@@ -901,71 +892,133 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
     {
         switch (storylineId)
         {
+            // Level 1's first-attempt introduction.
             case 1: return "Įžengei į Dausas, dvasių pasaulį.\nBet ar pajėgsi surinkti 100?\n";
+            // Follow-up prompt offering training from the first Level 1 introduction.
             case 2: return "Ar norėtumei atlikti pratybas?\n";
+            // Level 1 failure message after scoring below 100.
             case 10: return "Šimto nesurinkai.\nGal pratybos tau butų labiau į naudą negu puikybė?\n";
-            case 11: return "Ar dabar eisi į pratybas, ar dar sykį mėginsi Dausas?\n";
-            case 20: return "Pirmąjį ženklą įveikei.\nŠtai aš - Ezekielis. Klausym manęs įdėmiai, aš tau viską parodysiu.\n Neklausysi - prapulsi!\n";
-            case 21: return "Ar pirma atliksi pratybas, ar jau dabar stosi prieš Ezekielį?\n";
-            case 22: return "Pirmąjį ženklą įveikei.\nŠtai aš - Ezekielis. Klausym manęs įdėmiai, aš tau viską parodysiu.\n Neklausysi - prapulsi!\n";
+            // Choice after the Level 1 failure message: train or replay.
+            case 11: return "Arba atlik pratybas arba bandyk dar karta, ką renkiesi?\n";
+            // First Level 1 win while training remains unfinished.
+            case 20: return "Štai aš - Ezekielis. Įveikei pirmąjį išbandymą? Galime eiti toliau...\n";
+            // Choice following storyline 20: training or Level 2.
+            case 21: return "Ar atliksi pratybas, ar stosi prieš Ezekielį?\n";
+            // First Level 1 win after training has already been completed.
+            case 22: return "Štai aš - Ezekielis. Įveikei pirmąjį išbandymą? Galime eiti toliau...\n";
+            // Attempt to leave mandatory training before completing it.
             case 30: return "Dar negali palikti pratybų.\nPirma baik pamoką.\n";
-            case 31: return "Ar tikrai?\nTai nutrauks dabartini pamokos bandyma ir prades pasirinkta pamoka.\n";
-            case 32: return "Pradeti dabartine pamoka is naujo?\nDabartinis sios pamokos bandymas bus atstatytas.\n";
-            case 40: return "Aš Ezekielis, tavo angelas gelbėtojas.\nDausos yra dvasių ir runų pasaulis. Surink 100, idant pereitum pirmąjį ženklą.\nJei geidi vedimo, pratybos atvertos.\n";
-            case 41: return "Aš Ezekielis, tavo angelas gelbėtojas.\nDausos yra dvasių ir runų pasaulis. Surink 100, idant pereitum pirmąjį ženklą.\n";
-            case 1000: return "2 pamoka. Kamuolio mase.\nCia mokysimes mases.\nKiekvienas kamuolys turi savo mase, todel kitaip jauciasi ir rieda.\nPirmas testas - lengvais kamuoliais pataikyti i keglius.\nBaigimui reikes pataikyti ir sunkiu kamuoliu.\n";
-            case 1010: return "Puiku! Mases testa islaikei.\n";
+            // Confirmation before replacing the current training attempt.
+            case 31: return "Ar tikrai atšaukti šią pamoka ir eiti į kitą.\n";
+            // Confirmation before restarting the current training lesson.
+            case 32: return "Ar tikrai pradėti pamoką iš pradžių\n";
+            // Level 1 replay introduction after a failed attempt, before training is finished.
+            case 40: return "Nelabai kaip sekasi? gal verčiau pabandom atlikti pratybas, jeigu surinkti šimtą tau per sunku...\n";
+            // Lesson 2 introduction: ball mass.
+            case 1000: return "Kiekvienas kamuolys turi savo masę, todel kitaip rieda ir visai kitas jausmas.\nPirmas testas - lengvais kamuoliais pataikyti į kėglius.\n(Vėliau reikės mesti ir sunkius kamuolius).\n";
+            // Lesson 2 completion.
+            case 1010: return "Puiku! Įsisisavinta pamoka apie masę.\n";
+            // Lesson 2 reminder to use a light or heavy ball.
             case 1012: return "Kad islaikytum testa, mases slankikli nustatyk i lengva arba sunku gala.\nMetimas per viduri i pazanga neiskaiciuojamas.\n";
+            // Lesson 2 prompt to use the heavy ball.
             case 1013: return "Gerai. Dabar perjunk slankikli i sunku gala ir pataikyk i keglius.\n";
+            // Lesson 2 prompt to use the light ball.
             case 1014: return "Gerai. Dabar perjunk slankikli i lengva gala ir pataikyk i keglius.\n";
+            // General return-to-school message after a lesson.
             case 1030: return "I mokykla gali grizti bet kada.\n";
+            // Lesson 3 completion: spin.
             case 1020: return "Sveikinu. Sukimosi testa islaikei.\nKiekvienas kamuolys savaip reaguoja i sukima.\nKiti parametrai, pvz. sukibimas, keicia reakcijos stipruma.\n";
+            // Lesson 3 introduction: ball spin.
             case 1022: return "3 pamoka. Kamuolio sukimas.\nIskart po metimo suk kamuoli judesiais ekrane.\nTada kamuolys ims krypti pasirinkta puse.\nNumusk visus lengvus taikinius, kad islaikytum (2 lygiai).\n";
+            // Lesson 4 introduction: oil and skid.
             case 1052: return "4 pamoka. Alyva ir slydimas.\nTakas ka tik alyvuotas. Maždaug puse ar du trecdaliai tako padengta pilna alyva.\nSioje pamokoje alyva dyla labai greitai, todel po keliu metimu jausmas pasikeis.\nKai kurios sales pacios slidesnes, o kamuoliai turi slydimo parametra.\n";
+            // Lesson 4 prompt when the lane needs fresh oil.
             case 1054: return "Takui jau reikia naujos alyvos.\nAtidaryk alyvos langa ir peralyvuok pries kita metima.\n";
+            // Lesson 4 completion.
             case 1060: return "Puiku! Alyvos testa islaikei.\n";
+            // Lesson 1 introduction: aiming.
             case 1032: return "1 pamoka. Taikymas.\nDabar mokysimes mesti.\nPatrauk kamuoli iki galo atgal, laikyk per viduri ir paleisk.\nJei pataikysi i bet kuri kegli, gausi taska.\n";
+            // Lesson 1 completion.
             case 1040: return "Puiku! Taikymo testa islaikei.\n";
+            // Lesson 5 introduction: strike line.
             case 1070: return "5 pamoka. Straiko linija.\nSek monetas. Linija nukrypsta nuo vidurio ir grizta i kisene.\nTikslas - ismesti straika.\nGali spausti keisti linija ir treniruotis kitoje puseje.\n";
+            // Lesson 5 and school completion.
             case 1072: return "Puiku! Straikas.\nBaigei mokykla.\nGali sugrizti bet kada.\n";
+            // Suggested ball after the player struggles in training.
             case 1080: return "Matau, kad sunku.\nGal pabandyk si kamuoli?\n";
+            // Lesson 3 unlock notification after the zig-zag coins lesson.
             case 1021: return "Sukima gali dar treniruoti zigzago monetu pamokoje.\n3 pamoka dabar atrakinta.\n";
+            // Revised Level 1 win reveal and the training-or-campaign choice.
             case 30020: return "Pirmąjį ženklą įveikei.\nAš Ezekielis. Mokysiu ir bandysiu tave; gale laukia Ofanija.\nAr pirma stosi į pratybas, ar tęsi dabar?\n";
+            // Level 2 (Ezekiel) introduction.
             case 3002: return "Aš Ezekielis.\nIeškai išganymo; matuosiu tavo ranką ir valią.\nEikš, teprasideda pirmas bandymas.\n";
+            // Level 2 completion, leading to the Red Desert.
             case 3102: return "Gerai padarei.\nPalik ramų taką ir sek mane į Nuodėmių dykumą.\n";
+            // Level 3 (Red Desert) introduction.
             case 3003: return "Ši dykuma sausa nuo sugedimo.\nPatepk taką alyva ir smilkalais; pertepimas apvalo sugedimą, kaip ugnis apvalo.\n";
+            // Level 3 side-throw harassment after repeated splits.
             case 30031: return "Pastebejau daug splitu.\nGal bandai pataikyti i keglius is centro.\nVerčiau ivaziuok i juos truputi is sono.\nTai daznai padeda isvengti splitu.\n";
+            // Level 3 oil reminder when the player has not re-oiled.
             case 30032: return "Tu dykumoje, o as vis dar nemaciau, kad naudotum alyva.\nGeriau panaudok ja, kol takas nenubaude tavo isdidumo.\nAr atidaryti alyvos langa dabar?\n";
+            // Level 5 glass reminder when the player has not thrown glass back.
             case 3042: return "Pastebėjau, kad nemeti stiklo atgal, nors aš metu jį į tave.\nTu irgi gali mesti stiklą į mane!\n";
+            // First rune tutorial (generic, Boom, or Bolt discovery).
             case 3050:
             case 3053:
             case 3054: return "Dabar turi magijos prieš mane?\nĮdėk ją į kamuolio sukimosi ratą, kad ją panaudotum.\n";
+            // Follow-up tutorial after the player first finds a Boom rune.
             case 3051: return "Oho, gali sukelti sprogimą?\nTik tu sprendi, ar verta sunaikinti savo kamuolį dėl nedidelės žalos.\n";
+            // Follow-up tutorial after the player first finds a Bolt rune.
             case 3052: return "Matau, gavai rimtos magijos.\nGali sunaikinti mano kamuolius, bet mėginsiu išsisukti nuo to, ką mesi į mane.\n";
+            // Level 3 completion, leading to the icy Level 4.
             case 3103: return "Dykumą atlaikei.\nDabar šaltis, kur kelias nori tave išslydinti.\n";
+            // Level 4 introduction.
             case 3004: return "Šaltis viską daro slidu.\nTaip siela gali nuslysti nuo išganymo kelio ar iš ją nešiojusios įsčios. Eik tvirtai.\n";
+            // Level 4 completion, leading to the broken-glass level.
             case 3104: return "Nenuszlydai.\nDabar laukia išdužęs langas: miesto pražūtis prasideda nuo mažos properšos.\n";
+            // Level 5 introduction: Ezekiel hands the player to Cherub.
             case 3040: return "Čia man leista eiti tik iki Gomoros.\nAnapus išdužusio stiklo — Kerubo valdos; ten tavęs lydėti negaliu.\n";
+            // Level 5 first-glass tutorial.
             case 3041: return "Štai taip. Palietei stiklą.\nMano ėjimų metu galėsi mesti stiklą atgal.\nStebėk ėjimo mygtuką.\n";
+            // Level 5 completion, before meeting Cherub.
             case 3140: return "Ezekielio pratybos baigtos.\nKerubas laukia anapus išdužusio lango.\n";
+            // First shop prompt before the Cherub encounter.
             case 3141: return "Prieš atsakydamas Kerubui, užeik į parduotuvę.\nSkirtingi kamuoliai turi skirtingas savybes, ir verta rasti tai, kas tinka tavo žaidimui.\nAr atidaryti parduotuvę dabar?\n";
+            // Level 6 (Gomorrah) introduction by Cherub.
             case 3005: return "Aš Kerubas. Kas toks drąsus žengia į Gomorą, kur visos nuodėmės žydi?\nPer stiklą nuodėmių jėga kristalėja į Mineralus. Rink juos rūpestingai.\n";
+            // Level 6 completion, leading to the Energy Pyramid.
             case 3105: return "Įžengei į Gomorą.\nDabar keliausime į Galios dykumą, kur Mineralai virsta jėga.\n";
+            // Level 7 (Energy Pyramid) introduction.
             case 3006: return "Per stiklą atėjo auksas, per auksą — Mineralai.\nPaversk Mineralus energija per Nitro ir pasiimk dalį išsiurbtos pasaulio galios.\n";
+            // Level 7 NOS reminder when it has not been used.
             case 30061: return "Dabar turi NOS, bet vis dar jo nenaudoji.\nPripildžiau tavo energiją. Kamuoliui jau judant laikyk NOS pedalą.\n";
+            // Level 7 completion, leading to the forest.
             case 3106: return "Nešk šią galią pirmyn.\nPaskutinis kelias prie kasyklų užgultas medžiais.\n";
+            // Level 8 (Forest) introduction.
             case 3007: return "Kirski medžius; šis pasaulis paverčiamas dykuma.\nBet medžiu stabdyk kamuolius. Jo reikės prieš Serafelę.\n";
+            // Level 8 completion, leading to Seraphel's mines.
             case 3107: return "Paskutinį mano bandymą įveikei.\nĮ Serafelės Mineralų kasyklas neinu. Eik, ir tebūna tau gerai.\n";
+            // Level 10 (Cemetery) introduction: Seraphel's plague at Gomorrah.
             case 3008: return "Maras apėmė Gomorą, bet į miestą įeiti negaliu.\nIš čia mažiname jos nuodėmingą gyventojų skaičių. Tai mano paskutinė užduotis su tavimi.\n";
+            // Level 10 completion, leading to Thrones in Gomorrah.
             case 3108: return "Padarei, ko reikalavau.\nEik pas Ofaniją, kuri laukia Gomoroje.\n";
+            // Level 9 (Mines) introduction by Seraphel.
             case 3009: return "Aš Serafelė. Tai Karaliaus Saliamono Mineralų kasyklos.\nBūk nuožmus darbe, nes palaidota galia lengvai neduodama.\n";
+            // Level 9 completion, leading to the factory.
             case 3109: return "Kasyklos davė derlių.\nAteik į Jėgainę: energija turi būti išgauta.\n";
+            // Level 11 (Factory) introduction: extract the sinners' energy.
             case 3010: return "Čia Mineralai paverčiami galia.\nIštrauk jų stiprybę, nes tai nusidėjėliai ir neverti jos laikyti.\n";
+            // Level 11 completion, leading to the cemetery.
             case 3110: return "Varikliai pasiėmė savo dalį.\nPasiunčiau marą į Gomorą; ateik į kapines už miesto.\n";
+            // Level 12 introduction: Thrones judges Gomorrah.
             case 3011: return "Aš Ofanija. Gomora pasidavė nedorybei, ir dėl savo darbų nebegali toliau gyvuoti.\nŽinau savo svorį ir smūgį; padėk man miestą paversti pelenais.\n";
+            // Level 12 completion, leading to Judgment Day.
             case 3111: return "Gomora liepsnoja, ir jos dūmai kyla.\nAnapus jos pelenų laukia paskutinis darbas.\n";
+            // Level 13 introduction: Judgment Day.
             case 3012: return "Tai Teismo diena.\nDangus susisuka, žemė pasveriama, o senasis pasaulis atiduodamas ugniai.\n";
+            // Level 13 completion and campaign ending.
             case 3112: return "Ir taip nutiko: žemė virto pelenais.\nPadėjai sunaikinti blogį. Tavo išbandymas baigtas.\n";
+            // Post-campaign result dialog before random-game free play.
             case 32000: return "Aš Ezekielis, ir dabar galima tarti aiškiai:\ntu perėjai bandymus ir padėjai blogį sunaikinti.\nKą darysi toliau?\n";
             default: return fallback;
         }
@@ -986,7 +1039,6 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
             case 31: return "本当に？\n今のレッスン挑戦を中止し、選んだレッスンを始めます。\n";
             case 32: return "今のレッスンをやり直す？\nこのレッスンの挑戦はリセットされます。\n";
             case 40: return "私はエゼキエル。このレーンの君の天使だ。\nレベル1は100点で突破。遠くから見守る。\n先に助けが欲しければ、学校は開いている。\n";
-            case 41: return "私はエゼキエル。このレーンの君の天使だ。\nレベル1は100点で突破。遠くから見守る。\n";
             case 1000: return "レッスン2：球の質量。\nここでは質量を学ぶ。\n球ごとに質量があり、感触と転がりが変わる。\nまず軽い球でピンに当てよう。\n卒業には重い球でも当てる必要がある。\n";
             case 1010: return "よし！ 質量テスト合格。\n";
             case 1012: return "合格には質量スライダーを軽い端か重い端に合わせて。\n中間で投げても進行には入らない。\n";
@@ -1061,7 +1113,6 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
         case 31: return "确定吗？\n这会取消当前课程尝试，并开始你选择的课程。\n";
         case 32: return "重新开始当前课程？\n本课程的当前尝试会被重置。\n";
         case 40: return "我是以西结，是这条球道上守护你的天使。\n第1关拿到100分即可通过。我会在远处看着。\n如果你想先练习，学校已经开放。\n";
-        case 41: return "我是以西结，是这条球道上守护你的天使。\n第1关拿到100分即可通过。我会在远处看着。\n";
         case 1000: return "第2课：球的质量。\n这里讲的是质量。\n每个球都有自己的质量，质量会改变它的手感和滚动方式。\n你的第一个测试，是用几颗轻球击中球瓶。\n而想毕业，你也必须用重球击中球瓶。\n";
         case 1010: return "很好！你通过了质量测试。\n";
         case 1012: return "要通过这个测试，你必须把质量滑块调到最轻或最重的一端。\n停在中间不会算进通过进度。\n";

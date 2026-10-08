@@ -43,13 +43,12 @@ TEST_CASE("Post-campaign default deck can deal every enabled material")
     CHECK(dealtMask == enabledMask);
 }
 
-TEST_CASE("Level 5 glass reminder stops once glass has been learned")
+TEST_CASE("Level 5 glass reminder prompts once per level run")
 {
-    CHECK_FALSE(CampaignBlockCards_ShouldPromptGlassLesson(4, 3, false, false));
-    CHECK_FALSE(CampaignBlockCards_ShouldPromptGlassLesson(5, 2, false, false));
-    CHECK(CampaignBlockCards_ShouldPromptGlassLesson(5, 3, false, false));
-    CHECK_FALSE(CampaignBlockCards_ShouldPromptGlassLesson(5, 3, true, false));
-    CHECK_FALSE(CampaignBlockCards_ShouldPromptGlassLesson(5, 3, false, true));
+    CHECK_FALSE(CampaignBlockCards_ShouldPromptGlassLesson(4, 3, false));
+    CHECK_FALSE(CampaignBlockCards_ShouldPromptGlassLesson(5, 2, false));
+    CHECK(CampaignBlockCards_ShouldPromptGlassLesson(5, 3, false));
+    CHECK_FALSE(CampaignBlockCards_ShouldPromptGlassLesson(5, 3, true));
 }
 
 TEST_CASE("Only Levels 11 and 13 give the enemy final-level block weights")

@@ -70,8 +70,26 @@ TEST_CASE("Campaign start stories respect school and completed resume flow")
 TEST_CASE("Campaign routed start story nodes exist")
 {
     REQUIRE(Story_FindNode(40) != nullptr);
-    REQUIRE(Story_FindNode(41) != nullptr);
     REQUIRE(Story_FindNode(30020) != nullptr);
+}
+
+TEST_CASE("Post-campaign dialog only continues into free play")
+{
+    const StorylineNode *n = Story_FindNode(32000);
+    REQUIRE(n != nullptr);
+    CHECK(n->choice_group == CHOICE_CAMPAIGN_ENDGAME);
+    CHECK(EVENT_CAMPAIGN_POSTGAME_CONTINUE != EVENT_CONTINUE_CAMPAIGN_AFTER_SHOP_OFFER);
+
+    int optionCount = 0;
+    for (int32_t i = 0; i < STORY_OPTIONS_COUNT; ++i)
+    {
+        const StoryChoiceOption &opt = STORY_OPTIONS[i];
+        if (opt.choice_id != CHOICE_CAMPAIGN_ENDGAME)
+            continue;
+        ++optionCount;
+        CHECK(opt.trigger_event == EVENT_CAMPAIGN_POSTGAME_CONTINUE);
+    }
+    CHECK(optionCount == 1);
 }
 
 TEST_CASE("Rune lesson story chains keep first-rune guidance before warnings")
@@ -85,14 +103,6 @@ TEST_CASE("Rune lesson story chains keep first-rune guidance before warnings")
     CHECK(Story_FindNode(3050) != nullptr);
     CHECK(Story_FindNode(3051) != nullptr);
     CHECK(Story_FindNode(3052) != nullptr);
-}
-
-TEST_CASE("Completed-school level 1 intro does not offer school again")
-{
-    const StorylineNode *n = Story_FindNode(41);
-    REQUIRE(n != nullptr);
-    CHECK(n->choice_group == CHOICE_SCHOOL_OK);
-    CHECK(n->next_storyline == 0);
 }
 
 TEST_CASE("Completed-school first reveal has no school offer")

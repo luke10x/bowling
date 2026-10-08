@@ -3,23 +3,20 @@
 
 #include "../campaign_nos_lesson.h"
 
-TEST_CASE("NOS lesson prompts only after three Level 7 player frames")
+TEST_CASE("NOS reminder prompts once per Level 7 run after three player frames")
 {
-    CHECK_FALSE(CampaignNosLesson_ShouldPrompt(6, 9, false, false));
-    CHECK_FALSE(CampaignNosLesson_ShouldPrompt(7, 2, false, false));
-    CHECK(CampaignNosLesson_ShouldPrompt(7, 3, false, false));
-    CHECK_FALSE(CampaignNosLesson_ShouldPrompt(7, 3, true, false));
-    CHECK_FALSE(CampaignNosLesson_ShouldPrompt(7, 3, false, true));
+    CHECK_FALSE(CampaignNosLesson_ShouldPrompt(6, 9, false));
+    CHECK_FALSE(CampaignNosLesson_ShouldPrompt(7, 2, false));
+    CHECK(CampaignNosLesson_ShouldPrompt(7, 3, false));
+    CHECK_FALSE(CampaignNosLesson_ShouldPrompt(7, 3, true));
 }
 
-TEST_CASE("NOS lesson white blink stops only when the player learns NOS")
+TEST_CASE("NOS reminder white blink stops when NOS is pressed")
 {
     CHECK(CampaignNosLesson_ShouldWhiteBlink(
-        /*learned=*/false, /*lessonBlinkActive=*/true,
-        /*nosHeld=*/false, /*charge01=*/1.0f));
-    CHECK_FALSE(CampaignNosLesson_ShouldWhiteBlink(false, true, true, 1.0f));
-    CHECK_FALSE(CampaignNosLesson_ShouldWhiteBlink(false, true, false, 0.0f));
-    CHECK_FALSE(CampaignNosLesson_ShouldWhiteBlink(true, true, false, 1.0f));
+        /*lessonBlinkActive=*/true, /*nosHeld=*/false, /*charge01=*/1.0f));
+    CHECK_FALSE(CampaignNosLesson_ShouldWhiteBlink(true, true, 1.0f));
+    CHECK_FALSE(CampaignNosLesson_ShouldWhiteBlink(true, false, 0.0f));
 }
 
 TEST_CASE("NOS lesson refills only a meter below half charge")

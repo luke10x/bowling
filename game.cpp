@@ -924,12 +924,8 @@ struct UserContext
     float campaignOverrideEnemySkill = 0.975f;
     int campaignOverrideEnemyBallId = 24;
     bool campaignGlassToolUnlocked = false;
-    // Persistent one-time Level 5 lesson. The temporary prompt/blink state is
-    // reset per level, while learned survives replays until campaign reset.
-    bool campaignGlassLessonLearned = false;
-    // Level 7 is the first game with NOS enabled. Knowledge survives replays;
-    // the prompt/blink state resets for every level setup.
-    bool campaignNosLessonLearned = false;
+    // Glass and NOS are per-level-run reminders. Replaying their teaching
+    // levels repeats the prompt; post-campaign games never enter this flow.
     int campaignRuneLessonsSeen = 0;
     bool campaignGlassCoachPromptedThisLevel = false;
     bool campaignGlassLessonBlinkActive = false;
@@ -2613,7 +2609,6 @@ static inline void School_UpdateOilGuidanceUi(UserContext *usr)
 }
 
 static inline void NosEmptySfx_Stop(UserContext *usr);
-static inline void Campaign_SaveNosLessonProgress(UserContext *usr);
 
 static inline float NosEmptyBlink_Amount01(const UserContext *usr)
 {
@@ -2650,11 +2645,9 @@ static inline void SyncNosHeld(UserContext *usr)
     if (!wasHeld && usr->nosHeld)
     {
         OilLowBlink_Request(usr);
-        if (!usr->campaignNosLessonLearned && Campaign_HasUnlockedNosTool(usr))
+        if (usr->campaignNosLessonBlinkActive && Campaign_HasUnlockedNosTool(usr))
         {
-            usr->campaignNosLessonLearned = true;
             usr->campaignNosLessonBlinkActive = false;
-            Campaign_SaveNosLessonProgress(usr);
         }
     }
 }
@@ -11367,28 +11360,6 @@ static inline void Campaign_SavePostgameSettings(UserContext *usr)
     usr->storage.setChar(Storage::CAMPAIGN_POSTGAME_SETTINGS, settings, std::strlen(settings));
 }
 
-static inline void Campaign_SaveGlassLessonProgress(UserContext *usr)
-{
-    if (!usr)
-        return;
-    usr->storage.setChar(
-        Storage::CAMPAIGN_GLASS_LESSON_LEARNED,
-        usr->campaignGlassLessonLearned ? "1" : "0",
-        1
-    );
-}
-
-static inline void Campaign_SaveNosLessonProgress(UserContext *usr)
-{
-    if (!usr)
-        return;
-    usr->storage.setChar(
-        Storage::CAMPAIGN_NOS_LESSON_LEARNED,
-        usr->campaignNosLessonLearned ? "1" : "0",
-        1
-    );
-}
-
 static inline void Campaign_SaveRuneLessonProgress(UserContext *usr)
 {
     if (!usr)
@@ -11869,8 +11840,6 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     usr->unlockedHouseMask = 0;
     usr->unlockedBotMask = 0;
     usr->campaignGlassToolUnlocked = false;
-    usr->campaignGlassLessonLearned = false;
-    usr->campaignNosLessonLearned = false;
     usr->campaignRuneLessonsSeen = 0;
     usr->campaignGlassCoachPromptedThisLevel = false;
     usr->campaignGlassLessonBlinkActive = false;
@@ -11938,8 +11907,6 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     Campaign_SaveAttemptStats(usr);
     Campaign_SaveLevelResults(usr);
     Campaign_SavePostgameSettings(usr);
-    Campaign_SaveGlassLessonProgress(usr);
-    Campaign_SaveNosLessonProgress(usr);
     Campaign_SaveRuneLessonProgress(usr);
     Progress_SaveCrowdControlCampaignState(usr);
 }
@@ -13475,10 +13442,12 @@ static inline void Campaign_AdvanceIfWon(UserContext *usr, const CampaignLevelCo
             cfg.levelNumber,
             kCampaignLevelCount,
             bonusKind != MiniGameKind::NONE,
-            usr->campaignLevelBonusGranted[levelIdx]))
+            usr->campaignLevelBonusGranted[levelIdx],
+            usr->campaignLevelWins[levelIdx]))
     {
-        // Mark the offer immediately: replaying a completed level cannot farm
-        // a second bonus, even if the player declines the first offer.
+        // Award bonuses only for the first campaign win of this level. The
+        // persisted marker also protects interrupted saves; together they
+        // prevent replaying a completed level from farming a second bonus.
         usr->campaignLevelBonusGranted[levelIdx] = true;
         Campaign_SaveLevelResults(usr);
         MiniGame_QueueCampaignVictoryBonus(usr, cfg.biome, bonusKind);
@@ -13643,6 +13612,10 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
     CampaignBlockCards_Clear(usr->enemyBlockCards);
     usr->playerBlockCardRngState = 1;
     usr->enemyBlockCardRngState = 2;
+    // A fresh run gets a fresh rack. Reset the pin-delta baseline alongside
+    // the scoreboards so a selected-level replay cannot inherit pins down
+    // from the previous game on its first throw.
+    Bowling_OnRackReset(&usr->wereDead);
     resetScoreboard(&usr->board);
     if (usr->enemyBoardInit)
         resetScoreboard(&usr->enemyBoard);
@@ -18921,10 +18894,6 @@ void vtx::init(vtx::VertexContext *ctx)
                 usr->campaignPostgameNosEnabled = nos != 0;
             }
         }
-        n = usr->storage.getChar(Storage::CAMPAIGN_GLASS_LESSON_LEARNED, tmp, sizeof(tmp));
-        usr->campaignGlassLessonLearned = n > 0 && tmp[0] == '1';
-        n = usr->storage.getChar(Storage::CAMPAIGN_NOS_LESSON_LEARNED, tmp, sizeof(tmp));
-        usr->campaignNosLessonLearned = n > 0 && tmp[0] == '1';
         n = usr->storage.getChar(Storage::CAMPAIGN_RUNE_LESSONS_SEEN, tmp, sizeof(tmp));
         usr->campaignRuneLessonsSeen = n > 0 ? glm::max(0, atoi(tmp)) : 0;
         n = usr->storage.getChar(Storage::UNLOCKED_BALLS, tmp, sizeof(tmp));
@@ -20208,10 +20177,14 @@ void vtx::loop(vtx::VertexContext *ctx)
                     const CampaignResetScope resetScope = usr->windowStack.settingsResetProgressConfirmRequested
                         ? CampaignResetScope::Factory
                         : CampaignResetScope::CampaignOnly;
-                    if (!CampaignReset_PreservesBallInventory(resetScope))
+                    if (resetScope == CampaignResetScope::Factory)
                         Progress_ResetFull(usr);
                     else
-                        Progress_ResetCampaign(usr, /*resetInventory=*/false);
+                    {
+                        // A campaign restart starts its rewards over too: reset the
+                        // bank and all unlocked balls, while retaining school progress.
+                        Progress_ResetCampaign(usr, /*resetInventory=*/true);
+                    }
                     usr->windowStack.settingsResetProgressConfirmRequested = false;
                     Campaign_StartFreshRunAfterReset(usr);
                 }
@@ -20707,11 +20680,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                         if (variant == CAMPAIGN_BLOCK_CARD_GLASS &&
                             usr->playerRoute == PlayerRoute::CAMPAIGN &&
                             Campaign_CurrentLevel(usr).levelNumber == 5 &&
-                            !usr->campaignGlassLessonLearned)
+                            usr->campaignGlassLessonBlinkActive)
                         {
-                            usr->campaignGlassLessonLearned = true;
                             usr->campaignGlassLessonBlinkActive = false;
-                            Campaign_SaveGlassLessonProgress(usr);
                         }
                         deployedBlock = true;
                     }
@@ -23485,7 +23456,6 @@ swing_checks_done:
                                 else if (CampaignNosLesson_ShouldPrompt(
                                              Campaign_CurrentLevel(usr).levelNumber,
                                              Scoreboard_CurrentFrameNumber(&usr->board),
-                                             usr->campaignNosLessonLearned,
                                              usr->campaignNosCoachPromptedThisLevel))
                                 {
                                     usr->campaignNosCoachPromptedThisLevel = true;
@@ -23494,7 +23464,6 @@ swing_checks_done:
                                 else if (CampaignBlockCards_ShouldPromptGlassLesson(
                                              Campaign_CurrentLevel(usr).levelNumber,
                                              Scoreboard_CurrentFrameNumber(&usr->board),
-                                             usr->campaignGlassLessonLearned,
                                              usr->campaignGlassCoachPromptedThisLevel))
                                 {
                                     usr->campaignGlassCoachPromptedThisLevel = true;
@@ -28012,7 +27981,6 @@ END_LINE:
                                     const bool charged = charge01 > 0.001f;
                                     const bool highlighted = pulse01 > charge01 + 0.001f;
                                     const bool nosLessonWhiteBlink = CampaignNosLesson_ShouldWhiteBlink(
-                                        usr->campaignNosLessonLearned,
                                         usr->campaignNosLessonBlinkActive,
                                         usr->nosHeld,
                                         charge01

@@ -5595,6 +5595,14 @@ inline void Tracker_SetClipboardBanner(Tracker *self, const char *text, bool use
     self->clipboardBannerFlashTime = 1.8f;
 }
 
+inline void Tracker_ShowSongRowLimitError(Tracker *self)
+{
+    if (!self) return;
+    char text[64];
+    std::snprintf(text, sizeof(text), "SONG ROW LIMIT: %d", TRACKER_MAX_ROWS);
+    Tracker_SetClipboardBanner(self, text, Tracker_SelectionUsesEdit(self), true);
+}
+
 inline void Tracker_SetChannelSelection(Tracker *self, int a, int b)
 {
     if (!self) return;

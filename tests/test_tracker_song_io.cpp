@@ -672,6 +672,16 @@ TEST_CASE("Built-in song DSL exposes metadata and pattern constants")
     CHECK(Tracker_ParseLeadingRowCount(Tracker_SongPattern(1)) > 0);
 }
 
+TEST_CASE("User songs accept up to 2048 rows")
+{
+    std::string maxRows = "2048\n";
+    for (int row = 0; row < 2048; ++row)
+        maxRows += ".......|.......|.......|.......|.......|.......\n";
+    const std::string overLimit = "2049\n.......|.......|.......|.......|.......|.......\n";
+    CHECK(TrackerSongIO_ParseFile("max_rows.h", maxRows.c_str()).ok);
+    CHECK_FALSE(TrackerSongIO_ParseFile("over_limit.h", overLimit.c_str()).ok);
+}
+
 TEST_CASE("Built-in song registry drives reserved user song filenames")
 {
     REQUIRE(TRACKER_BUILTIN_SONG_COUNT >= 5);

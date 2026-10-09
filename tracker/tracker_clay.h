@@ -6715,6 +6715,8 @@ inline bool Tracker_HandlePartEditorWindowEvent(Tracker *self, const SDL_Event &
             Tracker_AddRowToPart(self, partIndex);
             self->partEditorPart = std::max(0, std::min(self->partCount - 1, self->partEditorPart));
         }
+        else
+            Tracker_SetClipboardBanner(self, "SONG ROW LIMIT: 1024", Tracker_SelectionUsesEdit(self), true);
         return true;
     }
     if (isClaytonClicked(&self->partEditorRowsValueButton, e))
@@ -6739,6 +6741,12 @@ inline bool Tracker_HandlePartEditorWindowEvent(Tracker *self, const SDL_Event &
         {
             self->partEditorPart = std::max(0, std::min(self->partCount - 1, partIndex + 1));
             Tracker_FlashPart(self, self->partEditorPart, TRACKER_CHANGE_FLASH_ADD);
+        }
+        else
+        {
+            const char *message = self->partCount >= TRACKER_MAX_PARTS ?
+                "PART LIMIT: 32" : "SONG ROW LIMIT: 1024";
+            Tracker_SetClipboardBanner(self, message, Tracker_SelectionUsesEdit(self), true);
         }
         return true;
     }
@@ -7329,6 +7337,16 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
     }
     if (isClaytonClicked(&self->addPartButton, e))
     {
+        if (self->partCount >= TRACKER_MAX_PARTS)
+        {
+            Tracker_SetClipboardBanner(self, "PART LIMIT: 32", Tracker_SelectionUsesEdit(self), true);
+            return true;
+        }
+        if (self->rowCount >= TRACKER_MAX_ROWS)
+        {
+            Tracker_SetClipboardBanner(self, "SONG ROW LIMIT: 1024", Tracker_SelectionUsesEdit(self), true);
+            return true;
+        }
         Tracker_AddPartToEnd(self);
         int newPartIndex = std::max(0, self->partCount - 1);
         for (int i = 1; i < 32 && self->rowCount < TRACKER_MAX_ROWS; i++)

@@ -29,6 +29,10 @@ struct Keypad
     TxlLanguage uiLanguage;
     char currentText[KEYPAD_MAX_CHARS];
     int32_t currentTextLen;
+    // Per-session UI limit. This deliberately remains separate from the backing
+    // buffer size: existing longer values must stay editable and serializable.
+    int32_t maxTextLen;
+    int32_t inputLimitErrorFrames;
     bool activated;
     char keys[KEYPAD_ROWS][KEYPAD_COLS];
     Clayton_Click clicks[KEYPAD_ROWS][KEYPAD_COLS];
@@ -64,6 +68,8 @@ void initKeypad(Keypad *self, char *originalText, int32_t *originalTextLen)
     self->title = nullptr;
     self->uiLanguage = TXL_LANG_EN_US;
     self->activated = false;
+    self->maxTextLen = KEYPAD_MAX_CHARS;
+    self->inputLimitErrorFrames = 0;
 
     for (int i = 0; i < KEYPAD_ROWS; ++i)
     {
@@ -120,14 +126,14 @@ bool processKeypadEvent(Keypad *self, SDL_Event event, Storage *storage)
             char buf[20];
             if (isClaytonClicked(&self->clicks[i][j], event))
             {
-                if (self->currentTextLen < KEYPAD_MAX_CHARS)
+                if (self->currentTextLen < self->maxTextLen)
                 {
                     self->currentText[self->currentTextLen] = self->keys[i][j];
                     self->currentTextLen += 1;
                 }
                 else
                 {
-                    // TODO visual bell
+                    self->inputLimitErrorFrames = 108;
                 }
             }
         }
@@ -141,10 +147,14 @@ bool processKeypadEvent(Keypad *self, SDL_Event event, Storage *storage)
     }
     if (isClaytonClicked(&self->spaceClick, event))
     {
-        if (self->currentTextLen < KEYPAD_MAX_CHARS)
+        if (self->currentTextLen < self->maxTextLen)
         {
             self->currentText[self->currentTextLen] = '_';
             self->currentTextLen += 1;
+        }
+        else
+        {
+            self->inputLimitErrorFrames = 108;
         }
     }
     if (isClaytonClicked(&self->enterClick, event))
@@ -201,6 +211,11 @@ inline void buildKeypadWindowClay(Keypad *self)
     Clay_TextElementConfig inputFontCfg = CLAY_THEME_TEXT_INPUT;
     Clay_TextElementConfig buttonFontCfg = CLAY_THEME_TEXT_BUTTON;
     Clay_TextElementConfig titleFontCfg = CLAY_THEME_TEXT_TITLE;
+    const bool inputLimitError = self->inputLimitErrorFrames > 0;
+    const float inputLimitPulse = inputLimitError ?
+        0.45f + 0.55f * sinf((float)self->inputLimitErrorFrames * 0.3f) : 0.0f;
+    if (self->inputLimitErrorFrames > 0)
+        self->inputLimitErrorFrames--;
 
     // Root container exists for pointer-hit testing in processKeypadEvent().
     CLAY(
@@ -270,6 +285,19 @@ inline void buildKeypadWindowClay(Keypad *self)
                         .chars = (char *)title,
                     };
                     CLAY_TEXT(titleStr, CLAY_TEXT_CONFIG(titleFontCfg));
+                    if (inputLimitError)
+                    {
+                        char limitText[32];
+                        std::snprintf(limitText, sizeof(limitText), "MAX %d CHARACTERS", self->maxTextLen);
+                        Clay_TextElementConfig limitCfg = keyFontCfg;
+                        limitCfg.textColor = {255.0f, 144.0f, 144.0f, 150.0f + 105.0f * inputLimitPulse};
+                        Clay_String limitStr = {
+                            .isStaticallyAllocated = false,
+                            .length = (int32_t)std::strlen(limitText),
+                            .chars = limitText,
+                        };
+                        CLAY_TEXT(limitStr, CLAY_TEXT_CONFIG(limitCfg));
+                    }
 
                 }
 
@@ -303,7 +331,9 @@ inline void buildKeypadWindowClay(Keypad *self)
                                 .padding = {0, 10, 0, 0},
                                 .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
                             },
-                        .backgroundColor = CLAY_COLOR_PANEL_SECTION,
+                        .backgroundColor = inputLimitError ?
+                            (Clay_Color){150.0f, 38.0f, 38.0f, 150.0f + 105.0f * inputLimitPulse} :
+                            CLAY_COLOR_PANEL_SECTION,
                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
                         .aspectRatio = {6.0f},
                     }

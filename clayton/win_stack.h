@@ -416,13 +416,15 @@ struct WindowStack
         const char *title,
         char *outText,
         int32_t *outLen,
-        bool persistUsernameToStorage = true
+        bool persistUsernameToStorage = true,
+        int32_t maxTextLen = KEYPAD_MAX_CHARS
     )
     {
         initKeypad(keypad, outText, outLen);
         keypad->uiLanguage = TXL_LANG_EN_US;
         keypad->title = title;
         keypad->persistUsernameToStorage = persistUsernameToStorage;
+        keypad->maxTextLen = std::max(0, std::min(KEYPAD_MAX_CHARS, maxTextLen));
         keypad->activated = true;
         uploadKeypadText(keypad);
         windowStackPushWindow_(WindowKind_Keypad);

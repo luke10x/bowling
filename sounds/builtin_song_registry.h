@@ -27,6 +27,11 @@ namespace BuiltinSongFileDrizzleLane
 #include "builtin_songs/drizzle_lane.h"
 }
 
+namespace BuiltinSongFileClassicFrame
+{
+#include "builtin_songs/classic_frame.h"
+}
+
 // Legacy aliases kept so the rest of the codebase can migrate gradually while
 // built-in songs now come from the user-facing DSL source files directly.
 static constexpr const char *SONG_01_NAME = BuiltinSongFileGutterGroove::XFM_TRACKER_SONG_NAME;
@@ -129,6 +134,7 @@ static constexpr BuiltinSongDefinition BUILTIN_SONG_REGISTRY[] = {
     BUILTIN_SONG_ENTRY("PENSATIVE_BALL", "sounds/builtin_songs/pensative_ball.h", BuiltinSongFilePensativeBall),
     BUILTIN_SONG_ENTRY("PIN_CRUSHER", "sounds/builtin_songs/pin_crusher.h", BuiltinSongFilePinCrusher),
     BUILTIN_SONG_ENTRY("DRIZZLE_LANE", "sounds/builtin_songs/drizzle_lane.h", BuiltinSongFileDrizzleLane),
+    BUILTIN_SONG_ENTRY("CLASSIC_FRAME", "sounds/builtin_songs/classic_frame.h", BuiltinSongFileClassicFrame),
 };
 
 #undef BUILTIN_SONG_ENTRY

@@ -16723,7 +16723,8 @@ static inline void Tracker_OpenInstrumentNameKeypadIfRequested(UserContext *usr)
         title,
         usr->tracker.pendingInstrumentName,
         &usr->tracker.pendingInstrumentNameLen,
-        false
+        false,
+        TRACKER_SOFT_INSTRUMENT_NAME_MAX_CHARS
     );
 }
 
@@ -16793,7 +16794,8 @@ static inline void Tracker_OpenSongNameKeypadIfRequested(UserContext *usr)
         "Song Name",
         usr->tracker.pendingSongName,
         &usr->tracker.pendingSongNameLen,
-        false
+        false,
+        TRACKER_SOFT_SONG_NAME_MAX_CHARS
     );
 }
 
@@ -16896,7 +16898,8 @@ static inline void Tracker_OpenPartNameKeypadIfRequested(UserContext *usr)
         "Part Name",
         usr->tracker.pendingPartName,
         &usr->tracker.pendingPartNameLen,
-        false
+        false,
+        TRACKER_SOFT_PART_NAME_MAX_CHARS
     );
 }
 
@@ -17086,6 +17089,17 @@ static inline bool Tracker_SaveSongToNamedStorage(UserContext *usr, bool allowOv
         usr->tracker.songSaveOverwriteConfirmWindowOpen = true;
         usr->tracker.songSaveOverwriteConfirmWindowRequested = false;
         usr->windowStack.windowStackPushTrackerSongSaveOverwriteConfirmWindow();
+        return false;
+    }
+    if (!Tracker_NamedSongExists(usr, saveStem.c_str()) &&
+        usr->tracker.savedSongCount >= TRACKER_SAVED_SONG_LIST_CAPACITY)
+    {
+        Tracker_SetClipboardBanner(
+            &usr->tracker,
+            "SAVED SONG LIMIT: 96",
+            Tracker_SelectionUsesEdit(&usr->tracker),
+            true);
+        std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus), "Saved song limit reached");
         return false;
     }
     Tracker_EnsureUserSongForEdit(usr);

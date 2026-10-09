@@ -36,6 +36,11 @@ static constexpr int TRACKER_SAVED_SONG_LIST_CAPACITY = 96;
 static constexpr int TRACKER_SAVED_SONG_NAME_CAPACITY = 64;
 static constexpr int TRACKER_MAX_PARTS = 32;
 static constexpr int TRACKER_PART_NAME_CAPACITY = 32;
+// UI-only limits. These do not change song/file memory layout, so legacy names
+// remain intact while newly entered names stay compact in the tracker.
+static constexpr int TRACKER_SOFT_INSTRUMENT_NAME_MAX_CHARS = 8;
+static constexpr int TRACKER_SOFT_PART_NAME_MAX_CHARS = 8;
+static constexpr int TRACKER_SOFT_SONG_NAME_MAX_CHARS = 12;
 static constexpr float TRACKER_CLIPBOARD_CUT_COOLDOWN_S = 3.0f;
 static constexpr uint64_t TRACKER_CELL_MOVE_HOLD_MS = 400;
 static constexpr float TRACKER_CHANGE_FLASH_DURATION_S = 0.82f;

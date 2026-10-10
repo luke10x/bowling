@@ -3643,6 +3643,32 @@ TEST_CASE("Part syntax round trips separately from flat playback pattern")
     CHECK(flat.find("PART ") == std::string::npos);
 }
 
+TEST_CASE("Saved part patterns align effect columns per channel")
+{
+    Tracker tracker {};
+    setTrackerPatternState(
+        &tracker,
+        TRACKER_USER_SONG_SLOT,
+        "3\n"
+        "PART A\n"
+        "C-2007F0300|E-200750300|.......|.......|C-4067F|C-2037F\n"
+        ".......|.......|.......|.......|C-4....|.......\n"
+        "G-3007F|E-3007F03DE|.......|.......|C-4067F|C-405..\n",
+        "Unit"
+    );
+
+    const std::string saved = Tracker_BuildPartPatternText(&tracker);
+    CHECK(saved.find("C-2007F0300|E-200750300|.......|.......|C-4067F|C-2037F\n") != std::string::npos);
+    CHECK(saved.find("...........|...........|.......|.......|C-4....|.......\n") != std::string::npos);
+    CHECK(saved.find("G-3007F....|E-3007F03DE|.......|.......|C-4067F|C-405..\n") != std::string::npos);
+
+    Tracker reloaded {};
+    setTrackerPatternState(&reloaded, TRACKER_USER_SONG_SLOT, saved.c_str(), "Unit");
+    CHECK(std::string(reloaded.cells[0][0].text) == "C-2007F0300");
+    CHECK(std::string(reloaded.cells[1][0].text) == "...........");
+    CHECK(std::string(reloaded.cells[2][0].text) == "G-3007F....");
+}
+
 TEST_CASE("Collapsed part directive round trips with part syntax")
 {
     Tracker tracker {};

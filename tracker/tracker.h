@@ -1537,6 +1537,20 @@ inline int Tracker_ParseCellVolume(const char *cell)
     return Tracker_ParseHexByte(cell + 5);
 }
 
+inline int Tracker_CellUsedEffectSlotCount(const char *cell)
+{
+    if (!cell) return 0;
+    int usedSlots = 0;
+    for (int slot = 0; slot < TRACKER_MAX_EFFECT_SLOTS; ++slot)
+    {
+        const int pos = 7 + slot * 4;
+        if (!cell[pos] || cell[pos] == '.')
+            break;
+        usedSlots = slot + 1;
+    }
+    return usedSlots;
+}
+
 inline bool Tracker_CellHasNoteLikeValue(const char *cell)
 {
     if (!cell) return false;
@@ -4577,6 +4591,26 @@ inline std::string Tracker_BuildPartPatternText(const Tracker *tracker)
     if (!tracker) return {};
     char line[256];
     std::string out;
+    int channelEffectSlots[TRACKER_CHANNELS] = {};
+    for (int row = 0; row < tracker->rowCount; ++row)
+        for (int ch = 0; ch < TRACKER_CHANNELS; ++ch)
+            channelEffectSlots[ch] = std::max(
+                channelEffectSlots[ch],
+                Tracker_CellUsedEffectSlotCount(tracker->cells[row][ch].text));
+
+    auto appendAlignedCell = [&](const char *cell, int effectSlots) {
+        const int usedSlots = Tracker_CellUsedEffectSlotCount(cell);
+        const int usedLength = std::min(
+            (int)std::strlen(cell ? cell : ""),
+            7 + usedSlots * 4);
+        if (usedLength >= 7)
+            out.append(cell, (size_t)usedLength);
+        else
+            out += ".......";
+        for (int slot = usedSlots; slot < effectSlots; ++slot)
+            out += "....";
+    };
+
     std::snprintf(line, sizeof(line), "%d\n", tracker->rowCount);
     out += line;
     for (int partIndex = 0; partIndex < tracker->partCount; partIndex++)
@@ -4599,7 +4633,7 @@ inline std::string Tracker_BuildPartPatternText(const Tracker *tracker)
             for (int ch = 0; ch < TRACKER_CHANNELS; ch++)
             {
                 if (ch > 0) out += '|';
-                out += tracker->cells[row][ch].text;
+                appendAlignedCell(tracker->cells[row][ch].text, channelEffectSlots[ch]);
             }
             out += '\n';
         }

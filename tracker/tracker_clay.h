@@ -2337,8 +2337,11 @@ inline void Tracker_BuildInstrumentColorWindow(Tracker *self, Clayton *clayton)
     ClayArena *arena = &clayton->clayArena;
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
+    const bool editingPart =
+        self->colorPickerPart >= 0 && self->colorPickerPart < self->partCount;
     int inst = std::max(0, std::min(255, self->editInstrument));
-    uint32_t current = Tracker_InstrumentColorU32(self, inst);
+    int partIndex = editingPart ? self->colorPickerPart : -1;
+    uint32_t current = editingPart ? self->parts[partIndex].color : Tracker_InstrumentColorU32(self, inst);
     Clay_BoundingBox portraitBox = Clay_GetElementData(CLAY_ID("Portrait area")).boundingBox;
     float colorGridSize = portraitBox.width > 1.0f ? portraitBox.width * 0.72f : 300.0f;
     colorGridSize = std::max(240.0f, std::min(360.0f, colorGridSize));
@@ -2355,9 +2358,20 @@ inline void Tracker_BuildInstrumentColorWindow(Tracker *self, Clayton *clayton)
                         .layoutDirection = CLAY_LEFT_TO_RIGHT}}
         )
         {
-            Clay_String title = ClayArena_FormatString(arena, "Color %02X: %s", inst, Tracker_InstrumentName(self, inst));
+            Clay_String title = editingPart ?
+                ClayArena_FormatString(arena, "Part Color: %s", self->parts[partIndex].name) :
+                ClayArena_FormatString(arena, "Color %02X: %s", inst, Tracker_InstrumentName(self, inst));
             CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
             CLAY(CLAY_ID("TrackerInstrumentColorGrow"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}}) {}
+            if (editingPart)
+            {
+                Clay_ElementDeclaration clearBtn = CLAY_THEME_BTN_PRIMARY;
+                clearBtn.layout.sizing.width = CLAY_SIZING_FIXED(72);
+                CLAY(self->partColorClearButton.clayId, clearBtn)
+                {
+                    CLAY_TEXT(CLAY_STRING("NONE"), CLAY_TEXT_CONFIG(buttonCfg));
+                }
+            }
             CLAY(self->instrumentColorCloseButton.clayId, CLAY_THEME_BTN_DANGER)
             {
                 CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
@@ -3435,6 +3449,19 @@ inline void Tracker_BuildPartEditorWindow(Tracker *self, Clayton *clayton)
             {
                 CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
             }
+            Clay_ElementDeclaration colorBtn = CLAY_THEME_BTN_PRIMARY;
+            colorBtn.layout.sizing.width = CLAY_SIZING_FIXED(64);
+            if (part.color != 0)
+                colorBtn.backgroundColor = Tracker_ButtonHoverColor(
+                    self->partEditorColorButton.clayId,
+                    Tracker_ColorFromU32(part.color, 255.0f));
+            CLAY(self->partEditorColorButton.clayId, colorBtn)
+            {
+                Clay_TextElementConfig colorTextCfg = buttonCfg;
+                if (part.color != 0 && Tracker_ColorIsBright(part.color))
+                    colorTextCfg.textColor = {14, 16, 22, 255};
+                CLAY_TEXT(CLAY_STRING("Color"), CLAY_TEXT_CONFIG(colorTextCfg));
+            }
             CLAY(self->partEditorCloseButton.clayId, CLAY_THEME_BTN_DANGER)
             {
                 CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
@@ -4498,8 +4525,9 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                             TrackerPart &part = self->parts[partIndex];
                             bool titleCollapsed = Tracker_PartCollapseIconShowsCollapsed(self, partIndex);
                             Clay_Color titleBg = titleCollapsed ? (Clay_Color){34, 40, 58, 255} : (Clay_Color){28, 34, 48, 255};
-                            if (!part.enabled) titleBg = (Clay_Color){42, 34, 38, 255};
-                            if (part.repeat) titleBg = (Clay_Color){62, 44, 22, 255};
+                            if (part.color != 0) titleBg = Tracker_ColorFromU32(part.color, 255.0f);
+                            else if (!part.enabled) titleBg = (Clay_Color){42, 34, 38, 255};
+                            else if (part.repeat) titleBg = (Clay_Color){62, 44, 22, 255};
                             uint8_t partFlashKind = TRACKER_CHANGE_FLASH_NONE;
                             float partFlashTimeLeft = 0.0f;
                             titleBg = Tracker_ApplyChangeFlashTint(
@@ -4709,8 +4737,9 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                     TrackerPart &part = self->parts[stickyPart];
                     float stickyTop = Tracker_StickyPartTitleTopY(self, stickyPart);
                     Clay_Color titleBg = Tracker_PartCollapseIconShowsCollapsed(self, stickyPart) ? (Clay_Color){34, 40, 58, 248} : (Clay_Color){28, 34, 48, 248};
-                    if (!part.enabled) titleBg = (Clay_Color){42, 34, 38, 248};
-                    if (part.repeat) titleBg = (Clay_Color){62, 44, 22, 248};
+                    if (part.color != 0) titleBg = Tracker_ColorFromU32(part.color, 248.0f);
+                    else if (!part.enabled) titleBg = (Clay_Color){42, 34, 38, 248};
+                    else if (part.repeat) titleBg = (Clay_Color){62, 44, 22, 248};
                     uint8_t partFlashKind = TRACKER_CHANGE_FLASH_NONE;
                     float partFlashTimeLeft = 0.0f;
                     titleBg = Tracker_ApplyChangeFlashTint(
@@ -5848,6 +5877,7 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
     }
     if (isClaytonClicked(&self->instrumentColorButton, e))
     {
+        self->colorPickerPart = -1;
         self->instrumentColorWindowOpen = true;
         self->instrumentColorWindowRequested = true;
         return true;
@@ -6174,9 +6204,19 @@ inline bool Tracker_HandleInstrumentEditorWindowEvent(Tracker *self, const SDL_E
 inline bool Tracker_HandleInstrumentColorWindowEvent(Tracker *self, const SDL_Event &e)
 {
     if (!self || !self->instrumentColorWindowOpen) return false;
+    const bool editingPart =
+        self->colorPickerPart >= 0 && self->colorPickerPart < self->partCount;
     if (isClaytonClicked(&self->instrumentColorCloseButton, e))
     {
         self->instrumentColorWindowOpen = false;
+        self->colorPickerPart = -1;
+        return true;
+    }
+    if (editingPart && isClaytonClicked(&self->partColorClearButton, e))
+    {
+        Tracker_SetPartColor(self, self->colorPickerPart, 0);
+        self->instrumentColorWindowOpen = false;
+        self->colorPickerPart = -1;
         return true;
     }
     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT)
@@ -6185,8 +6225,12 @@ inline bool Tracker_HandleInstrumentColorWindowEvent(Tracker *self, const SDL_Ev
         {
             if (Clay_PointerOver(CLAY_IDI("TrackerInstrumentColorSwatch", idx)))
             {
-                Tracker_SetInstrumentColor(self, self->editInstrument, TRACKER_INSTRUMENT_COLOR_PALETTE[idx]);
+                if (editingPart)
+                    Tracker_SetPartColor(self, self->colorPickerPart, TRACKER_INSTRUMENT_COLOR_PALETTE[idx]);
+                else
+                    Tracker_SetInstrumentColor(self, self->editInstrument, TRACKER_INSTRUMENT_COLOR_PALETTE[idx]);
                 self->instrumentColorWindowOpen = false;
+                self->colorPickerPart = -1;
                 return true;
             }
         }
@@ -6697,6 +6741,13 @@ inline bool Tracker_HandlePartEditorWindowEvent(Tracker *self, const SDL_Event &
         self->pendingPartAction = 1;
         self->pendingPartNameKeypadOpen = true;
         self->pendingPartNameKeypadActive = false;
+        return true;
+    }
+    if (isClaytonClicked(&self->partEditorColorButton, e))
+    {
+        self->colorPickerPart = partIndex;
+        self->instrumentColorWindowOpen = true;
+        self->instrumentColorWindowRequested = true;
         return true;
     }
     if (isClaytonClicked(&self->partEditorRowsMinusButton, e))

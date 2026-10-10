@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <sstream>
@@ -1168,6 +1169,29 @@ inline bool TrackerSongIO_IsCollapsedDirectiveLine(const char *begin, const char
     return true;
 }
 
+inline bool TrackerSongIO_ParsePartColorDirectiveLine(const char *begin, const char *end, uint32_t *outRgb = nullptr)
+{
+    static constexpr const char *directive = "PART_COLOR ";
+    static constexpr int directiveLen = 11;
+    if (end - begin != directiveLen + 6 || std::strncmp(begin, directive, directiveLen) != 0)
+        return false;
+    uint32_t rgb = 0;
+    for (const char *p = begin + directiveLen; p < end; ++p)
+    {
+        const char c = *p;
+        const int hex =
+            c >= '0' && c <= '9' ? c - '0' :
+            c >= 'A' && c <= 'F' ? c - 'A' + 10 :
+            c >= 'a' && c <= 'f' ? c - 'a' + 10 : -1;
+        if (hex < 0)
+            return false;
+        rgb = (rgb << 4) | (uint32_t)hex;
+    }
+    if (outRgb)
+        *outRgb = rgb;
+    return true;
+}
+
 inline int TrackerSongIO_CountChannels(const char *begin, const char *end)
 {
     if (begin >= end) return 0;
@@ -1234,6 +1258,10 @@ inline std::vector<std::string> TrackerSongIO_ValidatePattern(const std::string 
         else if (TrackerSongIO_IsCollapsedDirectiveLine(lineStart, lineEnd))
         {
             // UI-only part state; this does not consume a tracker row.
+        }
+        else if (TrackerSongIO_ParsePartColorDirectiveLine(lineStart, lineEnd))
+        {
+            // UI-only part color; this does not consume a tracker row.
         }
         else
         {

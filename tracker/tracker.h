@@ -267,6 +267,7 @@ struct TrackerPart
     float collapseAnimTo = 1.0f;
     bool enabled = true;
     bool repeat = false;
+    uint32_t color = 0; // 0 means use the default part-header background.
     char name[TRACKER_PART_NAME_CAPACITY] = "PART 1";
     int32_t nameLen = 6;
 };
@@ -591,6 +592,7 @@ struct Tracker
     bool instrumentEditorOpenedFromInstrumentsWindow = false;
     bool instrumentColorWindowOpen = false;
     bool instrumentColorWindowRequested = false;
+    int colorPickerPart = -1; // -1 selects an instrument; otherwise a part color.
     bool instrumentsWindowOpen = false;
     bool instrumentsWindowRequested = false;
     bool songLoadWindowOpen = false;
@@ -836,6 +838,8 @@ struct Tracker
     Clayton_Click partEditorCloseButton;
     Clayton_Click partEditorNameButton;
     Clayton_Click partEditorEnableButton;
+    Clayton_Click partEditorColorButton;
+    Clayton_Click partColorClearButton;
     Clayton_Click partEditorRowsMinusButton;
     Clayton_Click partEditorRowsPlusButton;
     Clayton_Click partEditorRowsValueButton;
@@ -3451,6 +3455,15 @@ inline void Tracker_SetPartName(TrackerPart *part, const char *name)
     part->nameLen = (int32_t)std::strlen(part->name);
 }
 
+inline void Tracker_SetPartColor(Tracker *self, int partIndex, uint32_t rgb)
+{
+    if (!self || partIndex < 0 || partIndex >= self->partCount) return;
+    self->parts[partIndex].color = rgb & 0xFFFFFFu;
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
+    Tracker_FlashPart(self, partIndex, TRACKER_CHANGE_FLASH_EDIT);
+}
+
 inline void Tracker_ResetSinglePart(Tracker *self, const char *name = "PART 1")
 {
     if (!self) return;
@@ -3568,9 +3581,8 @@ inline bool Tracker_PartEffectiveEnabledForPlayback(const Tracker *self, int par
 {
     if (!self || partIndex < 0 || partIndex >= self->partCount)
         return true;
-    int repeatPart = Tracker_RepeatPartIndex(self);
-    if (repeatPart >= 0)
-        return partIndex == repeatPart;
+    if (Tracker_RepeatPartIndex(self) >= 0)
+        return self->parts[partIndex].repeat;
     return self->parts[partIndex].enabled;
 }
 
@@ -3585,9 +3597,7 @@ inline void Tracker_SetPartRepeat(Tracker *self, int partIndex, bool repeat)
 {
     if (!self || partIndex < 0 || partIndex >= self->partCount)
         return;
-    Tracker_ClearPartRepeat(self);
-    if (repeat)
-        self->parts[partIndex].repeat = true;
+    self->parts[partIndex].repeat = repeat;
 }
 
 inline void Tracker_HandlePartEnableButton(Tracker *self, int partIndex, bool longClick)
@@ -4575,6 +4585,12 @@ inline std::string Tracker_BuildPartPatternText(const Tracker *tracker)
         out += part.enabled ? "PART " : "SKIP ";
         out += part.name[0] ? part.name : "PART";
         out += '\n';
+        if (part.color != 0)
+        {
+            char colorLine[32];
+            std::snprintf(colorLine, sizeof(colorLine), "PART_COLOR %06X\n", (unsigned int)part.color);
+            out += colorLine;
+        }
         if (Tracker_PartCollapseIconShowsCollapsed(tracker, partIndex))
             out += "COLLAPSED\n";
         for (int local = 0; local < part.rowCount; local++)
@@ -4696,6 +4712,16 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
         {
             if (currentPart >= 0 && currentPart < self->partCount)
                 self->parts[currentPart].collapsed = true;
+            p = lineEnd;
+            while (*p == '\r') p++;
+            if (*p == '\n') p++;
+            continue;
+        }
+        uint32_t partColor = 0;
+        if (TrackerSongIO_ParsePartColorDirectiveLine(lineStart, lineEnd, &partColor))
+        {
+            if (currentPart >= 0 && currentPart < self->partCount)
+                self->parts[currentPart].color = partColor;
             p = lineEnd;
             while (*p == '\r') p++;
             if (*p == '\n') p++;
@@ -4971,6 +4997,8 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->partEditorCloseButton, "TrackerPartEditorClose");
     initClaytonClick(&self->partEditorNameButton, "TrackerPartEditorName");
     initClaytonClick(&self->partEditorEnableButton, "TrackerPartEditorEnable");
+    initClaytonClick(&self->partEditorColorButton, "TrackerPartEditorColor");
+    initClaytonClick(&self->partColorClearButton, "TrackerPartColorClear");
     initClaytonClick(&self->partEditorRowsMinusButton, "TrackerPartEditorRowsMinus");
     initClaytonClick(&self->partEditorRowsPlusButton, "TrackerPartEditorRowsPlus");
     initClaytonClick(&self->partEditorRowsValueButton, "TrackerPartEditorRowsValueButton");
@@ -5061,6 +5089,7 @@ inline void Tracker_Open(Tracker *self)
     self->editorOpen = false;
     self->instrumentEditorOpen = false;
     self->instrumentColorWindowOpen = false;
+    self->colorPickerPart = -1;
     self->instrumentsWindowOpen = false;
     self->songSettingsWindowOpen = false;
     self->songSaveWindowOpen = false;
@@ -5130,6 +5159,7 @@ inline void Tracker_Close(Tracker *self)
     self->instrumentEditorOpenedFromInstrumentsWindow = false;
     self->instrumentColorWindowOpen = false;
     self->instrumentColorWindowRequested = false;
+    self->colorPickerPart = -1;
     self->instrumentsWindowOpen = false;
     self->instrumentsWindowRequested = false;
     self->songSettingsWindowOpen = false;

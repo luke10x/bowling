@@ -3675,6 +3675,35 @@ TEST_CASE("Collapsed part directive round trips with part syntax")
     CHECK(reloaded.parts[1].collapsed);
 }
 
+TEST_CASE("Part color directive round trips with part syntax and saved song files")
+{
+    const std::string pattern =
+        "2\n"
+        "PART Verse\n"
+        "PART_COLOR 12AB34\n"
+        "C-4007F|.......|.......|.......|.......|.......\n"
+        "PART Chorus\n"
+        "D-4007F|.......|.......|.......|.......|.......\n";
+    const std::string fileText = TrackerSongIO_BuildFileText("Colored Parts", pattern, "");
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile("COLORED_PARTS.h", fileText);
+    REQUIRE(loaded.ok);
+
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT, loaded.pattern.c_str(), loaded.displayName.c_str());
+    REQUIRE(tracker.partCount == 2);
+    CHECK(tracker.parts[0].color == 0x12AB34u);
+    CHECK(tracker.parts[1].color == 0u);
+
+    const std::string saved = Tracker_BuildPartPatternText(&tracker);
+    CHECK(saved.find("PART Verse\nPART_COLOR 12AB34\n") != std::string::npos);
+
+    Tracker reloaded {};
+    setTrackerPatternState(&reloaded, TRACKER_USER_SONG_SLOT, saved.c_str(), "Colored Parts");
+    REQUIRE(reloaded.partCount == 2);
+    CHECK(reloaded.parts[0].color == 0x12AB34u);
+    CHECK(reloaded.parts[1].color == 0u);
+}
+
 TEST_CASE("Collapsed part directive is accepted in saved song files")
 {
     const std::string pattern =
@@ -3786,7 +3815,7 @@ TEST_CASE("Part REP override is transient and does not change saved ON/OFF flags
     CHECK(Tracker_PlaybackRowCount(&tracker) == 2);
 }
 
-TEST_CASE("Only one part can be in REP override")
+TEST_CASE("Multiple REP parts play together in their arrangement order")
 {
     Tracker tracker {};
     setTrackerPatternState(
@@ -3805,8 +3834,17 @@ TEST_CASE("Only one part can be in REP override")
     CHECK_FALSE(tracker.parts[1].repeat);
 
     Tracker_HandlePartEnableButton(&tracker, 1, true);
+    CHECK(tracker.parts[0].repeat);
+    CHECK(tracker.parts[1].repeat);
+    CHECK(Tracker_PlaybackRowCount(&tracker) == 2);
+    CHECK(Tracker_SongRowForPlaybackRow(&tracker, 0) == 0);
+    CHECK(Tracker_SongRowForPlaybackRow(&tracker, 1) == 1);
+
+    // Leaving REP on one part keeps the remaining REP part exclusive.
+    Tracker_HandlePartEnableButton(&tracker, 0, false);
     CHECK_FALSE(tracker.parts[0].repeat);
     CHECK(tracker.parts[1].repeat);
+    CHECK(Tracker_PlaybackRowCount(&tracker) == 1);
     CHECK(Tracker_SongRowForPlaybackRow(&tracker, 0) == 1);
 }
 

@@ -223,7 +223,12 @@ struct Clayton
 
     void loadClayton(float screenWidth, float screenHeight)
     {
-        Clay_SetMaxElementCount(32768);
+        // The tracker builds the whole song grid, not only its visible rows.
+        // A 1024-row song with six channels and effect text can exceed 32K
+        // elements before tracker chrome or dialogs are added, which causes
+        // Clay to drop/corrupt layout globally. Keep this ahead of
+        // Clay_MinMemorySize() so its backing arena is sized for the limit.
+        Clay_SetMaxElementCount(65536);
         size_t clayRequiredMemory = Clay_MinMemorySize();
         this->renderer.clayMemory = (Clay_Arena){
             .capacity = clayRequiredMemory,

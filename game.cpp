@@ -911,12 +911,15 @@ struct UserContext
     int campaignPostgameBestOpponentScore = 0;
     bool campaignPostgameBlocksEnabled = true;
     bool campaignPostgameNosEnabled = true;
+    bool campaignPostgameRunesEnabled = true;
     bool campaignPostgameBestBlocksEnabled = true;
     bool campaignPostgameBestNosEnabled = true;
+    bool campaignPostgameBestRunesEnabled = true;
     // Snapshotted at new-game setup.  The post-campaign settings UI changes
     // preferences only; it must never change a game that is already underway.
     bool campaignRunPostgameBlocksEnabled = true;
     bool campaignRunPostgameNosEnabled = true;
+    bool campaignRunPostgameRunesEnabled = true;
     bool campaignRunStarted = false;
     bool campaignOverrideActive = false;
     CampaignBiome campaignOverrideBiome = CampaignBiome::NORMAL;
@@ -2196,6 +2199,12 @@ static inline bool Campaign_HasUnlockedNosTool(const UserContext *usr)
         usr->campaignPostgameFreeplayActive,
         usr->campaignRunPostgameNosEnabled
     );
+}
+
+static inline bool Campaign_HasRunesTool(const UserContext *usr)
+{
+    return !usr || usr->playerRoute != PlayerRoute::CAMPAIGN ||
+        !usr->campaignPostgameFreeplayActive || usr->campaignRunPostgameRunesEnabled;
 }
 
 static inline bool Campaign_IsBlockVariantAvailable(const UserContext *usr, int variantIndex)
@@ -8533,7 +8542,7 @@ static inline int RuneFab_LastSlotForKind(const UserContext *usr, int kind)
 
 static inline int RuneFab_DesiredSlotCount(const UserContext *usr)
 {
-    if (!usr)
+    if (!usr || !Campaign_HasRunesTool(usr))
         return 0;
     int total = 0;
     for (int kind = 0; kind < kRuneKindCount; ++kind)
@@ -8841,7 +8850,8 @@ static inline bool Rune_IsAvailableNow(const UserContext *usr, int runeIndex)
 {
     if (!usr || runeIndex < 0 || runeIndex >= kRuneKindCount)
         return false;
-    return Rune_IsEnabledForStage(runeIndex, Rune_CurrentStage(usr)) &&
+    return Campaign_HasRunesTool(usr) &&
+        Rune_IsEnabledForStage(runeIndex, Rune_CurrentStage(usr)) &&
         Rune_IsEnabledForCurrentPhase(usr, runeIndex);
 }
 
@@ -11330,7 +11340,7 @@ static inline void Campaign_SavePostgameStats(UserContext *usr)
     std::snprintf(
         stats,
         sizeof(stats),
-        "%d,%d,%d,%d,%d,%d,%d,%d",
+        "%d,%d,%d,%d,%d,%d,%d,%d,%d",
         glm::max(0, usr->campaignPostgameGamesStarted),
         glm::max(0, usr->campaignPostgameWins),
         glm::max(0, usr->campaignPostgameLosses),
@@ -11338,7 +11348,8 @@ static inline void Campaign_SavePostgameStats(UserContext *usr)
         glm::max(0, usr->campaignPostgameBestScore),
         glm::max(0, usr->campaignPostgameBestOpponentScore),
         usr->campaignPostgameBestBlocksEnabled ? 1 : 0,
-        usr->campaignPostgameBestNosEnabled ? 1 : 0
+        usr->campaignPostgameBestNosEnabled ? 1 : 0,
+        usr->campaignPostgameBestRunesEnabled ? 1 : 0
     );
     usr->storage.setChar(Storage::CAMPAIGN_POSTGAME_STATS, stats, std::strlen(stats));
 }
@@ -11347,10 +11358,11 @@ static inline void Campaign_SavePostgameSettings(UserContext *usr)
 {
     if (!usr)
         return;
-    char settings[8];
-    std::snprintf(settings, sizeof(settings), "%d,%d",
+    char settings[12];
+    std::snprintf(settings, sizeof(settings), "%d,%d,%d",
                   usr->campaignPostgameBlocksEnabled ? 1 : 0,
-                  usr->campaignPostgameNosEnabled ? 1 : 0);
+                  usr->campaignPostgameNosEnabled ? 1 : 0,
+                  usr->campaignPostgameRunesEnabled ? 1 : 0);
     usr->storage.setChar(Storage::CAMPAIGN_POSTGAME_SETTINGS, settings, std::strlen(settings));
 }
 
@@ -11459,8 +11471,10 @@ static inline void Campaign_ResetAttemptStats(UserContext *usr)
     usr->campaignPostgameBestOpponentScore = 0;
     usr->campaignPostgameBlocksEnabled = true;
     usr->campaignPostgameNosEnabled = true;
+    usr->campaignPostgameRunesEnabled = true;
     usr->campaignPostgameBestBlocksEnabled = true;
     usr->campaignPostgameBestNosEnabled = true;
+    usr->campaignPostgameBestRunesEnabled = true;
 }
 
 static inline void Campaign_RecordWinForCurrentLevel(UserContext *usr)
@@ -13351,10 +13365,12 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->campaignRunStarted = false;
     const CampaignPostgameToolset postgameToolset = Campaign_SnapshotPostgameToolset(
         usr->campaignPostgameBlocksEnabled,
-        usr->campaignPostgameNosEnabled
+        usr->campaignPostgameNosEnabled,
+        usr->campaignPostgameRunesEnabled
     );
     usr->campaignRunPostgameBlocksEnabled = postgameToolset.blocksEnabled;
     usr->campaignRunPostgameNosEnabled = postgameToolset.nosEnabled;
+    usr->campaignRunPostgameRunesEnabled = postgameToolset.runesEnabled;
     const CampaignLevelConfig cfg = Campaign_CurrentLevel(usr);
     const int campaignAttemptIdx = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount) - 1;
     usr->campaignStartStoryAttemptCountAtSetup = glm::max(
@@ -18811,6 +18827,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.campaignPostgameSettingsCloseClick, "CampaignPostgameSettingsClose");
     initClaytonClick(&usr->clayton.campaignPostgameBlocksClick, "CampaignPostgameBlocks");
     initClaytonClick(&usr->clayton.campaignPostgameNosClick, "CampaignPostgameNos");
+    initClaytonClick(&usr->clayton.campaignPostgameRunesClick, "CampaignPostgameRunes");
     initClaytonClick(&usr->clayton.menuPracticeClick, "menuPractice");
     initClaytonClick(&usr->clayton.menuFreestyleClick, "menuFreestyle");
     initClaytonClick(&usr->clayton.menuMinigamesClick, "menuMinigames");
@@ -18889,9 +18906,9 @@ void vtx::init(vtx::VertexContext *ctx)
         if (n > 0)
         {
             int started = 0, wins = 0, losses = 0, quits = 0, bestScore = 0, bestOpponentScore = 0;
-            int bestBlocks = 1, bestNos = 1;
-            const int fields = std::sscanf(tmp, "%d,%d,%d,%d,%d,%d,%d,%d", &started, &wins, &losses, &quits,
-                                           &bestScore, &bestOpponentScore, &bestBlocks, &bestNos);
+            int bestBlocks = 1, bestNos = 1, bestRunes = 1;
+            const int fields = std::sscanf(tmp, "%d,%d,%d,%d,%d,%d,%d,%d,%d", &started, &wins, &losses, &quits,
+                                           &bestScore, &bestOpponentScore, &bestBlocks, &bestNos, &bestRunes);
             if (fields >= 6)
             {
                 usr->campaignPostgameGamesStarted = glm::max(0, started);
@@ -18904,17 +18921,22 @@ void vtx::init(vtx::VertexContext *ctx)
                 {
                     usr->campaignPostgameBestBlocksEnabled = bestBlocks != 0;
                     usr->campaignPostgameBestNosEnabled = bestNos != 0;
+                    if (fields >= 9)
+                        usr->campaignPostgameBestRunesEnabled = bestRunes != 0;
                 }
             }
         }
         n = usr->storage.getChar(Storage::CAMPAIGN_POSTGAME_SETTINGS, tmp, sizeof(tmp));
         if (n > 0)
         {
-            int blocks = 1, nos = 1;
-            if (std::sscanf(tmp, "%d,%d", &blocks, &nos) == 2)
+            int blocks = 1, nos = 1, runes = 1;
+            const int fields = std::sscanf(tmp, "%d,%d,%d", &blocks, &nos, &runes);
+            if (fields >= 2)
             {
                 usr->campaignPostgameBlocksEnabled = blocks != 0;
                 usr->campaignPostgameNosEnabled = nos != 0;
+                if (fields >= 3)
+                    usr->campaignPostgameRunesEnabled = runes != 0;
             }
         }
         n = usr->storage.getChar(Storage::CAMPAIGN_RUNE_LESSONS_SEEN, tmp, sizeof(tmp));
@@ -20064,8 +20086,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->campaignPostgameBestOpponentScore,
                         usr->campaignPostgameBlocksEnabled,
                         usr->campaignPostgameNosEnabled,
+                        usr->campaignPostgameRunesEnabled,
                         usr->campaignPostgameBestBlocksEnabled,
-                        usr->campaignPostgameBestNosEnabled
+                        usr->campaignPostgameBestNosEnabled,
+                        usr->campaignPostgameBestRunesEnabled
                     );
                 }
                 if (usr->windowStack.campaignPostgameSettingsChanged)
@@ -20073,6 +20097,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->windowStack.campaignPostgameSettingsChanged = false;
                     usr->campaignPostgameBlocksEnabled = usr->windowStack.campaignPostgameBlocksEnabled;
                     usr->campaignPostgameNosEnabled = usr->windowStack.campaignPostgameNosEnabled;
+                    usr->campaignPostgameRunesEnabled = usr->windowStack.campaignPostgameRunesEnabled;
                     Campaign_SavePostgameSettings(usr);
                 }
                 if (usr->windowStack.campaignLevelSelectedRequested != 0)
@@ -23777,6 +23802,7 @@ swing_checks_done:
                                                 usr->campaignPostgameBestOpponentScore = usr->enemyBoard.totalScore;
                                                 usr->campaignPostgameBestBlocksEnabled = usr->campaignRunPostgameBlocksEnabled;
                                                 usr->campaignPostgameBestNosEnabled = usr->campaignRunPostgameNosEnabled;
+                                                usr->campaignPostgameBestRunesEnabled = usr->campaignRunPostgameRunesEnabled;
                                             }
                                             Campaign_SavePostgameStats(usr);
                                         }

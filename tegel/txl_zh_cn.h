@@ -364,3 +364,5 @@ TXL_POST_CAMPAIGN_QUIT_FMT = "退出 %d"; // Used in: campaign and results windo
 TXL_BLOCKS = "障碍"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_BLOCKS_SHORT = "挡"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_NOS_SHORT = "氮"; // Used in: campaign and results windows (clayton/win_stack.h)
+TXL_RUNES = "符文"; // Used in: campaign and results windows (clayton/win_stack.h)
+TXL_RUNES_SHORT = "符"; // Used in: campaign and results windows (clayton/win_stack.h)

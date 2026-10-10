@@ -364,3 +364,5 @@ TXL_POST_CAMPAIGN_QUIT_FMT = "NUTRAUKTA %d"; // Used in: campaign and results wi
 TXL_BLOCKS = "BLOKAI"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_BLOCKS_SHORT = "B"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_NOS_SHORT = "N"; // Used in: campaign and results windows (clayton/win_stack.h)
+TXL_RUNES = "RUNOS"; // Used in: campaign and results windows (clayton/win_stack.h)
+TXL_RUNES_SHORT = "R"; // Used in: campaign and results windows (clayton/win_stack.h)

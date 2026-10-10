@@ -133,8 +133,10 @@ struct WindowStack
     int campaignPostgameBestOpponentScore = 0;
     bool campaignPostgameBlocksEnabled = true;
     bool campaignPostgameNosEnabled = true;
+    bool campaignPostgameRunesEnabled = true;
     bool campaignPostgameBestBlocksEnabled = true;
     bool campaignPostgameBestNosEnabled = true;
+    bool campaignPostgameBestRunesEnabled = true;
     bool campaignPostgameSettingsChanged = false;
     int campaignLevelDetailIndex;
     bool menuPracticeRequested;
@@ -363,7 +365,7 @@ struct WindowStack
         campaignEndgameClosedRequested = false;
         windowStackPushWindow_(WindowKind_CampaignEndgameSummary);
     }
-    inline void windowStackPushCampaignLevelSelectWindow(const bool *unlocked, bool campaignComplete, int currentIndex, const int *attempts, const int *wins, const float *firstWinTimes, const int *bestScores, const int *bestOpponentScores, const int *losses = nullptr, int postgameStarted = 0, int postgameWins = 0, int postgameLosses = 0, int postgameQuits = 0, int postgameBestScore = 0, int postgameBestOpponentScore = 0, bool postgameBlocksEnabled = true, bool postgameNosEnabled = true, bool postgameBestBlocksEnabled = true, bool postgameBestNosEnabled = true)
+    inline void windowStackPushCampaignLevelSelectWindow(const bool *unlocked, bool campaignComplete, int currentIndex, const int *attempts, const int *wins, const float *firstWinTimes, const int *bestScores, const int *bestOpponentScores, const int *losses = nullptr, int postgameStarted = 0, int postgameWins = 0, int postgameLosses = 0, int postgameQuits = 0, int postgameBestScore = 0, int postgameBestOpponentScore = 0, bool postgameBlocksEnabled = true, bool postgameNosEnabled = true, bool postgameRunesEnabled = true, bool postgameBestBlocksEnabled = true, bool postgameBestNosEnabled = true, bool postgameBestRunesEnabled = true)
     {
         campaignLevelSelectedRequested = 0;
         campaignLevelSelectActionRequested = 0;
@@ -379,8 +381,10 @@ struct WindowStack
         campaignPostgameBestOpponentScore = postgameBestOpponentScore;
         campaignPostgameBlocksEnabled = postgameBlocksEnabled;
         campaignPostgameNosEnabled = postgameNosEnabled;
+        campaignPostgameRunesEnabled = postgameRunesEnabled;
         campaignPostgameBestBlocksEnabled = postgameBestBlocksEnabled;
         campaignPostgameBestNosEnabled = postgameBestNosEnabled;
+        campaignPostgameBestRunesEnabled = postgameBestRunesEnabled;
         campaignPostgameSettingsChanged = false;
         for (int i = 0; i < 13; ++i)
         {
@@ -1523,6 +1527,12 @@ inline bool WindowStack::processCampaignPostgameSettingsWindowEvent(WindowStack 
     if (isClaytonClicked(&clayton->campaignPostgameNosClick, e))
     {
         self->campaignPostgameNosEnabled = !self->campaignPostgameNosEnabled;
+        self->campaignPostgameSettingsChanged = true;
+        return true;
+    }
+    if (isClaytonClicked(&clayton->campaignPostgameRunesClick, e))
+    {
+        self->campaignPostgameRunesEnabled = !self->campaignPostgameRunesEnabled;
         self->campaignPostgameSettingsChanged = true;
         return true;
     }
@@ -3304,8 +3314,12 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
                             Clay_TextElementConfig nosCfg = CLAY_THEME_TEXT_BODY;
                             nosCfg.textColor = self->campaignPostgameBestNosEnabled
                                 ? Clay_Color{230, 230, 240, 255} : Clay_Color{115, 110, 130, 255};
+                            Clay_TextElementConfig runesCfg = CLAY_THEME_TEXT_BODY;
+                            runesCfg.textColor = self->campaignPostgameBestRunesEnabled
+                                ? Clay_Color{230, 230, 240, 255} : Clay_Color{115, 110, 130, 255};
                             CLAY_TEXT(clayton->txl(TXL_BLOCKS_SHORT), CLAY_TEXT_CONFIG(blocksCfg));
                             CLAY_TEXT(clayton->txl(TXL_NOS_SHORT), CLAY_TEXT_CONFIG(nosCfg));
+                            CLAY_TEXT(clayton->txl(TXL_RUNES_SHORT), CLAY_TEXT_CONFIG(runesCfg));
                         }
                     }
                 }
@@ -3380,6 +3394,7 @@ inline void WindowStack::renderCampaignPostgameSettingsWindow(WindowStack *self,
             };
             renderToggle(clayton->campaignPostgameBlocksClick.clayId, clayton->txl(TXL_BLOCKS), self->campaignPostgameBlocksEnabled);
             renderToggle(clayton->campaignPostgameNosClick.clayId, clayton->txl(TXL_NOS), self->campaignPostgameNosEnabled);
+            renderToggle(clayton->campaignPostgameRunesClick.clayId, clayton->txl(TXL_RUNES), self->campaignPostgameRunesEnabled);
         }
     }
 }

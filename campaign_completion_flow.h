@@ -172,6 +172,7 @@ struct CampaignPostgameToolset
 {
     bool blocksEnabled = true;
     bool nosEnabled = true;
+    bool runesEnabled = true;
 };
 
 // Settings are preferences for the next post-campaign game.  A game takes this
@@ -179,9 +180,10 @@ struct CampaignPostgameToolset
 // live match.
 static inline CampaignPostgameToolset Campaign_SnapshotPostgameToolset(
     bool configuredBlocksEnabled,
-    bool configuredNosEnabled)
+    bool configuredNosEnabled,
+    bool configuredRunesEnabled)
 {
-    return {configuredBlocksEnabled, configuredNosEnabled};
+    return {configuredBlocksEnabled, configuredNosEnabled, configuredRunesEnabled};
 }
 
 // Completed-campaign results always advance to a fresh random post-campaign

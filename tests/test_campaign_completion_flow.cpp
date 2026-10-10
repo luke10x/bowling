@@ -222,17 +222,19 @@ TEST_CASE("Post-campaign games always use the full tool set")
 TEST_CASE("Post-campaign tool changes wait for a newly started game")
 {
     const CampaignPostgameToolset activeGame = Campaign_SnapshotPostgameToolset(
-        /*blocks=*/true, /*nos=*/true
+        /*blocks=*/true, /*nos=*/true, /*runes=*/true
     );
     // Changing the saved preferences does not mutate the snapshot held by the
     // in-progress game.
     const CampaignPostgameToolset nextGame = Campaign_SnapshotPostgameToolset(
-        /*blocks=*/false, /*nos=*/false
+        /*blocks=*/false, /*nos=*/false, /*runes=*/false
     );
     CHECK(activeGame.blocksEnabled);
     CHECK(activeGame.nosEnabled);
+    CHECK(activeGame.runesEnabled);
     CHECK_FALSE(nextGame.blocksEnabled);
     CHECK_FALSE(nextGame.nosEnabled);
+    CHECK_FALSE(nextGame.runesEnabled);
 }
 
 TEST_CASE("Post-campaign result button always says next")

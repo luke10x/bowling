@@ -364,3 +364,5 @@ TXL_POST_CAMPAIGN_QUIT_FMT = "中断 %d"; // Used in: campaign and results windo
 TXL_BLOCKS = "ブロック"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_BLOCKS_SHORT = "ブ"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_NOS_SHORT = "ニ"; // Used in: campaign and results windows (clayton/win_stack.h)
+TXL_RUNES = "ルーン"; // Used in: campaign and results windows (clayton/win_stack.h)
+TXL_RUNES_SHORT = "ル"; // Used in: campaign and results windows (clayton/win_stack.h)

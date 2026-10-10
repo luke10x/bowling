@@ -173,6 +173,7 @@ struct Clayton
     Clayton_Click campaignPostgameSettingsCloseClick;
     Clayton_Click campaignPostgameBlocksClick;
     Clayton_Click campaignPostgameNosClick;
+    Clayton_Click campaignPostgameRunesClick;
     Clayton_Click menuPracticeClick;
     Clayton_Click menuFreestyleClick;
     Clayton_Click menuMinigamesClick;

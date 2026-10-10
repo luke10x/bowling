@@ -364,3 +364,5 @@ TXL_POST_CAMPAIGN_QUIT_FMT = "QUIT %d"; // Used in: campaign and results windows
 TXL_BLOCKS = "BLOCKS"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_BLOCKS_SHORT = "B"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_NOS_SHORT = "N"; // Used in: campaign and results windows (clayton/win_stack.h)
+TXL_RUNES = "RUNES"; // Used in: campaign and results windows (clayton/win_stack.h)
+TXL_RUNES_SHORT = "R"; // Used in: campaign and results windows (clayton/win_stack.h)

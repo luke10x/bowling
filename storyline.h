@@ -896,20 +896,20 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
             // clang-format off
             case 1:
                 return
-                    "Čia, Dausose, angelai stebi tavo metimą.\n"
-                    "Šimtas — skaičius, atrakinantis spyną.\n"
-                    "Nedaryk klaidų, mesk straikus ir spėrus.\n"
-                    "Mokykis skaičiuoti — tai padės nepaslysti.\n";
+                    "Čia Dausose, angelai stebi tavo metimą.\n"
+                    "Šimtas yra skaičius atrakinsiantis spyną.\n"
+                    "Nedaryti klaidų, straikus ir spėrus atlikti.\n"
+                    "Mokinkis skaičiuot tai tau padės nepaslysti\n";
             // clang-format on
             // Follow-up prompt offering training from the first Level 1 introduction.
             case 2: return
                 "Ar norėtum atlikti praktiką?\n";
             // Level 1 failure message after scoring below 100.
             case 10: return
-                "Man labai gaila, bet šimto nesurinkai.\n"
-                "Viską regėjau — tai tiktai tavo tuštybė.\n"
-                "Patarčiau rinktis praktiką, kuri gal padės,\n"
-                "jei tiktai išdidumas ir puikybė išblės...\n";
+                "Man labai gaila bet šimto nesurinkai.\n"
+                "Viską regėjau tai tavo tuštybė tiktai.\n"
+                "Patarčiau rinktis praktiką kuri tau gal padės\n"
+                "Jei tiktai tavo išdidumas ir puikybė išblės...\n";
             // Choice after the Level 1 failure message: train or replay.
             case 11: return "Atlik praktiką arba bandyk dar kartą — ką renkiesi?\n";
             // First Level 1 win while training remains unfinished.
@@ -965,127 +965,124 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
                 return
                     "Sukimą gali dar treniruoti zigzago pamokoje.\n"
                     "3 pamoka dabar atrakinta.\n";
-            // Revised Level 1 win reveal and the training-or-campaign choice.
+            // Recovery-only Level 2 introduction for legacy/inconsistent saves:
+            // Level 2 is selected, but neither a Level 1 win nor school completion
+            // is recorded. Normal Level 2 starts use story 3002 instead.
             case 30020:
-                return
-                    "Aš, Ezekielis — pirmasis išdidus angelas.\n"
-                    "Stebėjau tave ir tavo metimus;\n"
-                    "kol bandei surinkti taškus, tu manęs nematei.\n"
-                    "Metimai tikrai taiklūs, atrodė neblogai.\n";
-            // Level 2 (Ezekiel) introduction.
+            // Level 2 (Ezekiel) introduction. same...
             case 3002:
                 return
-                    "Aš, Ezekielis.\n"
-                    "Ieškai išganymo; pasversiu tavo ranką ir valią.\n"
-                    "Kiekvienas metimas palieka ženklą danguje.\n"
-                    "Ženk — pirmasis bandymas jau bunda.\n";
+                    "Aš, Ezekielis, pirmasis angelas išdidus.\n"
+                    "Bet aš stebėjau tave, ir tavo metimus\n"
+                    "Kol bandei surinkti taškus, tu manęs nematei.\n"
+                    "Metimai tikrai taiklūs, atrodė neblogai.\n";
             // Level 2 completion, leading to the Red Desert.
             case 3102:
                 return
-                    "Turiu pasakyti: tikrai neblogai.\n"
-                    "Kamuolį per lentą tvirtai ridenai.\n"
-                    "Toliau per dykumą veda šis kelias,\n"
-                    "kur smėlis užkloja nuodėmių žymes.\n";
+                    "Turiu pasakyti kad tikrai neblogai\n"
+                    "Kamuolį per lentą tvirtai ridenai\n"
+                    "Toliau per dykumą veda šis kelias.\n"
+                    "kur smėlis padengs nuodėmingas detales.\n";
             // Level 3 (Red Desert) introduction.
             case 3003:
                 return
-                    "Nedorybių dykuma karšta ir sausa,\n"
+                    "Nedorybių karšta ir sausa,\n"
                     "Saulėje svyla ši plati dykuma.\n"
-                    "Sunkiai kamuolys rieda, kai smėlis užbyra;\n"
-                    "teks taką įtrinti smilkalais ir alyva.\n";
+                    "Sunkiai rieda per lentą kai smėlis užbyra\n"
+                    "Teks gerai ją įtrinti smilkalais ir alyva\n";
             // Level 3 side-throw harassment after repeated splits.
             case 30031:
                 return
-                    "Jei kalsi iš centro, kėgliai išsižergs,\n"
-                    "tarpas per vidurį kitam metimui pakenks.\n"
-                    "Gal kirsti iš šono apsimokėtų labiau,\n"
-                    "o gal suktą paleisti ir mušti dar stipriau?\n";
+                    "Jei kalsi iš centro kėgliai išsižergs,\n"
+                    "Tarpas per vidurį kitam metimui pakenks.\n"
+                    "Gal kalti iš šono apsimokėtų labiau,\n"
+                    "O gal suktą paleisti ir mušt dar stipriau?\n";
 
             // Level 3 oil reminder when the player has not re-oiled.
             case 30032:
                 return
-                    "Turi galvoti, ką darai, kai aplink dykuma.\n"
-                    "Alyva džiūsta greičiau, kai žemė sausa.\n"
-                    "Jei nori, kad slystų taip kaip anksčiau,\n"
-                    "taką sutepti reikėtų dažniau.\n";
+                    "Turi galvot ką darai kai aplink dykuma\n"
+                    "Alyva džiūsta greičiau kai žemė sausa.\n"
+                    "Jei nori kad slystų taip kaip anksčiau\n"
+                    "Sutepti tau lentą reikėtų dažniau\n";
             // Level 5 glass reminder when the player has not thrown glass back.
             case 3042:
                 return
-                    "Gal tau ir patinka, kai į tave krenta stiklai,\n"
-                    "bet juos mesti į mane gali ir tu — ar žinai?\n"
-                    "Daužydamas stiklą, kamuolys greitį numes,\n"
-                    "bet atlik tai laiku, nes teks valgyti šukes.\n";
+                    "Gal tau ir patinka kai į tave krenta stiklai,\n"
+                    "Bet juos mesti į mane gali ir tu,- ar žinai?\n"
+                    "Daužydamas stiklą kamuolys greitį numes,\n"
+                    "bet atlik tai laiku, nes teks valgyt šukes.\n";
             // First rune tutorial (generic, Boom, or Bolt discovery).
             case 3050:
             case 3053:
             case 3054:
                 return
                     "Runos padės tau įveikti mane,\n"
-                    "bet, kad jas panaudotum, jos turi atsidurti rate.\n"
-                    "Tempk runą į ratą, kad ją panaudotum;\n"
-                    "tau spręsti, ką taupyti, o ką iškart išeikvoti.\n";
+                    "Bet kad jas panaudoti jos turi atsidurti rate\n"
+                    "Tempk runą į ratą kad ją panaudoti\n"
+                    "Tau spresti ką taupyti, o ką iškart išeikvoti\n";
             // Follow-up tutorial after the player first finds a Boom rune.
             case 3051:
                 return
                     "O, juk tai gali sukelti sprogimą?\n"
-                    "Aukoti kamuolį dėl žalos sukėlimo —\n"
+                    "Aukoti kamuolį už žalos sukėlimą\n"
                     "kai ši runa atsidurs burtų rate,\n"
-                    "viską išdaužys galinga banga.\n";
+                    "Viską išdaužys galinga banga.\n";
             // Follow-up tutorial after the player first finds a Bolt rune.
             case 3052:
                 return
-                    "Jei mesi runą į ratą, kol nevėlu,\n"
-                    "sudeginti mano kamuolį gali su trenksmu.\n"
-                    "Žaibu gali sustabdyti ilgą metimą,\n"
-                    "bet vis tiek mėginsiu pabėgti nuo likimo.\n";
+                    "Jei mesi runą į ratą kol nevėlu,\n"
+                    "sudegint mano kamuolį gali su trenksmu,\n"
+                    "Žaibu sustabdyti ilgą metimą,\n"
+                    "bet bandysiu vis tiek pabėgt nuo likimo.\n";
             // Level 3 completion, leading to the icy Level 4.
             case 3103:
                 return
-                    "Tavęs nesustabdo nei karštis, nei sausra.\n"
-                    "Bausmė gula ant žemės — greit ateis valanda,\n"
-                    "kai valėme pasaulį nuo blogio karščiu;\n"
-                    "labai greit išbandysime jį paveikti šalčiu.\n";
+                    "Tavęs nesustabdo nei karštis, nei sausra\n"
+                    "Bausmė gula ant žemės, greit ateis valanda\n"
+                    "Kai valėme pasaulį nuo blogio karščiu\n"
+                    "Labai greit išbandysime ją paveikti šalčiu\n";
             // Level 4 introduction.
             case 3004:
                 return
-                    "Kad apsaugotume žemę, mes ją padengsim ledu.\n"
-                    "Ko karštis pagailėjo, mes sunaikinsim šalčiu.\n"
-                    "Kamuolys čiuožia greitai per sustingusį taką;\n"
-                    "svarbu nenuslysti į šoną, kai jis suriečia į ragą.\n";
+                    "Kad apsaugoti žemę mes ją padengsim ledu.\n"
+                    "Ko karštis pagailėjo mes sunaikinsim šalčiu\n"
+                    "Kamuolys čiuožia greitai per sustingusį taką\n"
+                    "Svarbu nenuslysti į šoną kai suriečia į ragą\n";
             // Level 4 completion, leading to the broken-glass level.
             case 3104:
                 return
-                    "Viena aišku — ledas tau nebaisus.\n"
-                    "Kas moka juo čiuožti, tikrai nepražus.\n"
-                    "Po šalčių sniegas ištirps pagaliau,\n"
+                    "Viena aišku ledas tau nebaisus.\n"
+                    "Kas moka juo čiuožti tikrai nepražus.\n"
+                    "Po šalčių sniegas ištirps pagaliau\n"
                     "O blogį naikinti mes eisim toliau.\n";
             // Level 5 introduction: Ezekiel hands the player to Cherub.
             case 3040:
                 return
                     "Artėjam prie nuodėmių miesto, tačiau\n"
-                    "darbą atlikti mums reikia arčiau.\n"
-                    "Langus daužyti — baisiai smagu,\n"
-                    "jie nusipelnė to net su kaupu.\n";
+                    "Darbą atlikti mums reikia arčiau.\n"
+                    "Langus daužyti yra baisiai smagu.\n"
+                    "Jie nusipelnė to net su kaupu.\n";
             // Level 5 first-glass tutorial.
             case 3041:
                 return
-                    "Stiklą, kurį aš metu į tave,\n"
-                    "gali nesunkiai pramušti — tai tau ne bėda.\n"
-                    "Tik noriu priminti, kad kelio gale\n"
-                    "tu irgi gali mesti stiklą į mane.\n";
+                    "Stiklą kurį aš metu į tave\n"
+                    "Gali nesunkiai pramušti - tai tau nebėda.\n"
+                    "Tik noriu priminti kad kelio gale\n"
+                    "Tu irgi gali mest stiklus į mane.\n";
             // Level 5 completion, before meeting Cherub.
             case 3140:
                 return
                     "Mano kelias čia baigtas, toliau eiti negaliu.\n"
                     "Kerubas nuo šiol tebūnie tavo vedliu.\n"
-                    "Leisiu tau eiti į miestą ir jį pasitikti,\n"
-                    "blogio naikinimo darbus atlikti.\n";
+                    "Leisiu tau eiti į miestą ir jį pasitikt,\n"
+                    "blogio naikinimo darbus atlikt.\n";
             // First shop prompt before the Cherub encounter.
             case 3141:
                 return
                     "Prieš eidamas toliau, aplankyk parduotuvę.\n"
-                    "Skirtingų kamuolių ten — kokių tik nebūna;\n"
-                    "skirtingomis sąlygomis gali reikėti kitokio\n"
+                    "Skirtingi kamuoliai — kokių tik nebūna;\n"
+                    "skirtingomis sąlygomis gali reikėti kitokio,\n"
                     "arba tiesiog atsinaujinti dėl geresnio grobio.\n";
             // Level 6 (Gomorrah) introduction by Cherub.
             case 3005:
@@ -1097,24 +1094,24 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
             // Level 6 completion, leading to the Energy Pyramid.
             case 3105:
                 return
-                    "Už tai, kaip jie gyvena ir kas jie yra,\n"
-                    "jie bus nubausti — tai angelų pareiga.\n"
-                    "Šis miestas netrukus ims virsti griuvėsiais;\n"
-                    "mes keliausime toliau, kur nitratai telkiasi.\n";
+                    "Už tai kaip jie gyvena, ir kas jie yra\n"
+                    "Jie bus nubausti, tai angelų pareiga.\n"
+                    "Šis miestas netrukus ims virsti griuvėsiais.\n"
+                    "Mes keliausim toliau iš kur nitratai šviečia.\n";
             // Level 7 (Energy Pyramid) introduction.
             case 3006:
                 return
-                    "Tai vartai, pro kuriuos patenkame čia,\n"
-                    "į šitą pasaulį — tyliai, paslapčia.\n"
-                    "Nitratų galią siurbiame iš žemės gelmių,\n"
-                    "nors jie bandė ją pavogti iš angelų.\n";
+                    "Tai vartai per kuriuos mes patenkame čia,\n"
+                    "Iš šitą pasaulį, ir paslapčia,\n"
+                    "Mes siurbiame nitratų galią iš žemės gelmių.\n"
+                    "Nors ir jie bandė pavogti ją iš angelų.\n";
             // Level 7 NOS reminder when it has not been used.
             case 30061:
                 return
-                    "Dabar galime deginti nitratus, nieko nelauk.\n"
+                    "Dabar mes galim degint nitratus, nieko nelauk.\n"
                     "Spausk \"NITRO\" pedalą ir neapsigauk.\n"
                     "Tegul kamuolys greitai iššauna,\n"
-                    "kai jis pasigauna nitratų energiją.\n";
+                    "Kai nitratų energiją jis pasigauna.\n";
             // Level 7 completion, leading to the forest.
             case 3106:
                 return
@@ -1125,10 +1122,10 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
             // Level 8 (Forest) introduction.
             case 3007:
                 return
-                    "Be medžių nebus oro, be oro — vandens;\n"
-                    "be vandens nebebus gyvybės — jie neišgyvens.\n"
-                    "Mes kirsime miškus, kol čia nieko nebeliks,\n"
-                    "jie gyveno nuodėmingai, todėl pražus.\n";
+                    "Be medžių - nebus oro; Be oro nėr vandens;\n"
+                    "Be vandens - nebus gyvybės; jie neišgyvens;\n"
+                    "Mes kirsime miškus, tol kol čia nieko nebebus,\n"
+                    "Jie gyveno nuodėmingai ir todėl jie pražus.\n";
             // Level 8 completion, leading to Seraphel's mines.
             case 3107:
                 return

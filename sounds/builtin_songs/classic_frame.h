@@ -1818,7 +1818,7 @@ COLOR AA00FF
       ALG FB AMS FMS
 PATCH   4  3   2   3
 FM OP  TL AR DR SL SR RR SSG MUL DT RS AM
-FM 1   30 30  5  8 27 15   0   1  0  0  0
+FM 1   46 30  5  8 27 15   0   1  0  0  0
 FM 2   12 31 11  7 28 15   0   0  0  0  0
 FM 3   22 30 19  8 20 15   0   2 -3  1  1
 FM 4   16 31 20  3 24  6   0   0  0  0  1
@@ -1876,7 +1876,7 @@ FM OP  TL AR DR SL SR RR SSG MUL DT RS AM
 FM 1    9 27 16  6  5 14   0   1  0  0  0
 FM 2   11 15  4  2  0 15   0   1  0  0  0
 FM 3    0 29  2  2 25  8   0   1 -1  0  0
-FM 4    3 25  9  3 10  8   0   3  2  0  0
+FM 4   16 25  9  3 10  8   0   3  2  0  0
 MACRO 14 1 255 255 -12
 ENDINST
 INST 09

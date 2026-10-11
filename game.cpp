@@ -26108,13 +26108,9 @@ END_LINE:
         // Lane texture depends on selected house.
         // The lane mesh UVs are already authored in 1/8 steps inside the atlas (u is in the lane column),
         // so selection is just a V offset by N * (1/8).
-        float laneAtlasMinY = 0.0f;
-        float laneAtlasMaxY = 1.0f;
         {
             float cell = 1.0f / 8.0f;
             int idx = glm::clamp(usr->laneTextureIdx, 0, 3); // 0=default, 1..3 = next cells down
-            laneAtlasMinY = (float)idx * cell;
-            laneAtlasMaxY = laneAtlasMinY + cell;
             usr->mainShader.updateTextureParamsInOneGo(
                 glm::vec3(1.0f),
                 glm::vec2(1.0f),
@@ -26200,21 +26196,6 @@ END_LINE:
             usr->reoilLaneBlinkRemainingS = glm::max(
                 0.0f, usr->reoilLaneBlinkRemainingS - glm::max(0.0f, gameplayDeltaTime));
         }
-        usr->mainShader.updateLaneWearDistortion(
-            true,
-            -18.3f,
-            18.3f,
-            BallFrictionTuning::LANE_HALF_WIDTH_M,
-            usr->laneOilThickness,
-            usr->leftOilFadeStartM,
-            usr->leftOilFadeEndM,
-            usr->rightOilFadeStartM,
-            usr->rightOilFadeEndM,
-            totalWornLeftM,
-            totalWornRightM,
-            laneAtlasMinY,
-            laneAtlasMaxY
-        );
         usr->mainShader.updateColorTintMix(glm::vec3(1.0f), reoilLaneBlink01, 1.0f);
         usr->mainShader.renderRealMesh(
             usr->laneMesh,
@@ -26227,7 +26208,6 @@ END_LINE:
             usr->cameraMat, usr->perspectiveMat,
             usr->laneDryVisualLeftStrength, usr->laneDryVisualRightStrength,
             usr->laneDryVisualLeftReach01, usr->laneDryVisualRightReach01);
-        usr->mainShader.updateLaneWearDistortion(false, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f);
         MiniGame_RenderCountMasters(usr);
         MiniGame_RenderCrowdControl(usr);
         RenderActiveBlock(usr, /*transparentOnly=*/false);

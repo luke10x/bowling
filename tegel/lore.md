@@ -1,40 +1,67 @@
-Please update story to match te lore:
+# Campaign Lore
 
-The user plays as a lost soul knocking but angel saviour Malach
-approaches to the player (Ezekiel), and says you may be saved, but four of us
-angels will test you, one more poverfull than another, and finally you will meet thrones,
-and only if you pass all of us you be saved.
+The player is a lost soul in the unseen spiritual realm. At first, Ezekiel
+presents the bowling trials as a route to salvation: score well, learn the
+runes, and prove yourself before increasingly powerful angels.
 
-We rebrand school as training, we send the user soul to get to know the runes world
-of the spiritual world first. 
+That promise is a gradual deception. The angels are not rescuers. They use the
+player as a capable instrument in a celestial campaign of punishment. Bowling
+is both a trial and a weapon: its strikes, blocks, glass, oil, runes, and
+nitro are the practical rituals through which the campaign is carried out.
 
-1. First level story should give basic idea that we in sprituoal world (Dausos in lithuanian)
-2. Ezekial intrduces, expalins he will teach us and we have to beat all angels to be saved.
-  Should not mention hov many of angels are, istaht 4 or 10, but may mention that the last One will be Thrones
-3. Desert of sins, angel explains that is dry and needs to be oiled and Frankincensed (oiled) but use biblical word if you can
-because that helps to clean sins somehow
-4. Coldness make things slip, and is how easy is to slip of the path to be save or slip out from the womb that bares you. 
-5. Explains how destruction of they city (Gommorah is the city name) starts with the broken window, this is how far to city I can go, it is our final contest, from now on it is cherubels raelm, i cannot follow you there.
-6. Cherubel introuduces. Sayis that who is so brave to enter the city of gomorah, where all possible sins cherrish. Explains how the energy of sins "Chrystalizes" into minerals through glass some mething like that.
-(Our collectables gems/chrystals - word "Minerals" should be used instead)
-7. Desert of power, through glass to gold, from gold to gems we pump all the power out of this world, you can get a piece of it too. Thus we introduce the Nitro - when we turn Minerals into energy
-8. Some wood we need to cut, and turn all this world into desert. But you can use the
-wood for stopping the balls. You are going to need them to fight Seraphel. I wont go into her Mineral mines, but good luck (last level with cherubel)
-9.  This is the Mineral Mines (Karaliaus saliamono kaysklos, in Lithuanian), you meet Seraphel, she is fierce. 
-10. The Powerplant, where minerals turn to energy of destruction this world deserves
-  for their sins you help to destruct it.
-11. Seraphel explains that the mission is to reduce the population of Gomorah, for that what they sinful are. This is the last task you do for Seraphel, she mentions that she will also not enter the city, where Thrones are now doing her job.
-12. Meet thrones, she knows her weight and she knows that impact she makes on gomorah,
-you helping her to blaze it now to ashes.
-13. The entire earth has to be destroyed for that they sinful once was it is the Jugement Day, the angels (we) blow our trumphets. 
+## Story arc
 
-the aftermath (Than you you helped to destroy evil) of the world.
+1. **The first realm:** the soul must reach 100 points to pass the first sign.
+   Ezekiel watches and judges every throw. The realm is **Dausos** in
+   Lithuanian and **The Heavens** in English.
+2. **Ezekiel:** he tests the player's skill and resolve, presenting the next
+   trials as a path toward salvation.
+3. **Desert of Sins:** corruption has dried the land. Oil and frankincense-like
+   anointing cleanse the lane; re-oiling symbolically burns away corruption.
+4. **Ice:** punishment turns cold. The player learns that the path can make a
+   soul slip as easily as a ball.
+5. **Broken Window:** the edge of Gomorrah. Breaking glass begins the city's
+   ruin; Ezekiel hands the player to Cherubel.
+6. **Gomorrah:** Cherubel reveals a city defined by sin. Glass, destruction,
+   and collected power become part of the angels' work.
+7. **Power and Nitro:** angelic power is drawn from the earth and claimed back
+   from humankind. It fuels NITRO and turns the bowling ball into an
+   accelerant of the campaign.
+8. **Forest:** the angels strip the world of trees and use the remaining wood
+   as both obstacle and weapon before the mines.
+9. **Solomon's Mines:** Seraphel guards the underground power store. The
+   resource is prepared for the punishment to come.
+10. **Plague and the city:** Seraphel's work reduces Gomorrah's population and
+    recasts mass death as purification.
+11. **Factory:** humankind's machines are portrayed as stealing angelic power.
+    The angels reclaim it and promise consequences for humanity.
+12. **Return to Gomorrah:** Ofanija brings the city to flame and ash.
+13. **Judgment Day:** the scope widens from Gomorrah to the whole Earth. The
+    old world is burned away.
 
-You mentions words Corruption (especially say that re-oil helps to clean the corruptions just like fire). You use KJV language but not too many werds, just some expressions like lest, it came to pass, perchance, to give this archaic feel.
+## The ending
 
-Basically throught the story the user learns that the Angels are here to destroy the City Gomorah, and later the entire world for their sins. (in lithuanian you pleak in olden "Senobine" kalba).
-But do not reaveal the goal of total anihilation from the beginnig only reveal slowly in later levels. 
+The campaign ends with an intentionally cruel irony: the angels declare that
+evil has been destroyed, yet the world is quiet only because humanity is gone.
+Ezekiel returns to congratulate the player, making clear that their success was
+not salvation but participation in total annihilation.
 
-Do not mention God or something too religious, but we use Biblical lore.
+## Writing guidance
 
-You translate Gems/Chrystals to Minerals (Mineralai, Mineralų). But it is ok to say NOS, Nitro for the nos button.
+- Reveal the true goal slowly. Early angels sound like stern guides; later
+  scenes expose their pride, cruelty, and certainty.
+- Do not name God. The imagery may draw on Biblical and apocalyptic tradition,
+  but the angels act on their own authority.
+- Lithuanian story text uses four displayed lines for level-start stanzas and a
+  prophetic, archaic, rhyming voice. Preserve the poet's word order and rhyme;
+  correct only spelling unless a requested change requires more. Use
+  **nitratai** for the campaign resource and **NITRO** for the pedal.
+- **Nitratai is Lithuanian-only.** In English, call the resource **crystals**
+  or **energy**, according to the scene; do not translate it as “nitrates.”
+- **Dausos is Lithuanian-only.** In English, call the spiritual realm
+  **The Heavens**; do not use *Dausos* in English-facing text.
+- English can use restrained KJV flavor—such as *perchance*, *lest*, and *it
+  came to pass*—but retain **you**, not *thou*, so the dialogue remains easy
+  to read.
+- Use the established Lithuanian angel names: Ezekielis, Kerubas, Serafelė,
+  and Ofanija.

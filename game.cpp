@@ -13974,8 +13974,12 @@ void vtx::load(vtx::VertexContext *ctx)
 
     // Hot reload: Angel mesh/anim are kept out of UserContext, so initialize here too.
     Angel_InitIfNeeded(usr);
+    // The chest animation also lives in reloadable static storage. Reload it so
+    // chest vertices never use stale bone uniforms after a plugin swap.
+    gChestAnim.loadFromBlob(chest_anim_data, chest_anim_data_len);
+    gChestAnimReady = true;
     Gem_InitIfNeeded(usr);
-	}
+}
 
 // todo this is shit  but ok for now
 // ball_stats.cpp

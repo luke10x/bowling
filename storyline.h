@@ -895,25 +895,25 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
             // Level 1's first-attempt introduction.
             case 1: return "Įžengei į Dausas, dvasių pasaulį.\nBet ar pajėgsi surinkti 100?\n";
             // Follow-up prompt offering training from the first Level 1 introduction.
-            case 2: return "Ar norėtumei atlikti pratybas?\n";
+            case 2: return "Ar norėtum atlikti praktiką?\n";
             // Level 1 failure message after scoring below 100.
-            case 10: return "Šimto nesurinkai.\nGal pratybos tau butų labiau į naudą negu puikybė?\n";
+            case 10: return "Šimto nesurinkai.\nGal praktika tau būtų labiau į naudą negu puikybė?\n";
             // Choice after the Level 1 failure message: train or replay.
-            case 11: return "Arba atlik pratybas arba bandyk dar karta, ką renkiesi?\n";
+            case 11: return "Atlik praktiką arba bandyk dar kartą — ką renkiesi?\n";
             // First Level 1 win while training remains unfinished.
             case 20: return "Štai aš - Ezekielis. Įveikei pirmąjį išbandymą? Galime eiti toliau...\n";
             // Choice following storyline 20: training or Level 2.
-            case 21: return "Ar atliksi pratybas, ar stosi prieš Ezekielį?\n";
+            case 21: return "Ar atliksi praktiką, ar stosi prieš Ezekielį?\n";
             // First Level 1 win after training has already been completed.
             case 22: return "Štai aš - Ezekielis. Įveikei pirmąjį išbandymą? Galime eiti toliau...\n";
             // Attempt to leave mandatory training before completing it.
-            case 30: return "Dar negali palikti pratybų.\nPirma baik pamoką.\n";
+            case 30: return "Dar negali palikti praktikos.\nPirma baik pamoką.\n";
             // Confirmation before replacing the current training attempt.
             case 31: return "Ar tikrai atšaukti šią pamoka ir eiti į kitą.\n";
             // Confirmation before restarting the current training lesson.
             case 32: return "Ar tikrai pradėti pamoką iš pradžių\n";
             // Level 1 replay introduction after a failed attempt, before training is finished.
-            case 40: return "Nelabai kaip sekasi? gal verčiau pabandom atlikti pratybas, jeigu surinkti šimtą tau per sunku...\n";
+            case 40: return "Nelabai kaip sekasi? Gal verčiau atlikime praktiką, jeigu surinkti šimtą tau per sunku...\n";
             // Lesson 2 introduction: ball mass.
             case 1000: return "Kiekvienas kamuolys turi savo masę, todel kitaip rieda ir visai kitas jausmas.\nPirmas testas - lengvais kamuoliais pataikyti į kėglius.\n(Vėliau reikės mesti ir sunkius kamuolius).\n";
             // Lesson 2 completion.
@@ -949,7 +949,7 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
             // Lesson 3 unlock notification after the zig-zag coins lesson.
             case 1021: return "Sukima gali dar treniruoti zigzago monetu pamokoje.\n3 pamoka dabar atrakinta.\n";
             // Revised Level 1 win reveal and the training-or-campaign choice.
-            case 30020: return "Pirmąjį ženklą įveikei.\nAš Ezekielis. Mokysiu ir bandysiu tave; gale laukia Ofanija.\nAr pirma stosi į pratybas, ar tęsi dabar?\n";
+            case 30020: return "Pirmąjį ženklą įveikei.\nAš Ezekielis. Mokysiu ir bandysiu tave; gale laukia Ofanija.\nAr pirma atliksi praktiką, ar tęsi dabar?\n";
             // Level 2 (Ezekiel) introduction.
             case 3002: return "Aš Ezekielis.\nIeškai išganymo; matuosiu tavo ranką ir valią.\nEikš, teprasideda pirmas bandymas.\n";
             // Level 2 completion, leading to the Red Desert.
@@ -957,7 +957,7 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
             // Level 3 (Red Desert) introduction.
             case 3003: return "Ši dykuma sausa nuo sugedimo.\nPatepk taką alyva ir smilkalais; pertepimas apvalo sugedimą, kaip ugnis apvalo.\n";
             // Level 3 side-throw harassment after repeated splits.
-            case 30031: return "Pastebejau daug splitu.\nGal bandai pataikyti i keglius is centro.\nVerčiau ivaziuok i juos truputi is sono.\nTai daznai padeda isvengti splitu.\n";
+            case 30031: return "Pastebėjau daug špagaitų.\nGal bandai pataikyti į kėglius iš centro.\nVerčiau įvažiuok į juos truputį iš šono.\nTai dažnai padeda išvengti špagaitų.\n";
             // Level 3 oil reminder when the player has not re-oiled.
             case 30032: return "Tu dykumoje, o as vis dar nemaciau, kad naudotum alyva.\nGeriau panaudok ja, kol takas nenubaude tavo isdidumo.\nAr atidaryti alyvos langa dabar?\n";
             // Level 5 glass reminder when the player has not thrown glass back.
@@ -987,27 +987,27 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
             // Level 6 (Gomorrah) introduction by Cherub.
             case 3005: return "Aš Kerubas. Kas toks drąsus žengia į Gomorą, kur visos nuodėmės žydi?\nPer stiklą nuodėmių jėga kristalėja į Mineralus. Rink juos rūpestingai.\n";
             // Level 6 completion, leading to the Energy Pyramid.
-            case 3105: return "Įžengei į Gomorą.\nDabar keliausime į Galios dykumą, kur Mineralai virsta jėga.\n";
+            case 3105: return "Įžengei į Gomorą.\nDabar keliausime į Galios dykumą, kur mineralai virsta nitratais.\n";
             // Level 7 (Energy Pyramid) introduction.
-            case 3006: return "Per stiklą atėjo auksas, per auksą — Mineralai.\nPaversk Mineralus energija per Nitro ir pasiimk dalį išsiurbtos pasaulio galios.\n";
+            case 3006: return "Per stiklą atėjo auksas, per auksą — mineralai.\nPaversk mineralus nitratais per Nitro ir pasiimk dalį išsiurbtos pasaulio galios.\n";
             // Level 7 NOS reminder when it has not been used.
-            case 30061: return "Dabar turi NOS, bet vis dar jo nenaudoji.\nPripildžiau tavo energiją. Kamuoliui jau judant laikyk NOS pedalą.\n";
+            case 30061: return "Dabar turi NOS, bet vis dar jo nenaudoji.\nPripildžiau tavo nitratų atsargas. Kamuoliui jau judant laikyk NOS pedalą.\n";
             // Level 7 completion, leading to the forest.
             case 3106: return "Nešk šią galią pirmyn.\nPaskutinis kelias prie kasyklų užgultas medžiais.\n";
             // Level 8 (Forest) introduction.
             case 3007: return "Kirski medžius; šis pasaulis paverčiamas dykuma.\nBet medžiu stabdyk kamuolius. Jo reikės prieš Serafelę.\n";
             // Level 8 completion, leading to Seraphel's mines.
-            case 3107: return "Paskutinį mano bandymą įveikei.\nĮ Serafelės Mineralų kasyklas neinu. Eik, ir tebūna tau gerai.\n";
+            case 3107: return "Paskutinį mano bandymą įveikei.\nĮ Serafelės nitratų kasyklas neinu. Eik, ir tebūna tau gerai.\n";
             // Level 10 (Cemetery) introduction: Seraphel's plague at Gomorrah.
             case 3008: return "Maras apėmė Gomorą, bet į miestą įeiti negaliu.\nIš čia mažiname jos nuodėmingą gyventojų skaičių. Tai mano paskutinė užduotis su tavimi.\n";
             // Level 10 completion, leading to Thrones in Gomorrah.
             case 3108: return "Padarei, ko reikalavau.\nEik pas Ofaniją, kuri laukia Gomoroje.\n";
             // Level 9 (Mines) introduction by Seraphel.
-            case 3009: return "Aš Serafelė. Tai Karaliaus Saliamono Mineralų kasyklos.\nBūk nuožmus darbe, nes palaidota galia lengvai neduodama.\n";
+            case 3009: return "Aš Serafelė. Tai Karaliaus Saliamono nitratų kasyklos.\nBūk nuožmus darbe, nes palaidota galia lengvai neduodama.\n";
             // Level 9 completion, leading to the factory.
-            case 3109: return "Kasyklos davė derlių.\nAteik į Jėgainę: energija turi būti išgauta.\n";
+            case 3109: return "Kasyklos davė derlių.\nAteik į Jėgainę: nitratai turi būti išgauti.\n";
             // Level 11 (Factory) introduction: extract the sinners' energy.
-            case 3010: return "Čia Mineralai paverčiami galia.\nIštrauk jų stiprybę, nes tai nusidėjėliai ir neverti jos laikyti.\n";
+            case 3010: return "Čia mineralai paverčiami nitratais.\nIštrauk jų stiprybę, nes tai nusidėjėliai ir neverti jos laikyti.\n";
             // Level 11 completion, leading to the cemetery.
             case 3110: return "Varikliai pasiėmė savo dalį.\nPasiunčiau marą į Gomorą; ateik į kapines už miesto.\n";
             // Level 12 introduction: Thrones judges Gomorrah.

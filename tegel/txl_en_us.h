@@ -38,7 +38,7 @@ TXL_FREESTYLE_TITLE = "FREESTYLE"; // Used in: gameplay/HUD (game.cpp)
 TXL_TRY_AGAIN = "TRY AGAIN"; // Used in: new-game window (clayton/new_game_clay.h), gameplay/HUD (game.cpp)
 TXL_BONUS_GAME = "BONUS GAME"; // Used in: gameplay/HUD (game.cpp)
 TXL_BALL_CHARGE_FMT = "ENERGY"; // Used in: gameplay/HUD (game.cpp)
-TXL_NOS_NO_ENERGY = "Not enough energy. Gather Minerals."; // Used in: gameplay/HUD (game.cpp)
+TXL_NOS_NO_ENERGY = "Not enough energy. Gather crystals."; // Used in: gameplay/HUD (game.cpp)
 TXL_GREETING_RESUME = "Do you want to continue to play bowling?"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_GREETING_WELCOME = "Welcome to this bowling game."; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_GREETING_SUBLINE = "Click READY to focus the game canvas."; // Used in: campaign and results windows (clayton/win_stack.h)
@@ -146,8 +146,8 @@ TXL_REMAINING_OIL = "Remaining oil"; // Used in: school window (school/school_cl
 TXL_REOIL_PROGRESS = "Re-oil progress"; // Used in: school window (school/school_clay.h)
 TXL_WEAR_IT_DOWN = "Wear it down before re-oiling."; // Used in: school window (school/school_clay.h), gameplay/HUD (game.cpp)
 TXL_STRIKE_TEST_SCORE_STRIKE = "Strike test: score a STRIKE"; // Used in: school window (school/school_clay.h)
-TXL_LEVEL1_TITLE = "LEVEL 1  THE UNSEEN REALM"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
-TXL_LEVEL1_SUBTITLE = "Spiritual realm  Reach 100 to pass"; // Used in: gameplay/HUD (game.cpp)
+TXL_LEVEL1_TITLE = "LEVEL 1  THE HEAVENS"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
+TXL_LEVEL1_SUBTITLE = "The Heavens  Reach 100 to pass"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL2_TITLE = "LEVEL 2  EZEKIEL'S TEST"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
 TXL_LEVEL2_SUBTITLE = "Wind Farm  Face Ezekiel"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL3_TITLE = "LEVEL 3  DESERT OF SINS"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
@@ -162,8 +162,8 @@ TXL_LEVEL7_TITLE = "LEVEL 7  DESERT OF POWER"; // Used in: campaign and results 
 TXL_LEVEL7_SUBTITLE = "Desert  Face Cherubel"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL8_TITLE = "LEVEL 8  WOOD BEFORE THE MINES"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
 TXL_LEVEL8_SUBTITLE = "Forest  Face Cherubel"; // Used in: gameplay/HUD (game.cpp)
-TXL_LEVEL9_TITLE = "LEVEL 9  KING SOLOMON'S MINERAL MINES"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
-TXL_LEVEL9_SUBTITLE = "Mineral Mines  Face Seraphel"; // Used in: gameplay/HUD (game.cpp)
+TXL_LEVEL9_TITLE = "LEVEL 9  KING SOLOMON'S CRYSTAL MINES"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
+TXL_LEVEL9_SUBTITLE = "Crystal Mines  Face Seraphel"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL10_TITLE = "LEVEL 10  THE POWERPLANT"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
 TXL_LEVEL10_SUBTITLE = "Powerplant  Face Seraphel"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL11_TITLE = "LEVEL 11  GATES OF GOMORAH"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
@@ -340,3 +340,8 @@ TXL_BLOCKS_SHORT = "B"; // Used in: campaign and results windows (clayton/win_st
 TXL_NOS_SHORT = "N"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_RUNES = "RUNES"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_RUNES_SHORT = "R"; // Used in: campaign and results windows (clayton/win_stack.h)
+
+// -----------------------------------------------------------------------------
+// Story and dialogue
+// -----------------------------------------------------------------------------
+TXL_STORY_3012 = "This is Judgment Day; the final scale is set.\nThe earth is weighed against its ancient debt.\nThe Heavens watch as every old thing burns.\nWhat came to pass shall meet what fire returns.\n"; // Used in: storyline.h

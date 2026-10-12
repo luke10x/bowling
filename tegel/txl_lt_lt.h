@@ -340,3 +340,8 @@ TXL_BLOCKS_SHORT = "B"; // Used in: campaign and results windows (clayton/win_st
 TXL_NOS_SHORT = "N"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_RUNES = "RUNOS"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_RUNES_SHORT = "R"; // Used in: campaign and results windows (clayton/win_stack.h)
+
+// -----------------------------------------------------------------------------
+// Story and dialogue
+// -----------------------------------------------------------------------------
+TXL_STORY_3012 = "Tai Teismo diena, pabaigos pradžia.\nGreitai pasibaigs jų baisioji kančia.\nŽemė pasverta, jie pripažinti kaltais;\nviskas sudegs ir pavirs pelenais.\n"; // Used in: storyline.h

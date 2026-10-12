@@ -345,6 +345,7 @@ enum TxlKey
     TXL_NOS_SHORT,
     TXL_RUNES,
     TXL_RUNES_SHORT,
+    TXL_STORY_3012,
     TXL_KEY_COUNT
 };
 
@@ -388,7 +389,7 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "TRY AGAIN",
     "BONUS GAME",
     "ENERGY",
-    "Not enough energy. Gather Minerals.",
+    "Not enough energy. Gather crystals.",
     "Do you want to continue to play bowling?",
     "Welcome to this bowling game.",
     "Click READY to focus the game canvas.",
@@ -496,8 +497,8 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "Re-oil progress",
     "Wear it down before re-oiling.",
     "Strike test: score a STRIKE",
-    "LEVEL 1  THE UNSEEN REALM",
-    "Spiritual realm  Reach 100 to pass",
+    "LEVEL 1  THE HEAVENS",
+    "The Heavens  Reach 100 to pass",
     "LEVEL 2  EZEKIEL'S TEST",
     "Wind Farm  Face Ezekiel",
     "LEVEL 3  DESERT OF SINS",
@@ -512,8 +513,8 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "Desert  Face Cherubel",
     "LEVEL 8  WOOD BEFORE THE MINES",
     "Forest  Face Cherubel",
-    "LEVEL 9  KING SOLOMON'S MINERAL MINES",
-    "Mineral Mines  Face Seraphel",
+    "LEVEL 9  KING SOLOMON'S CRYSTAL MINES",
+    "Crystal Mines  Face Seraphel",
     "LEVEL 10  THE POWERPLANT",
     "Powerplant  Face Seraphel",
     "LEVEL 11  GATES OF GOMORAH",
@@ -690,6 +691,7 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "N",
     "RUNES",
     "R",
+    "This is Judgment Day; the final scale is set.\nThe earth is weighed against its ancient debt.\nThe Heavens watch as every old thing burns.\nWhat came to pass shall meet what fire returns.\n",
 };
 
 static constexpr const char *g_txl_chars_en_us = "MENUCheatsnr igLumpAPIGVSRTWOQBKY/cDvkdlJoH-Fy.wb?f:%qx'!0(),>ė12Zz3456789X\n;$+";
@@ -1036,9 +1038,10 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "N",
     "RUNOS",
     "R",
+    "Tai Teismo diena, pabaigos pradžia.\nGreitai pasibaigs jų baisioji kančia.\nŽemė pasverta, jie pripažinti kaltais;\nviskas sudegs ir pavirs pelenais.\n",
 };
 
-static constexpr const char *g_txl_chars_lt_lt = "MENIUČytai įprkąKlbmnjAPJOSLYGRDĖTĄŠĮVŽegodsužųvB!ę?š.ėĘ,:%čfzcū/0()–->wHxCh12Z3Ų45Ū6789F\n$+";
+static constexpr const char *g_txl_chars_lt_lt = "MENIUČytai įprkąKlbmnjAPJOSLYGRDĖTĄŠĮVŽegodsužųvB!ę?š.ėĘ,:%čfzcū/0()–->wHxCh12Z3Ų45Ū6789F\n$+;";
 
 static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "メニュー",
@@ -1382,9 +1385,10 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "ニ",
     "ルーン",
     "ル",
+    "私はまだ座天使。そしてこれが最後の授業だ。\n私が投げる時、今度はコンクリートを置ける。\n突破すればキャンペーン完了だ。\n",
 };
 
-static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語キャンペレベルをやり直す勝利敗北中断スコアクリ時間戻るもう一度プイなし練習デバ共有ゲム設定ラッカジミ選択英国日本サウド曲オボショハフタナエネギが足ません。ェ集めてださいグ続けか？このよそ「ィ」押画面に対戦相手切替え現在使用所持今ぐ購入: %sであは空ロ合格セ品質変更.モSDLァ音楽量状態マ情報最大ダ減衰滑再d/資金不れ済みたっ良！ポ近全0f上回（1）ヤ-初記録試数範囲～期化と、\n解除含む消去新確認PWAブ読込ビ公開>接後き適版ザapeKl基礎OnGmrtogVywHuMixECJhc効果べ内蔵制作テ投げ皆感謝転(k)軽重ピ番ろ引放右移動左残進況前取目標ノ点2ゼ登場風力発電3砂漠警告4ガ氷5硝子郊外6犬78木材ゾ森林9謁見洞窟ちば工白墓地灰色街車輪廃墟牛パ荒火炎ズ極河吹雪星ず雲宇宙虚ホUFツ雷巨人根世界樹影深淵ヌ路特異潮ケヴ負荷策声個必要爆散滅生存凍結備配置起停止宝箱能稲妻強失危険防衛敵攻撃球打破壊得意妨害跳ね速追加口酬物群衆遊び終了差計獲次挑補充始完$+途：守護者到達出天該当値削決ė";
+static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語キャンペレベルをやり直す勝利敗北中断スコアクリ時間戻るもう一度プイなし練習デバ共有ゲム設定ラッカジミ選択英国日本サウド曲オボショハフタナエネギが足ません。ェ集めてださいグ続けか？このよそ「ィ」押画面に対戦相手切替え現在使用所持今ぐ購入: %sであは空ロ合格セ品質変更.モSDLァ音楽量状態マ情報最大ダ減衰滑再d/資金不れ済みたっ良！ポ近全0f上回（1）ヤ-初記録試数範囲～期化と、\n解除含む消去新確認PWAブ読込ビ公開>接後き適版ザapeKl基礎OnGmrtogVywHuMixECJhc効果べ内蔵制作テ投げ皆感謝転(k)軽重ピ番ろ引放右移動左残進況前取目標ノ点2ゼ登場風力発電3砂漠警告4ガ氷5硝子郊外6犬78木材ゾ森林9謁見洞窟ちば工白墓地灰色街車輪廃墟牛パ荒火炎ズ極河吹雪星ず雲宇宙虚ホUFツ雷巨人根世界樹影深淵ヌ路特異潮ケヴ負荷策声個必要爆散滅生存凍結備配置起停止宝箱能稲妻強失危険防衛敵攻撃球打破壊得意妨害跳ね速追加口酬物群衆遊び終了差計獲次挑補充始完$+途：守護者到達出天該当値削決私座授業突ė";
 
 static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "菜单",
@@ -1728,7 +1732,8 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "氮",
     "符文",
     "符",
+    "我还是座天使，而这就是最后一课。\n现在当我出手时，你可以放混凝土。\n通过这一关，整段战役就完成了。\n",
 };
 
-static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言战役关卡重开胜利失败退出最高分通时间返回玩始无练习设备共享游戏置音轨编辑制名小选择English中文立陶宛日声歌曲油道球库商店自由赛再试一次奖励能量不足。拾取宝石你想继续打保龄吗？欢迎来到这款点击“准”以聚焦画面天使对手切换当前用存即购买已：%个没有形象为空未解锁过后正在频模式.SDL 缓冲乐状态图信息大带衰减滑度推力新上d/余额暂刚的数进入错局！超了近期0f排行榜（）家还，第吧尝范围-恢复厂会清除包括记录、和符\n应检查更PWA加载网站安装构建发布…是可>离线请连接络法服务器只页支持计程序美术apeK角色基础型OGmrtoVywHu动MxCJc所效均内追踪特别感谢每位测并多投人课瞄质给旋与全路1公斤轻转咬普稀史诗传说目标把尽向拉现放右移左剩先耗掉里碑达2西结风电场3沙漠警告4玻璃冰5霓虹郊区6狗7金字塔8木材地森林9水晶觐见洞窟喙煤气工白墓园灰城市之轮废墟牛烬荒原强烈焰滚火钩炼狱怒凤凰升霜寒意极漂川暴雪王星尘云宇宙虚黑UF氙光藤蔓雷橡泰坦根世界树暗影深渊归零者子奇潮汐礁海妖维神谕性偏低调至弯拖少需要爆炸蒸扛闪瓶冻巡逻部署激活骷髅命停住补块砖混凝土箱获得枚币但险防守敌方攻让变狠破障三阻挡刻弹起它快栏添口故事刺师群控确定否合下步货将完成$+途卫生首领级门总输码启氮架看稍删认碍ė";
+static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言战役关卡重开胜利失败退出最高分通时间返回玩始无练习设备共享游戏置音轨编辑制名小选择English中文立陶宛日声歌曲油道球库商店自由赛再试一次奖励能量不足。拾取宝石你想继续打保龄吗？欢迎来到这款点击“准”以聚焦画面天使对手切换当前用存即购买已：%个没有形象为空未解锁过后正在频模式.SDL 缓冲乐状态图信息大带衰减滑度推力新上d/余额暂刚的数进入错局！超了近期0f排行榜（）家还，第吧尝范围-恢复厂会清除包括记录、和符\n应检查更PWA加载网站安装构建发布…是可>离线请连接络法服务器只页支持计程序美术apeK角色基础型OGmrtoVywHu动MxCJc所效均内追踪特别感谢每位测并多投人课瞄质给旋与全路1公斤轻转咬普稀史诗传说目标把尽向拉现放右移左剩先耗掉里碑达2西结风电场3沙漠警告4玻璃冰5霓虹郊区6狗7金字塔8木材地森林9水晶觐见洞窟喙煤气工白墓园灰城市之轮废墟牛烬荒原强烈焰滚火钩炼狱怒凤凰升霜寒意极漂川暴雪王星尘云宇宙虚黑UF氙光藤蔓雷橡泰坦根世界树暗影深渊归零者子奇潮汐礁海妖维神谕性偏低调至弯拖少需要爆炸蒸扛闪瓶冻巡逻部署激活骷髅命停住补块砖混凝土箱获得枚币但险防守敌方攻让变狠破障三阻挡刻弹起它快栏添口故事刺师群控确定否合下步货将完成$+途卫生首领级门总输码启氮架看稍删认碍我座而就整段ė";
 

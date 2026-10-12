@@ -340,3 +340,8 @@ TXL_BLOCKS_SHORT = "挡"; // Used in: campaign and results windows (clayton/win_
 TXL_NOS_SHORT = "氮"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_RUNES = "符文"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_RUNES_SHORT = "符"; // Used in: campaign and results windows (clayton/win_stack.h)
+
+// -----------------------------------------------------------------------------
+// Story and dialogue
+// -----------------------------------------------------------------------------
+TXL_STORY_3012 = "我还是座天使，而这就是最后一课。\n现在当我出手时，你可以放混凝土。\n通过这一关，整段战役就完成了。\n"; // Used in: storyline.h

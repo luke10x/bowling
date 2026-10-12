@@ -340,3 +340,8 @@ TXL_BLOCKS_SHORT = "ブ"; // Used in: campaign and results windows (clayton/win_
 TXL_NOS_SHORT = "ニ"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_RUNES = "ルーン"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_RUNES_SHORT = "ル"; // Used in: campaign and results windows (clayton/win_stack.h)
+
+// -----------------------------------------------------------------------------
+// Story and dialogue
+// -----------------------------------------------------------------------------
+TXL_STORY_3012 = "私はまだ座天使。そしてこれが最後の授業だ。\n私が投げる時、今度はコンクリートを置ける。\n突破すればキャンペーン完了だ。\n"; // Used in: storyline.h

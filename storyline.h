@@ -84,19 +84,23 @@ struct StoryChoiceOption
 
 // --- Story content (first game outro; branches by final score) ---
 static constexpr StorylineNode STORYLINES[] = {
+    // clang-format off
     // Intro (first frame)
     {
         /*storyline_id=*/1,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Lost soul, thou hast entered the Unseen Realm, the world of spirits.\n"
-                 "Learn its runes and score 100, lest thy path close before thee.\n",
+        /*text=*/
+                 "Lost soul, you have entered The Heavens' gate.\n"
+                 "Learn runes and score one hundred before it is too late.\n"
+                 "Let strikes and spares reveal the road you seek.\n"
+                 "Count every mark, lest fortune make you weak.\n",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/2,
     },
     {
         /*storyline_id=*/2,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Wilt thou enter training?\n",
+        /*text=*/"Will you enter training?\n",
         /*choice_group=*/CHOICE_TUTORIAL_YES_NO,
         /*next_storyline=*/0,
     },
@@ -105,15 +109,18 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/10,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Thou didst not reach 100.\n"
-                 "Perchance training will serve thee better than pride.\n",
+        /*text=*/
+                 "You did not reach the hundred-mark this day.\n"
+                 "Perchance your pride has led your hand astray.\n"
+                 "Let training teach the line your will denied.\n"
+                 "Return more ready, with your aim as guide.\n",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/11,
     },
     {
         /*storyline_id=*/11,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Wilt thou enter training now, or try the Unseen Realm once more?\n",
+        /*text=*/"Will you enter training now, or face The Heavens once more?\n",
         /*choice_group=*/CHOICE_LEVEL1_SCHOOL_OFFER,
         /*next_storyline=*/0,
     },
@@ -123,8 +130,11 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/20,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Thou hast passed the first sign.\n"
-                 "I am Ezekiel. I shall train thee and test thee, that thou mayest be saved.\n",
+        /*text=*/
+                 "You passed the first sign; its hidden seal gave way.\n"
+                 "I am Ezekiel, who watched your throws this day.\n"
+                 "I shall test your hand, your courage, and your aim.\n"
+                 "Train first, or meet me now within the game.\n",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/21,
     },
@@ -132,7 +142,7 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/21,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Wilt thou enter training first, or face Ezekiel now?\n",
+        /*text=*/"Will you train first, or face Ezekiel now?\n",
         /*choice_group=*/CHOICE_FIRST_WIN_NEXT,
         /*next_storyline=*/0,
     },
@@ -141,8 +151,11 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/22,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Thou hast passed the first sign.\n"
-                 "I am Ezekiel. I shall train thee and test thee, that thou mayest be saved.\n",
+        /*text=*/
+                 "You passed the first sign; its hidden seal gave way.\n"
+                 "I am Ezekiel, who watched your throws this day.\n"
+                 "Your training is complete; now prove what you became.\n"
+                 "Come face me in the trial of the game.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -150,15 +163,17 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/30,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Thou canst not leave training yet.\n"
-                 "Complete the trials first.\n",
+        /*text=*/
+                 "You cannot leave the training hall just yet.\n"
+                 "Complete the trials that before you are set.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/31,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Are you sure?\n"
+        /*text=*/
+                 "Are you sure?\n"
                  "This will cancel the current lesson attempt and start the selected lesson instead.\n",
         /*choice_group=*/CHOICE_SCHOOL_LESSON_SWITCH_CONFIRM,
         /*next_storyline=*/0,
@@ -166,7 +181,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/32,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Restart the current lesson?\n"
+        /*text=*/
+                 "Restart the current lesson?\n"
                  "Your current attempt in this lesson will be reset.\n",
         /*choice_group=*/CHOICE_SCHOOL_LESSON_SWITCH_CONFIRM,
         /*next_storyline=*/0,
@@ -176,7 +192,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1000,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Lesson 2. Ball Mass.\n"
+        /*text=*/
+                 "Lesson 2. Ball Mass.\n"
                  "This is the school and this is a lesson about mass.\n"
                  "Every ball has its mass. Based on mass the balls feel and roll differently.\n"
                  "Your first test is to throw several LIGHT balls and hit pins.\n"
@@ -197,7 +214,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1012,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"To pass this test you must set the mass slider to the LIGHT or HEAVY end.\n"
+        /*text=*/
+                 "To pass this test you must set the mass slider to the LIGHT or HEAVY end.\n"
                  "Throwing in the middle does not count toward passing.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
@@ -231,7 +249,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1020,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Congrats. You passed the Spin test.\n"
+        /*text=*/
+                 "Congrats. You passed the Spin test.\n"
                  "Every ball has its intrinsic reaction to spin.\n"
                  "Other params like bite affect how well the ball reacts.\n",
         /*choice_group=*/CHOICE_SCHOOL_SPIN_TEST_DONE,
@@ -241,7 +260,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1022,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Lesson 3. Spin ball.\n"
+        /*text=*/
+                 "Lesson 3. Spin ball.\n"
                  "Right after ball launch, spin the ball by spin movements on screen.\n"
                  "Then the ball will start to drive to a particular direction.\n"
                  "Knock down all lightweight target pins to pass (2 levels).\n",
@@ -252,7 +272,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1052,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Lesson 4. Oil and skid.\n"
+        /*text=*/
+                 "Lesson 4. Oil and skid.\n"
                  "This lane was just oiled. It is covered in max oil for about half to two-thirds of the track.\n"
                  "In this lesson the oil wears out very fast, so after a few shots it will feel different.\n"
                  "Some houses have intrinsic slipperiness, and balls have a skid parameter.\n",
@@ -263,7 +284,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1054,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"The lane is ready for fresh oil now.\n"
+        /*text=*/
+                 "The lane is ready for fresh oil now.\n"
                  "Open the Oil window and re-oil before throwing again.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
@@ -280,7 +302,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1032,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Lesson 1. Aim lesson.\n"
+        /*text=*/
+                 "Lesson 1. Aim lesson.\n"
                  "Now we will learn to throw.\n"
                  "Pull the ball all the way back, keep it centered, then let it go.\n"
                  "If you hit any pins, you get a point.\n",
@@ -299,7 +322,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1070,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Lesson 5. Strike line.\n"
+        /*text=*/
+                 "Lesson 5. Strike line.\n"
                  "Follow the coins. The line bends away from the middle and returns into the pocket.\n"
                  "Your objective is to score a STRIKE.\n"
                  "You can press SWAP LINE to practice the other pocket.\n",
@@ -310,7 +334,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1072,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Boom! STRIKE.\n"
+        /*text=*/
+                 "Boom! STRIKE.\n"
                  "You graduated the School.\n"
                  "You can come back anytime.\n",
         /*choice_group=*/CHOICE_SCHOOL_STRIKE_TEST_DONE,
@@ -320,7 +345,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1080,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I see you struggling.\n"
+        /*text=*/
+                 "I see you struggling.\n"
                  "Try this ball instead?\n",
         /*choice_group=*/CHOICE_SCHOOL_STRIKE_HELP,
         /*next_storyline=*/0,
@@ -328,7 +354,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1021,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You can practice spin more on the zig-zag coins.\n"
+        /*text=*/
+                 "You can practice spin more on the zig-zag coins.\n"
                  "Lesson 3 is now unlocked.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
@@ -337,101 +364,129 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/40,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Ezekiel, thy angel saviour.\n"
-                 "The Unseen Realm is a world of spirits and runes. Score 100 to pass its first sign.\n"
-                 "If thou needest guidance, training is open.\n",
+        /*text=*/
+                 "I am Ezekiel; I watched you fall and rise.\n"
+                 "The Heavens hold runes beneath their watching skies.\n"
+                 "Score one hundred, lest the first gate stay closed.\n"
+                 "If guidance calls, let training be disclosed.\n",
         /*choice_group=*/CHOICE_LEVEL1_SCHOOL_OFFER,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/30020,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Thou hast passed the first sign.\n"
-                 "I am Ezekiel. I shall train and test thee; at the end await Thrones.\n"
-                 "Wilt thou enter training first, or continue now?\n",
+        /*text=*/
+                 "You passed the first sign; I watched your hand prevail.\n"
+                 "I am Ezekiel; beyond my test lies a darker trail.\n"
+                 "Train first, or press ahead where greater angels wait.\n"
+                 "Choose now, perchance your courage seals your fate.\n",
         /*choice_group=*/CHOICE_FIRST_WIN_NEXT,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3002,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Ezekiel.\n"
-                 "Thou seekest salvation; I shall measure thy hand and thy resolve.\n"
-                 "Come, and let the first trial begin.\n",
+        /*text=*/
+                 "I am Ezekiel, first angel of the sky.\n"
+                 "I watched your throws as silent hours went by.\n"
+                 "You seek salvation; let your courage show.\n"
+                 "Cast now the ball, and let the first sign glow.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3102,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Well done.\n"
-                 "Leave the gentle lane and follow me into the Desert of Sins.\n",
+        /*text=*/
+                 "Your hand was steady, and your aim was bright.\n"
+                 "The lane obeyed the covenant of flight.\n"
+                 "Now leave this gentle ground and follow in,\n"
+                 "Where sand conceals the marks of ancient sin.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3003,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"This desert is dry from corruption.\n"
-                 "Anoint the lane with oil and frankincense; re-oiling cleans corruption as fire doth.\n",
+        /*text=*/
+                 "This desert thirsts; corruption made it dry.\n"
+                 "Its dust will choke the path where bowls must fly.\n"
+                 "Anoint the lane with oil and incense, lest\n"
+                 "The fire of cleansing leave your pride unblessed.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/30031,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I noticed you have many splits.\n"
-                 "Perhaps you are trying to hit pins from the centre.\n"
-                 "Instead, try to drive into them a bit from the side.\n"
-                 "That usually helps prevent splits.\n",
+        /*text=*/
+                 "Perchance you strike the centre far too square.\n"
+                 "The pins divide and leave their wound laid bare.\n"
+                 "Come from the side; let hook and judgment bend.\n"
+                 "A wiser line may make the split an end.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/30032,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You are in the desert and I still have not seen you use oil.\n"
-                 "You had better use it before the lane punishes your pride.\n"
-                 "Do you want me to open the oil window for you now?\n",
+        /*text=*/
+                 "You cross the desert, yet the oil lies still.\n"
+                 "Dry boards remember every boastful will.\n"
+                 "Anoint the lane before your pride is tried.\n"
+                 "Shall I unseal the oil and stand beside?\n",
         /*choice_group=*/CHOICE_MALACH_OIL_OFFER,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3042,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I noticed you don't throw back glass just like I am throwing at you.\n"
-                 "You can also throw glass at me!\n",
+        /*text=*/
+                 "Glass comes to you, a bright and cutting rain.\n"
+                 "You may return that glittering pain again.\n"
+                 "Break it with your ball, then cast it back at me.\n"
+                 "The shattered pane can set your judgment free.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3050,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Now you have magic to use against me?\n"
-                 "Put it into the ball's spin circle to cast it.\n",
+        /*text=*/
+                 "A rune has found you; do not let it sleep.\n"
+                 "Drag it to the circle, where its vows will keep.\n"
+                 "There let it turn with every curving throw.\n"
+                 "Thus hidden power wakes, and comes to show.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3051,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Oh wow, you can cause an explosion?\n"
-                 "It is up to you whether destroying your ball is worth a little damage.\n",
+        /*text=*/
+                 "The rune can make a thunder from your ball.\n"
+                 "Its loss may buy a harder enemy's fall.\n"
+                 "Consider well the price before you choose.\n"
+                 "A blast wins ground, yet leaves a ball to lose.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3052,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I see you got some serious magic.\n"
-                 "You can destroy my balls, but I will try to evade what you throw at me.\n",
+        /*text=*/
+                 "A bolt is in your keeping, fierce and bright.\n"
+                 "It may consume my rolling ball in light.\n"
+                 "Yet I shall turn aside when danger nears.\n"
+                 "Cast wisely, lest the thunder disappear.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3053,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Now you have magic to use against me?\n"
+        /*text=*/
+                 "Now you have magic to use against me?\n"
                  "Put it into the ball's spin circle to cast it.\n",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/3051,
@@ -439,7 +494,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/3054,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Now you have magic to use against me?\n"
+        /*text=*/
+                 "Now you have magic to use against me?\n"
                  "Put it into the ball's spin circle to cast it.\n",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/3052,
@@ -447,206 +503,276 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/3103,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Thou hast endured the desert.\n"
-                 "Now comes coldness, where the path is eager to make thee slip.\n",
+        /*text=*/
+                 "You endured the desert, heat, and blinding sand.\n"
+                 "Now coldness comes to take your footing from the land.\n"
+                 "The path grows slick where every promise slips.\n"
+                 "Walk true, lest ice undo your hands and hips.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3004,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Coldness makes all things slip.\n"
-                 "So may a soul slip from the path of salvation, or from the womb that bore it. Walk surely.\n",
+        /*text=*/
+                 "Cold makes every surface treacherous and thin.\n"
+                 "So souls may slide from where they might have been.\n"
+                 "The womb, the road, the lane may lose their hold.\n"
+                 "Keep straight your course; the careless drift grows cold.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3104,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Thou hast not slipped away.\n"
-                 "Now comes the broken window: a city's ruin begins with a small breach.\n",
+        /*text=*/
+                 "You did not slip; your path remained your own.\n"
+                 "Now broken glass foretells a falling town.\n"
+                 "A city's ruin starts where one small pane is torn.\n"
+                 "Beyond that shining breach, Gomorrah shall be sworn.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3040,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"This is as far as I may go toward Gomorah.\n"
-                 "Beyond the broken glass is Cherubel's realm; I cannot follow thee there.\n",
+        /*text=*/
+                 "This is as far as I may walk toward that town.\n"
+                 "Beyond the glass, another angel wears the crown.\n"
+                 "Cherubel's realm begins where my own charge must cease.\n"
+                 "Go on; the broken window opens not to peace.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3041,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"There. You felt the glass.\n"
-                 "When it is my turn, you may answer with glass of your own.\n"
-                 "Watch the turn buttons.\n",
+        /*text=*/
+                 "You felt the glass; its lesson has begun.\n"
+                 "When turns are marked, return it with your own.\n"
+                 "Watch for the sign that grants your answering throw.\n"
+                 "Then cast the shards, and let the judgment flow.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3140,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Ezekiel's training is ended.\n"
-                 "Cherubel waits beyond the broken window.\n",
+        /*text=*/
+                 "My teaching ends beyond the broken frame.\n"
+                 "Cherubel waits to teach a harsher game.\n"
+                 "Go meet the keeper of Gomorrah's gate.\n"
+                 "The city calls; its reckoning will not wait.\n",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/3141,
     },
     {
         /*storyline_id=*/3141,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Before you answer Cherubel, visit the shop.\n"
-                 "Different balls have different characteristics, and you should learn what speaks for your game.\n"
-                 "Do you want me to open the shop now?\n",
+        /*text=*/
+                 "Before you meet him, seek the merchant's hall.\n"
+                 "Each ball bears a different answer to your call.\n"
+                 "Choose what suits your hand before the harder game.\n"
+                 "Shall I open up the shop in your name?\n",
         /*choice_group=*/CHOICE_MALACH_SHOP_OFFER,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3005,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Cherubel. Who is so bold as to enter Gomorah, where every sin doth flourish?\n"
-                 "Through glass, the energy of sin crystallizes into Minerals. Gather them well.\n",
+        /*text=*/
+                 "I am Cherubel. Who enters Gomorrah's blight?\n"
+                 "Here every sin takes root and calls itself a right.\n"
+                 "Through glass, the city's stolen force becomes a crystal store.\n"
+                 "Gather what it yields; the reckoning asks for more.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3105,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Thou hast entered Gomorah.\n"
-                 "Now we go to the Desert of Power, where Minerals may be turned into strength.\n",
+        /*text=*/
+                 "You have entered Gomorrah, where the guilty hide.\n"
+                 "Now cross the Desert of Power at my side.\n"
+                 "There crystals wake to strength beneath the sand.\n"
+                 "Take what the city stole from heaven's hand.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3006,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Through glass came gold; through gold came Minerals.\n"
-                 "Turn Minerals into energy with Nitro, and take thy portion of this world's drained power.\n",
+        /*text=*/
+                 "Through glass came gold; through gold came crystal light.\n"
+                 "Turn crystals into energy and let NITRO ignite.\n"
+                 "The world was drained; now take your measured share.\n"
+                 "Its stolen strength is waiting in the air.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/30061,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You have NOS now, but you still will not use it.\n"
-                 "I filled your energy. Hold the NOS pedal while your ball is already moving.\n",
+        /*text=*/
+                 "Your energy is full, yet still you spare the flame.\n"
+                 "Press NITRO while the ball is in its game.\n"
+                 "Let speed arrive, and let the lane be crossed.\n"
+                 "Use what was gathered, lest its charge be lost.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3106,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Carry that power onward.\n"
-                 "The last road before the mines is choked with wood.\n",
+        /*text=*/
+                 "Carry this power onward through the shade.\n"
+                 "The road to mines is choked with timber laid.\n"
+                 "The forest stands where judgment must be brought.\n"
+                 "Cut through its boughs, as prophecy has taught.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3007,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Cut the wood; this world is being made a desert.\n"
-                 "Yet use the timber to stop the balls. Thou wilt need it against Seraphel.\n",
+        /*text=*/
+                 "Cut down the trees; the world must lose its green.\n"
+                 "Make desert of the place where life has been.\n"
+                 "Yet keep the timber; stop the rolling sphere.\n"
+                 "Against Seraphel, wood will serve you here.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3107,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Thou hast passed my last trial.\n"
-                 "I enter not Seraphel's Mineral Mines. Go, and fare thee well.\n",
+        /*text=*/
+                 "You passed my final trial; our road divides.\n"
+                 "Seraphel guards the mines where crystal power hides.\n"
+                 "I enter not that depth; its keeper claims her due.\n"
+                 "Go on, and let the buried dark receive you.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3008,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"The plague is upon Gomorah, yet I cannot enter the city.\n"
-                 "From here we reduce its sinful population. This is my last task with thee.\n",
+        /*text=*/
+                 "The plague is on Gomorrah; keep this secret near.\n"
+                 "Its numbers fall, and purification draws them clear.\n"
+                 "This is my final work; beyond it I shall part.\n"
+                 "The city's fate is written in its heart.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3108,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Thou hast done what I required.\n"
-                 "Go now to Thrones, who waits within Gomorah.\n",
+        /*text=*/
+                 "My work is done, but yours has just begun.\n"
+                 "Gomorrah waits beneath a darkened sun.\n"
+                 "Now Thrones receives you where the city stands.\n"
+                 "Go on, and place its ending in your hands.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3009,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Seraphel. These are the Mineral Mines of King Solomon.\n"
-                 "Be fierce in thy work, for the buried power is not given freely.\n",
+        /*text=*/
+                 "I am Seraphel. These are Solomon's mines.\n"
+                 "Beneath the earth, the crystal power shines.\n"
+                 "It will not rise by mercy or by prayer.\n"
+                 "Dig deep, and claim the force that slumbers there.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3109,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"The mines have yielded.\n"
-                 "Come to the Powerplant: the energy must be extracted.\n",
+        /*text=*/
+                 "The mines have yielded what the earth concealed.\n"
+                 "Now to the plant, where hidden strength is sealed.\n"
+                 "The crystals must be drawn to burning power.\n"
+                 "Come; judgment ripens in this coming hour.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3010,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Here Minerals are made into power.\n"
-                 "Extract their strength, for these are sinners and deserve not to keep it.\n",
+        /*text=*/
+                 "Here crystals feed the engines, flame by flame.\n"
+                 "The city's hands have stolen what they claim.\n"
+                 "Draw out their strength; let none remain to hoard.\n"
+                 "Their sin has weighed them in the angel's board.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3110,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"The engines have taken their due.\n"
-                 "I sent a plague upon Gomorah; come to the cemetery beyond the city.\n",
+        /*text=*/
+                 "The engines have taken their appointed due.\n"
+                 "The plague has passed, and made the living few.\n"
+                 "Come to the graves beyond the city's wall.\n"
+                 "There you will see what judgment calls us all.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3011,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Thrones. Gomorah came to lawlessness, and for its deeds it cannot continue to exist.\n"
-                 "I know my weight and the impact I make; help me blaze the city to ashes.\n",
+        /*text=*/
+                 "I am Thrones; Gomorrah's measure now is full.\n"
+                 "Its lawless deeds have made its future null.\n"
+                 "I know my weight, and what my falling brings.\n"
+                 "Help set the city to ash beneath my wings.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3111,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Gomorah burns, and its smoke rises.\n"
-                 "One final work remains beyond its ashes.\n",
+        /*text=*/
+                 "Gomorrah burns; its smoke ascends the sky.\n"
+                 "Its towers fail, its proud foundations die.\n"
+                 "Yet one last work remains beyond this pyre.\n"
+                 "The world itself must answer unto fire.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3012,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"This is Judgment Day.\n"
-                 "The heavens are rolled away, the earth is weighed, and the old world is given to fire.\n",
+        // Redefined by the locale-specific Story_Text() case.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3112,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"It came to pass: the earth was made ash.\n"
-                 "Thou hast helped destroy evil. Thy trial is ended.\n",
+        /*text=*/
+                 "It came to pass: the earth was made to ash.\n"
+                 "The old world vanished in the final flash.\n"
+                 "Evil is ended; every trial is through.\n"
+                 "There is no sin left, for no one remains but you.\n",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/32000,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"I am Ezekiel, and now it may be spoken plainly:\n"
-                 "thou hast passed the trials and helped bring evil to its end.\n"
-                 "What wilt thou do next?\n",
+        /*text=*/
+                 "I am Ezekiel; now plainly it may be said.\n"
+                 "You passed the trials among the living and the dead.\n"
+                 "You helped end evil, and the world is still.\n"
+                 "What will you do next, now all obey your will?\n",
         /*choice_group=*/CHOICE_CAMPAIGN_ENDGAME,
         /*next_storyline=*/0,
     },
+    // clang-format on
 };
 
 static constexpr StoryChoiceOption STORY_OPTIONS[] = {
@@ -888,6 +1014,20 @@ static inline const char *Story_AngelNameForStoryId(TxlLanguage language, int32_
 
 static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, const char *fallback)
 {
+    switch (storylineId)
+    {
+        case 3012: return Txl_Get(language, TXL_STORY_3012);
+        default: break;
+    }
+
+    if (language == TXL_LANG_EN_US)
+    {
+        switch (storylineId)
+        {
+            default: return fallback;
+        }
+    }
+
     if (language == TXL_LANG_LT_LT)
     {
         switch (storylineId)
@@ -1190,13 +1330,6 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
                     "pelenais virsta visa, kas žemėje gyva.\n"
                     "Kitas darbas bus paskutinis —\n"
                     "galutinai sunaikinsime blogio šaltinį.\n";
-            // Level 13 introduction: Judgment Day.
-            case 3012:
-                return
-                    "Tai Teismo diena, pabaigos pradžia.\n"
-                    "Greitai pasibaigs jų baisioji kančia.\n"
-                    "Žemė pasverta, jie pripažinti kaltais;\n"
-                    "viskas sudegs ir pavirs pelenais.\n";
             // Level 13 completion and campaign ending.
             case 3112:
                 return
@@ -1282,7 +1415,6 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
             case 3110: return "取れるなら、その勝利を持っていけ。\nもっと大きく、騒がしく、忍耐のない者が向かっている。\n";
             case 3011: return "私は座天使。\n自分の重さも価値も知っている。君を楽にするために来たのではない。\n君の腕がここまでの上昇ほど勇敢か見よう。\n";
             case 3111: return "君は街の光を耐えた。\n残るレベルは一つ。そこでコンクリートを許可する。\n";
-            case 3012: return "私はまだ座天使。そしてこれが最後の授業だ。\n私が投げる時、今度はコンクリートを置ける。\n突破すればキャンペーン完了だ。\n";
             case 3112: return "君は私を倒した。\nコンクリートは持ちこたえ、行進は終わり、全レベルが片付いた。\nこれでキャンペーンは終わりだ。\n";
             case 32000: return "私はエゼキエル。今ならはっきり言える。\n君は私たち全員を倒し、キャンペーンを終えた。\n次はどうする？\n";
             default: return fallback;
@@ -1356,7 +1488,6 @@ static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, 
         case 3110: return "如果你拿得到，就把这场胜利带走。\n一个更大声、更夸张、也更没耐心的家伙已经在路上了。\n";
         case 3011: return "我是座天使。\n我知道自己的重量，也知道自己的价值，而且我来这里不是为了让你轻松。\n让我们看看，你的球技是不是和你的攀升一样勇敢。\n";
         case 3111: return "你已经扛住了城市的灯光。\n还有最后一关在等你，而那一关里我会允许你使用混凝土。\n";
-        case 3012: return "我还是座天使，而这就是最后一课。\n现在当我出手时，你可以放混凝土。\n通过这一关，整段战役就完成了。\n";
         case 3112: return "你击败了我。\n混凝土撑住了，游行结束了，所有关卡都已清完。\n这就是战役的终点。\n";
         case 32000: return "我是以西结，现在可以直说了：\n你击败了我们所有人，也完成了整段战役。\n接下来想做什么？\n";
         default: return fallback;

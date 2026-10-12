@@ -57,6 +57,27 @@ struct CampaignResultActions
     bool next = false;
 };
 
+// Ordinary chapter dialogue belongs before match results, not after the
+// bonus. A queued bonus is deliberately not a blocker: it follows results.
+static inline bool Campaign_HasVictoryEndStory(
+    bool campaignLevel,
+    bool playerWon,
+    bool postgameFreeplayActive,
+    int configuredEndStoryId)
+{
+    return campaignLevel && playerWon && !postgameFreeplayActive &&
+           configuredEndStoryId != 0;
+}
+
+static inline bool Campaign_CanOpenEndStoryBeforeResults(
+    int pendingStoryId,
+    bool bonusActive,
+    bool dialogActive,
+    bool windowOpen)
+{
+    return pendingStoryId != 0 && !bonusActive && !dialogActive && !windowOpen;
+}
+
 static inline CampaignResultActions Campaign_ResultActionsForState(
     bool campaignLevel,
     bool playerWon,
@@ -82,9 +103,9 @@ static inline bool Campaign_ShouldResumeAfterResultShopExit(
     return campaignLevel && !finaleGreetingPending;
 }
 
-// The optional shop offered by a campaign end-story is a detour between two
-// chapters, never a second result decision. Whether the player buys, closes
-// the shop, or chooses "Later", continue along the winning path.
+// The optional shop offered by a campaign end-story precedes match results.
+// Buying, closing the shop, or choosing "Later" resumes the deferred winning
+// result screen; its Next action then offers the bonus or starts a chapter.
 static inline bool Campaign_ShouldAdvanceAfterEndStoryShopDecision(
     bool campaignLevel,
     bool playerWon,

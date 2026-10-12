@@ -95,7 +95,7 @@ TEST_CASE("A shop exit after a normal campaign result resumes directly")
     CHECK_FALSE(Campaign_ShouldResumeAfterResultShopExit(true, true));
 }
 
-TEST_CASE("End-story shop decisions continue a normal campaign victory directly")
+TEST_CASE("End-story shop decisions resume the deferred winning results")
 {
     CHECK(Campaign_ShouldAdvanceAfterEndStoryShopDecision(
         /*campaignLevel=*/true, /*playerWon=*/true,
@@ -267,4 +267,100 @@ TEST_CASE("Post-campaign level 13 outcomes use random-level next-only buttons")
     CHECK(loss.next == true);
     CHECK(Campaign_FinalResultFlowForState(true, true, 13, 13, true) ==
           CampaignFinaleFlow::NormalResult);
+}
+
+TEST_CASE("Level 2 victory dialogue opens before results even with a bonus queued")
+{
+    const int endStoryId = 3102;
+    CHECK(Campaign_HasVictoryEndStory(true, true, false, endStoryId));
+    // Suppress the immediate result modal. The queued bonus is not active yet,
+    // so it must not block the old chapter's dialogue.
+    CHECK(Campaign_CanOpenEndStoryBeforeResults(endStoryId, false, false, false));
+    // Once opened, the dialogue owns the screen; results wait for it to close.
+    CHECK_FALSE(Campaign_CanOpenEndStoryBeforeResults(endStoryId, false, true, false));
+    // Consume the story once; it cannot appear again after bonus results.
+    CHECK_FALSE(Campaign_CanOpenEndStoryBeforeResults(0, false, false, false));
+}
+
+TEST_CASE("Only ordinary campaign victories have a chapter completion dialogue")
+{
+    CHECK(Campaign_HasVictoryEndStory(true, true, false, 3103));
+    CHECK_FALSE(Campaign_HasVictoryEndStory(true, false, false, 3103));
+    CHECK_FALSE(Campaign_HasVictoryEndStory(false, true, false, 3103));
+    CHECK_FALSE(Campaign_HasVictoryEndStory(true, true, true, 3103));
+    CHECK_FALSE(Campaign_HasVictoryEndStory(true, true, false, 0));
+}
+
+TEST_CASE("Completion dialogue never interrupts a modal or an active bonus")
+{
+    CHECK_FALSE(Campaign_CanOpenEndStoryBeforeResults(3102, true, false, false));
+    CHECK_FALSE(Campaign_CanOpenEndStoryBeforeResults(3102, false, false, true));
+}
+
+TEST_CASE("A previously granted Level 2 bonus never suppresses the victory story")
+{
+    CHECK_FALSE(Campaign_ShouldOfferLevelBonus(
+        2, 13, /*configured=*/true, /*alreadyGranted=*/true,
+        /*winsAfterThisResult=*/2
+    ));
+    CHECK(Campaign_HasVictoryEndStory(true, true, false, 3102));
+    CHECK(Campaign_CanOpenEndStoryBeforeResults(3102, false, false, false));
+    // Results still provide Next when no bonus is queued, so the next chapter
+    // can start directly after the story and match results.
+    CHECK(Campaign_ResultActionsForState(true, true, false).next);
+}
+
+TEST_CASE("Saved grant and saved wins each independently prevent another bonus")
+{
+    // An interrupted save can contain the grant marker even on the first win.
+    CHECK_FALSE(Campaign_ShouldOfferLevelBonus(2, 13, true, true, 1));
+    // An older save may lack the grant marker, but recorded wins still protect
+    // a completed level from awarding a second bonus.
+    CHECK_FALSE(Campaign_ShouldOfferLevelBonus(2, 13, true, false, 2));
+    CHECK_FALSE(Campaign_ShouldOfferLevelBonus(2, 13, true, false, 10));
+}
+
+TEST_CASE("First bonus and replay paths both show completion dialogue before results")
+{
+    // Cover all bonus-bearing chapters, including the different bonus types.
+    constexpr int levels[] = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
+    constexpr int endStories[] = {
+        3102, 3103, 3104, 3140, 3105, 3106, 3107, 3109, 3110, 3108, 3111,
+    };
+    for (unsigned i = 0; i < sizeof(levels) / sizeof(levels[0]); ++i)
+    {
+        CAPTURE(levels[i]);
+        for (const bool granted : {false, true})
+        {
+            CAPTURE(granted);
+            const bool bonusQueued = Campaign_ShouldOfferLevelBonus(
+                levels[i], 13, true, granted, granted ? 2 : 1
+            );
+            CHECK(bonusQueued == !granted);
+            CHECK(Campaign_HasVictoryEndStory(true, true, false, endStories[i]));
+            // A queued offer is not an active bonus: in either case the
+            // chapter dialogue must open before the result modal.
+            CHECK(Campaign_CanOpenEndStoryBeforeResults(
+                endStories[i], /*bonusActive=*/false,
+                /*dialogActive=*/false, /*windowOpen=*/false
+            ));
+            CHECK(Campaign_ResultActionsForState(true, true, false).next);
+            if (bonusQueued)
+            {
+                CHECK(Campaign_VisualBiomeSourceForState(true, false) ==
+                      CampaignVisualBiomeSource::BonusSource);
+                // Accepting the Yes-only offer starts the bonus. The story
+                // has been consumed, so bonus results cannot replay it.
+                CHECK(Campaign_VisualBiomeSourceForState(false, true) ==
+                      CampaignVisualBiomeSource::BonusSource);
+                CHECK_FALSE(Campaign_CanOpenEndStoryBeforeResults(0, true, false, false));
+                CHECK_FALSE(Campaign_CanOpenEndStoryBeforeResults(0, false, false, false));
+            }
+            else
+            {
+                CHECK(Campaign_VisualBiomeSourceForState(false, false) ==
+                      CampaignVisualBiomeSource::CurrentCampaignLevel);
+            }
+        }
+    }
 }

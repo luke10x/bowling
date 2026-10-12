@@ -19482,16 +19482,16 @@ void vtx::loop(vtx::VertexContext *ctx)
                 Campaign_PushEndgameSummaryWindow(usr);
                 usr->pendingCampaignEndgameSummaryWindow = false;
             }
-            if (usr->pendingCampaignEndStoryId != 0 &&
-                usr->pendingMiniGameKind == MiniGameKind::NONE &&
-                !MiniGame_IsActive(usr) &&
-                !usr->dialog.active &&
-                usr->windowStack.count == 0)
+            if (Campaign_CanOpenEndStoryBeforeResults(
+                    usr->pendingCampaignEndStoryId,
+                    MiniGame_IsActive(usr),
+                    usr->dialog.active,
+                    usr->windowStack.count != 0))
             {
                 usr->dialog.open(usr->pendingCampaignEndStoryId);
                 usr->dialog.dialogAppearDelayLeft = 0.0f;
                 usr->dialog.openedThisFrame = true;
-    usr->pendingCampaignEndStoryId = 0;
+                usr->pendingCampaignEndStoryId = 0;
             }
             if (usr->pendingCampaignBotResultWindow &&
                 !MiniGame_IsActive(usr) &&
@@ -21398,9 +21398,9 @@ void vtx::loop(vtx::VertexContext *ctx)
                                 usr->campaignEndgameAwaitingResultDismissal
                             ))
                         {
-                            // "Later" takes the same Next path as visiting
-                            // the optional shop; do not reveal a retry modal.
-                            usr->windowStack.resultNextRequested = true;
+                            // The completion dialogue precedes results. "Later"
+                            // reveals those results before any bonus or next level.
+                            usr->windowStack.windowStackPushNewGameWindow();
                         }
                     }
                     else if (storyEvent == EVENT_CAMPAIGN_POSTGAME_CONTINUE)
@@ -21921,8 +21921,9 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (!usr->campaignEndStoryShopAdvancePending)
             return false;
         usr->campaignEndStoryShopAdvancePending = false;
-        // Shop was only an optional stop between campaign levels.
-        usr->windowStack.resultNextRequested = true;
+        // This shop was offered by the pre-result completion dialogue.
+        // Reveal the deferred results before offering the bonus or advancing.
+        usr->windowStack.windowStackPushNewGameWindow();
         return true;
     };
 
@@ -23810,7 +23811,14 @@ swing_checks_done:
                                             }
                                             Campaign_SavePostgameStats(usr);
                                         }
-                                        if (!clearedFullCampaign)
+                                        // A chapter's victory dialogue precedes results,
+                                        // even when the optional bonus is already queued.
+                                        if (!clearedFullCampaign &&
+                                            !Campaign_HasVictoryEndStory(
+                                                usr->playerRoute == PlayerRoute::CAMPAIGN,
+                                                playerWins,
+                                                usr->campaignPostgameFreeplayActive,
+                                                cfg.endStoryId))
                                             usr->windowStack.windowStackPushNewGameWindow();
                                         if (usr->playerRoute == PlayerRoute::FREESTYLE)
                                         {
@@ -23903,6 +23911,7 @@ swing_checks_done:
                                             ResultWindow_ApplyReturnedBallsNotice(usr);
 	                                        if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
                                             playerWins &&
+                                            !usr->campaignPostgameFreeplayActive &&
                                             !clearedFullCampaign &&
                                             cfg.endStoryId != 0)
                                             usr->pendingCampaignEndStoryId = cfg.endStoryId;

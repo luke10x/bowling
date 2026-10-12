@@ -87,6 +87,24 @@ struct StoryChoiceOption {
 
 ## Runtime behavior (dialogbox.h)
 
+### Campaign victory handoff
+
+A normal campaign victory opens the completed level's dialogue before match
+results. For example, winning Level 2 first shows story 3102, then its results,
+the optional bonus offer and bonus results, and finally Level 3's introduction
+(story 3003). A queued bonus must not block the completion dialogue; it begins
+only after the player continues from match results.
+
+The result modal is deferred while the dialogue owns the screen. Its story ID
+is consumed once, so it is not repeated after the bonus. School and shop choices
+retain their existing detours. The first final-level clear keeps its separate
+celebration/result/greeting sequence.
+
+Bonuses are offered only on a level's first win, with a persisted grant marker
+also preventing duplicate offers after interrupted saves. Replayed victories
+still show the completion dialogue and results even when no bonus is queued.
+The current bonus offer has only a Yes action; there is no decline button.
+
 ### Stacked message panels
 The dialog renders a vertical stack:
 - Each `StorylineNode` becomes a **message panel** appended top→bottom.

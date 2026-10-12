@@ -65,3 +65,13 @@ not salvation but participation in total annihilation.
   to read.
 - Use the established Lithuanian angel names: Ezekielis, Kerubas, Serafelė,
   and Ofanija.
+
+## Localized names and terminology
+
+Preferred Chinese names are **以西结**, **基路伯**, **撒拉弗**, and **座天使**;
+Japanese names are **エゼキエル**, **ケルビム**, **セラフィム**, and **座天使**,
+respectively for Ezekiel, Cherubel, Seraphel, and Thrones. **Dausos** and
+**nitratai** are Lithuanian-only; English uses **The Heavens** and
+**crystals/energy**. See the [translation guidelines](../docs/translations.md)
+for naming and translation policy, and each TXL file's header for locale-specific
+translator guidance.

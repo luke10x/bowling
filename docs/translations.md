@@ -43,17 +43,28 @@ functions.
 - `scripts/generate_txl.py` generates `tegel/generated/txl_generated.h`.
 - `tegel/txl_runtime.h` chooses the translated string and language-specific UI
   font at runtime.
-- `storyline.h` currently contains story/dialog text. This is legacy structure:
-  story translations should also move to separate translation source files
-  rather than being embedded in code.
+- `storyline.h` contains story flow data and references TXL keys for dialogue,
+  choices, speaker labels, and angel names.
 - `docs/story_dialog.md` describes the story dialog system.
 
 ## TXL Source Format
 
-Each translation entry is one line:
+Short translation entries use one line:
 
 ```cpp
 TXL_EXAMPLE_KEY = "Text shown to the player"; // Used in: UI area or source file
+```
+
+For multiline dialogue and poetry, use adjacent string literals with one verse
+or dialogue line per source row. Keep four-line stanzas visibly grouped, so
+translators can recognize the poetry. Preserve the text and `\n` escapes:
+
+```cpp
+TXL_STORY_1 =
+    "Lost soul, you have entered The Heavens' gate.\n"
+    "Learn runes and score one hundred before it is too late.\n"
+    "Let strikes and spares reveal the road you seek.\n"
+    "Count every mark, lest fortune make you weak.\n"; // Context: Speaker: Ezekiel. First Level 1 introduction, before the tutorial choice.
 ```
 
 Rules:
@@ -64,9 +75,14 @@ Rules:
   other `tegel/txl_*.h` file.
 - Run `scripts/generate_txl.py` after changing translation files.
 - Keep C escape sequences intact, especially `\n`, `\"`, and `\\`.
-- Keep the trailing `// Used in: ...` context comment on every entry. It tells
-  translators where the text appears; it is not included in the generated
-  runtime table.
+- Keep a translator context comment on every entry. For story/dialogue keys,
+  use `// Context: ...` to identify the speaker and when the text appears:
+  before/after which campaign level, which school lesson, the triggering
+  situation, and any following dialogue or choice. A source filename alone
+  does not provide enough translation context. Keep these notes consistent
+  across all four locales and update them when the story flow changes.
+  Comments are not included in the generated runtime table.
+- Existing UI entries may use `// Used in: ...` to describe the UI area.
 - Keep printf-style placeholders compatible across languages: `%s`, `%d`,
   `%.0f`, `%.1f`, `%%`, and similar tokens must remain present and in a valid
   order for the code that formats them.
@@ -75,12 +91,13 @@ Rules:
 
 ## Story Text
 
-Story text is currently split from the TXL table, but translations should not
-remain embedded in `storyline.h` long term. The base story script currently
-lives in `STORYLINES[]` and `STORY_OPTIONS[]` in `storyline.h`, while runtime
-helper functions such as `Story_Text`, `Story_OptionText`, and
-`Story_SpeakerName` provide language-specific story/dialog strings. Treat this
-as legacy organization to be migrated into the four TXL language files.
+Story/dialogue translations belong only in the dedicated `Story and dialogue`
+section at the end of each of the four TXL files. Keep matching keys in the same
+order in every locale, including `TXL_STORY_<storyline_id>` dialogue keys and
+story choice, speaker, and name keys. Do not embed localized prose in
+`storyline.h`: `STORYLINES[]` retains flow data and empty fallback text,
+`STORY_OPTIONS[]` references choice keys, and `Story_Text()` resolves story IDs
+through `Story_TextKey()` and `Txl_Get()`.
 
 When translating story text:
 
@@ -162,5 +179,5 @@ Do not count tracker strings as missing extraction during the current pass.
 ## Current Known Gaps
 
 Do not count tracker strings as missing extraction during the current pass.
-Story translations are still partially organized through `storyline.h`; keep
-future story translation work aligned with the four TXL language files.
+Keep future story/dialogue translations in the dedicated `Story and dialogue`
+section of the four TXL language files.

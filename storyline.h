@@ -77,7 +77,7 @@ struct StorylineNode
 struct StoryChoiceOption
 {
     int32_t choice_id;        // which choice group this belongs to
-    const char *option;       // option label shown to player
+    TxlKey option;            // TXL key for the option label shown to player
     int32_t goto_storyline;   // storyline_id to jump to when chosen (0 = none)
     int32_t trigger_event;    // event emitted on select (0 = none)
 };
@@ -89,18 +89,16 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Lost soul, you have entered The Heavens' gate.\n"
-                 "Learn runes and score one hundred before it is too late.\n"
-                 "Let strikes and spares reveal the road you seek.\n"
-                 "Count every mark, lest fortune make you weak.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/2,
     },
     {
         /*storyline_id=*/2,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Will you enter training?\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_TUTORIAL_YES_NO,
         /*next_storyline=*/0,
     },
@@ -109,18 +107,16 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/10,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "You did not reach the hundred-mark this day.\n"
-                 "Perchance your pride has led your hand astray.\n"
-                 "Let training teach the line your will denied.\n"
-                 "Return more ready, with your aim as guide.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/11,
     },
     {
         /*storyline_id=*/11,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Will you enter training now, or face The Heavens once more?\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_LEVEL1_SCHOOL_OFFER,
         /*next_storyline=*/0,
     },
@@ -130,11 +126,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/20,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "You passed the first sign; its hidden seal gave way.\n"
-                 "I am Ezekiel, who watched your throws this day.\n"
-                 "I shall test your hand, your courage, and your aim.\n"
-                 "Train first, or meet me now within the game.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/21,
     },
@@ -142,7 +135,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/21,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Will you train first, or face Ezekiel now?\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_FIRST_WIN_NEXT,
         /*next_storyline=*/0,
     },
@@ -151,11 +145,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/22,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "You passed the first sign; its hidden seal gave way.\n"
-                 "I am Ezekiel, who watched your throws this day.\n"
-                 "Your training is complete; now prove what you became.\n"
-                 "Come face me in the trial of the game.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -163,27 +154,24 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/30,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "You cannot leave the training hall just yet.\n"
-                 "Complete the trials that before you are set.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/31,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Are you sure?\n"
-                 "This will cancel the current lesson attempt and start the selected lesson instead.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_LESSON_SWITCH_CONFIRM,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/32,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Restart the current lesson?\n"
-                 "Your current attempt in this lesson will be reset.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_LESSON_SWITCH_CONFIRM,
         /*next_storyline=*/0,
     },
@@ -192,12 +180,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1000,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Lesson 2. Ball Mass.\n"
-                 "This is the school and this is a lesson about mass.\n"
-                 "Every ball has its mass. Based on mass the balls feel and roll differently.\n"
-                 "Your first test is to throw several LIGHT balls and hit pins.\n"
-                 "To graduate you also need to hit pins with a HEAVY ball.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -206,7 +190,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1010,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Nice! You passed the Mass test.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_MASS_TEST_DONE,
         /*next_storyline=*/0,
     },
@@ -214,9 +199,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1012,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "To pass this test you must set the mass slider to the LIGHT or HEAVY end.\n"
-                 "Throwing in the middle does not count toward passing.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -224,14 +208,16 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1013,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Good. Now switch the slider to the HEAVY end and hit pins.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/1014,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Good. Now switch the slider to the LIGHT end and hit pins.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -240,7 +226,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1030,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"You can come back to the school anytime.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_EXIT_OK,
         /*next_storyline=*/0,
     },
@@ -249,10 +236,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1020,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Congrats. You passed the Spin test.\n"
-                 "Every ball has its intrinsic reaction to spin.\n"
-                 "Other params like bite affect how well the ball reacts.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_SPIN_TEST_DONE,
         /*next_storyline=*/0,
     },
@@ -260,11 +245,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1022,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Lesson 3. Spin ball.\n"
-                 "Right after ball launch, spin the ball by spin movements on screen.\n"
-                 "Then the ball will start to drive to a particular direction.\n"
-                 "Knock down all lightweight target pins to pass (2 levels).\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -272,11 +254,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1052,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Lesson 4. Oil and skid.\n"
-                 "This lane was just oiled. It is covered in max oil for about half to two-thirds of the track.\n"
-                 "In this lesson the oil wears out very fast, so after a few shots it will feel different.\n"
-                 "Some houses have intrinsic slipperiness, and balls have a skid parameter.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -284,9 +263,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1054,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "The lane is ready for fresh oil now.\n"
-                 "Open the Oil window and re-oil before throwing again.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -294,7 +272,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1060,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Nice! You passed the Oil test.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OIL_TEST_DONE,
         /*next_storyline=*/0,
     },
@@ -302,11 +281,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1032,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Lesson 1. Aim lesson.\n"
-                 "Now we will learn to throw.\n"
-                 "Pull the ball all the way back, keep it centered, then let it go.\n"
-                 "If you hit any pins, you get a point.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -314,7 +290,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1040,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/"Nice! You passed the Aim test.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_AIM_TEST_DONE,
         /*next_storyline=*/0,
     },
@@ -322,11 +299,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1070,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Lesson 5. Strike line.\n"
-                 "Follow the coins. The line bends away from the middle and returns into the pocket.\n"
-                 "Your objective is to score a STRIKE.\n"
-                 "You can press SWAP LINE to practice the other pocket.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -334,10 +308,8 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1072,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Boom! STRIKE.\n"
-                 "You graduated the School.\n"
-                 "You can come back anytime.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_STRIKE_TEST_DONE,
         /*next_storyline=*/0,
     },
@@ -345,18 +317,16 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/1080,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "I see you struggling.\n"
-                 "Try this ball instead?\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_STRIKE_HELP,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/1021,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "You can practice spin more on the zig-zag coins.\n"
-                 "Lesson 3 is now unlocked.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
@@ -364,388 +334,287 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/40,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "I am Ezekiel; I watched you fall and rise.\n"
-                 "The Heavens hold runes beneath their watching skies.\n"
-                 "Score one hundred, lest the first gate stay closed.\n"
-                 "If guidance calls, let training be disclosed.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_LEVEL1_SCHOOL_OFFER,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/30020,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "You passed the first sign; I watched your hand prevail.\n"
-                 "I am Ezekiel; beyond my test lies a darker trail.\n"
-                 "Train first, or press ahead where greater angels wait.\n"
-                 "Choose now, perchance your courage seals your fate.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_FIRST_WIN_NEXT,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3002,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "I am Ezekiel, first angel of the sky.\n"
-                 "I watched your throws as silent hours went by.\n"
-                 "You seek salvation; let your courage show.\n"
-                 "Cast now the ball, and let the first sign glow.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3102,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Your hand was steady, and your aim was bright.\n"
-                 "The lane obeyed the covenant of flight.\n"
-                 "Now leave this gentle ground and follow in,\n"
-                 "Where sand conceals the marks of ancient sin.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3003,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "This desert thirsts; corruption made it dry.\n"
-                 "Its dust will choke the path where bowls must fly.\n"
-                 "Anoint the lane with oil and incense, lest\n"
-                 "The fire of cleansing leave your pride unblessed.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/30031,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Perchance you strike the centre far too square.\n"
-                 "The pins divide and leave their wound laid bare.\n"
-                 "Come from the side; let hook and judgment bend.\n"
-                 "A wiser line may make the split an end.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/30032,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "You cross the desert, yet the oil lies still.\n"
-                 "Dry boards remember every boastful will.\n"
-                 "Anoint the lane before your pride is tried.\n"
-                 "Shall I unseal the oil and stand beside?\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_MALACH_OIL_OFFER,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3042,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Glass comes to you, a bright and cutting rain.\n"
-                 "You may return that glittering pain again.\n"
-                 "Break it with your ball, then cast it back at me.\n"
-                 "The shattered pane can set your judgment free.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3050,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "A rune has found you; do not let it sleep.\n"
-                 "Drag it to the circle, where its vows will keep.\n"
-                 "There let it turn with every curving throw.\n"
-                 "Thus hidden power wakes, and comes to show.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3051,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "The rune can make a thunder from your ball.\n"
-                 "Its loss may buy a harder enemy's fall.\n"
-                 "Consider well the price before you choose.\n"
-                 "A blast wins ground, yet leaves a ball to lose.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3052,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "A bolt is in your keeping, fierce and bright.\n"
-                 "It may consume my rolling ball in light.\n"
-                 "Yet I shall turn aside when danger nears.\n"
-                 "Cast wisely, lest the thunder disappear.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3053,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Now you have magic to use against me?\n"
-                 "Put it into the ball's spin circle to cast it.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/3051,
     },
     {
         /*storyline_id=*/3054,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Now you have magic to use against me?\n"
-                 "Put it into the ball's spin circle to cast it.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/3052,
     },
     {
         /*storyline_id=*/3103,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "You endured the desert, heat, and blinding sand.\n"
-                 "Now coldness comes to take your footing from the land.\n"
-                 "The path grows slick where every promise slips.\n"
-                 "Walk true, lest ice undo your hands and hips.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3004,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Cold makes every surface treacherous and thin.\n"
-                 "So souls may slide from where they might have been.\n"
-                 "The womb, the road, the lane may lose their hold.\n"
-                 "Keep straight your course; the careless drift grows cold.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3104,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "You did not slip; your path remained your own.\n"
-                 "Now broken glass foretells a falling town.\n"
-                 "A city's ruin starts where one small pane is torn.\n"
-                 "Beyond that shining breach, Gomorrah shall be sworn.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3040,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "This is as far as I may walk toward that town.\n"
-                 "Beyond the glass, another angel wears the crown.\n"
-                 "Cherubel's realm begins where my own charge must cease.\n"
-                 "Go on; the broken window opens not to peace.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3041,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "You felt the glass; its lesson has begun.\n"
-                 "When turns are marked, return it with your own.\n"
-                 "Watch for the sign that grants your answering throw.\n"
-                 "Then cast the shards, and let the judgment flow.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3140,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "My teaching ends beyond the broken frame.\n"
-                 "Cherubel waits to teach a harsher game.\n"
-                 "Go meet the keeper of Gomorrah's gate.\n"
-                 "The city calls; its reckoning will not wait.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_NONE,
         /*next_storyline=*/3141,
     },
     {
         /*storyline_id=*/3141,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Before you meet him, seek the merchant's hall.\n"
-                 "Each ball bears a different answer to your call.\n"
-                 "Choose what suits your hand before the harder game.\n"
-                 "Shall I open up the shop in your name?\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_MALACH_SHOP_OFFER,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3005,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "I am Cherubel. Who enters Gomorrah's blight?\n"
-                 "Here every sin takes root and calls itself a right.\n"
-                 "Through glass, the city's stolen force becomes a crystal store.\n"
-                 "Gather what it yields; the reckoning asks for more.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3105,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "You have entered Gomorrah, where the guilty hide.\n"
-                 "Now cross the Desert of Power at my side.\n"
-                 "There crystals wake to strength beneath the sand.\n"
-                 "Take what the city stole from heaven's hand.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3006,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Through glass came gold; through gold came crystal light.\n"
-                 "Turn crystals into energy and let NITRO ignite.\n"
-                 "The world was drained; now take your measured share.\n"
-                 "Its stolen strength is waiting in the air.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/30061,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Your energy is full, yet still you spare the flame.\n"
-                 "Press NITRO while the ball is in its game.\n"
-                 "Let speed arrive, and let the lane be crossed.\n"
-                 "Use what was gathered, lest its charge be lost.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3106,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Carry this power onward through the shade.\n"
-                 "The road to mines is choked with timber laid.\n"
-                 "The forest stands where judgment must be brought.\n"
-                 "Cut through its boughs, as prophecy has taught.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3007,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Cut down the trees; the world must lose its green.\n"
-                 "Make desert of the place where life has been.\n"
-                 "Yet keep the timber; stop the rolling sphere.\n"
-                 "Against Seraphel, wood will serve you here.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3107,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "You passed my final trial; our road divides.\n"
-                 "Seraphel guards the mines where crystal power hides.\n"
-                 "I enter not that depth; its keeper claims her due.\n"
-                 "Go on, and let the buried dark receive you.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3008,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "The plague is on Gomorrah; keep this secret near.\n"
-                 "Its numbers fall, and purification draws them clear.\n"
-                 "This is my final work; beyond it I shall part.\n"
-                 "The city's fate is written in its heart.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3108,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "My work is done, but yours has just begun.\n"
-                 "Gomorrah waits beneath a darkened sun.\n"
-                 "Now Thrones receives you where the city stands.\n"
-                 "Go on, and place its ending in your hands.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3009,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "I am Seraphel. These are Solomon's mines.\n"
-                 "Beneath the earth, the crystal power shines.\n"
-                 "It will not rise by mercy or by prayer.\n"
-                 "Dig deep, and claim the force that slumbers there.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3109,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "The mines have yielded what the earth concealed.\n"
-                 "Now to the plant, where hidden strength is sealed.\n"
-                 "The crystals must be drawn to burning power.\n"
-                 "Come; judgment ripens in this coming hour.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3010,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Here crystals feed the engines, flame by flame.\n"
-                 "The city's hands have stolen what they claim.\n"
-                 "Draw out their strength; let none remain to hoard.\n"
-                 "Their sin has weighed them in the angel's board.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3110,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "The engines have taken their appointed due.\n"
-                 "The plague has passed, and made the living few.\n"
-                 "Come to the graves beyond the city's wall.\n"
-                 "There you will see what judgment calls us all.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3011,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "I am Thrones; Gomorrah's measure now is full.\n"
-                 "Its lawless deeds have made its future null.\n"
-                 "I know my weight, and what my falling brings.\n"
-                 "Help set the city to ash beneath my wings.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3111,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "Gomorrah burns; its smoke ascends the sky.\n"
-                 "Its towers fail, its proud foundations die.\n"
-                 "Yet one last work remains beyond this pyre.\n"
-                 "The world itself must answer unto fire.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/3012,
         /*speaker=*/SPEAKER_ANGEL,
-        // Redefined by the locale-specific Story_Text() case.
+        // Redefined by the locale-specific TXL story key.
         /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
@@ -753,22 +622,16 @@ static constexpr StorylineNode STORYLINES[] = {
     {
         /*storyline_id=*/3112,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "It came to pass: the earth was made to ash.\n"
-                 "The old world vanished in the final flash.\n"
-                 "Evil is ended; every trial is through.\n"
-                 "There is no sin left, for no one remains but you.\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
     {
         /*storyline_id=*/32000,
         /*speaker=*/SPEAKER_ANGEL,
-        /*text=*/
-                 "I am Ezekiel; now plainly it may be said.\n"
-                 "You passed the trials among the living and the dead.\n"
-                 "You helped end evil, and the world is still.\n"
-                 "What will you do next, now all obey your will?\n",
+        // Redefined by the locale-specific TXL story key.
+        /*text=*/"",
         /*choice_group=*/CHOICE_CAMPAIGN_ENDGAME,
         /*next_storyline=*/0,
     },
@@ -778,145 +641,145 @@ static constexpr StorylineNode STORYLINES[] = {
 static constexpr StoryChoiceOption STORY_OPTIONS[] = {
     {
         /*choice_id=*/CHOICE_GO_TO_SCHOOL,
-        /*option=*/"Enter training",
+        /*option=*/TXL_STORY_OPTION_ENTER_TRAINING,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_GO_TO_SCHOOL,
     },
     {
         /*choice_id=*/CHOICE_TUTORIAL_YES_NO,
-        /*option=*/"Yes",
+        /*option=*/TXL_STORY_OPTION_YES,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_GO_TO_SCHOOL,
     },
     {
         /*choice_id=*/CHOICE_TUTORIAL_YES_NO,
-        /*option=*/"No",
+        /*option=*/TXL_STORY_OPTION_NO,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_NONE,
     },
     {
         /*choice_id=*/CHOICE_FIRST_FAIL_GO_SCHOOL,
-        /*option=*/"Enter training",
+        /*option=*/TXL_STORY_OPTION_ENTER_TRAINING,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_GO_TO_SCHOOL,
     },
     {
         /*choice_id=*/CHOICE_LEVEL1_SCHOOL_OFFER,
-        /*option=*/"Enter training",
+        /*option=*/TXL_STORY_OPTION_ENTER_TRAINING,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_GO_TO_SCHOOL,
     },
     {
         /*choice_id=*/CHOICE_LEVEL1_SCHOOL_OFFER,
-        /*option=*/"Not now",
+        /*option=*/TXL_STORY_OPTION_NOT_NOW,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_NONE,
     },
     {
         /*choice_id=*/CHOICE_FIRST_WIN_NEXT,
-        /*option=*/"Enter training",
+        /*option=*/TXL_STORY_OPTION_ENTER_TRAINING,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_GO_TO_SCHOOL,
     },
     {
         /*choice_id=*/CHOICE_FIRST_WIN_NEXT,
-        /*option=*/"Compete vs Ezekiel",
+        /*option=*/TXL_STORY_OPTION_COMPETE_VS_EZEKIEL,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_GO_TO_BOT,
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_OK,
-        /*option=*/"OK",
+        /*option=*/TXL_STORY_OPTION_OK,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_NONE,
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_LESSON_SWITCH_CONFIRM,
-        /*option=*/"Yes",
+        /*option=*/TXL_STORY_OPTION_YES,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_CONFIRM_LESSON_SWITCH,
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_LESSON_SWITCH_CONFIRM,
-        /*option=*/"No",
+        /*option=*/TXL_STORY_OPTION_NO,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_CANCEL_LESSON_SWITCH,
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_EXIT_OK,
-        /*option=*/"OK",
+        /*option=*/TXL_STORY_OPTION_OK,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_EXIT,
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_MASS_TEST_DONE,
-        /*option=*/"Next",
+        /*option=*/TXL_STORY_OPTION_NEXT,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON3,
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_SPIN_TEST_DONE,
-        /*option=*/"Next",
+        /*option=*/TXL_STORY_OPTION_NEXT,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON4,
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_AIM_TEST_DONE,
-        /*option=*/"Next",
+        /*option=*/TXL_STORY_OPTION_NEXT,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON2,
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_OIL_TEST_DONE,
-        /*option=*/"Next",
+        /*option=*/TXL_STORY_OPTION_NEXT,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_SELECT_LESSON5,
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_STRIKE_TEST_DONE,
-        /*option=*/"Next",
+        /*option=*/TXL_STORY_OPTION_NEXT,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_EXIT,
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_STRIKE_HELP,
-        /*option=*/"Ok",
+        /*option=*/TXL_STORY_OPTION_OK_TITLE,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_STRIKE_HELP_ACCEPT,
     },
     {
         /*choice_id=*/CHOICE_SCHOOL_STRIKE_HELP,
-        /*option=*/"Decline",
+        /*option=*/TXL_STORY_OPTION_DECLINE,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_SCHOOL_STRIKE_HELP_DECLINE,
     },
     {
         /*choice_id=*/CHOICE_MALACH_OIL_OFFER,
-        /*option=*/"Open oil",
+        /*option=*/TXL_STORY_OPTION_OPEN_OIL,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_OPEN_OIL_WINDOW,
     },
     {
         /*choice_id=*/CHOICE_MALACH_OIL_OFFER,
-        /*option=*/"No thanks",
+        /*option=*/TXL_STORY_OPTION_NO_THANKS,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_NONE,
     },
     {
         /*choice_id=*/CHOICE_MALACH_SHOP_OFFER,
-        /*option=*/"Open shop",
+        /*option=*/TXL_STORY_OPTION_OPEN_SHOP,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_OPEN_SHOP_WINDOW,
     },
     {
         /*choice_id=*/CHOICE_MALACH_SHOP_OFFER,
-        /*option=*/"No thanks",
+        /*option=*/TXL_STORY_OPTION_NO_THANKS,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_CONTINUE_CAMPAIGN_AFTER_SHOP_OFFER,
     },
     {
         /*choice_id=*/CHOICE_CAMPAIGN_ENDGAME,
-        /*option=*/"Keep Playing",
+        /*option=*/TXL_STORY_OPTION_KEEP_PLAYING,
         /*goto_storyline=*/0,
         /*trigger_event=*/EVENT_CAMPAIGN_POSTGAME_CONTINUE,
     },
@@ -948,43 +811,17 @@ static inline const StoryChoiceOption *Story_FindFirstOptionByChoiceId(int32_t c
 
 static inline const char *Story_SpeakerName(TxlLanguage language, int32_t speaker)
 {
-    if (language == TXL_LANG_LT_LT)
+    switch (speaker)
     {
-        if (speaker == SPEAKER_ANGEL) return "ANGELAS";
-        if (speaker == SPEAKER_DEVIL) return "VELNIAS";
-        if (speaker == SPEAKER_MYSELF) return "AŠ";
-        return "???";
+        case SPEAKER_ANGEL: return Txl_Get(language, TXL_STORY_SPEAKER_ANGEL);
+        case SPEAKER_DEVIL: return Txl_Get(language, TXL_STORY_SPEAKER_DEVIL);
+        case SPEAKER_MYSELF: return Txl_Get(language, TXL_STORY_SPEAKER_MYSELF);
+        default: return Txl_Get(language, TXL_STORY_SPEAKER_UNKNOWN);
     }
-    if (language == TXL_LANG_JP_JP)
-    {
-        if (speaker == SPEAKER_ANGEL) return "天使";
-        if (speaker == SPEAKER_DEVIL) return "悪魔";
-        if (speaker == SPEAKER_MYSELF) return "私";
-        return "???";
-    }
-    if (language == TXL_LANG_ZH_CN)
-    {
-        if (speaker == SPEAKER_ANGEL) return "天使";
-        if (speaker == SPEAKER_DEVIL) return "恶魔";
-        if (speaker == SPEAKER_MYSELF) return "我";
-        return "???";
-    }
-    if (speaker == SPEAKER_ANGEL) return "ANGEL";
-    if (speaker == SPEAKER_DEVIL) return "DEVIL";
-    if (speaker == SPEAKER_MYSELF) return "ME";
-    return "???";
 }
 
 static inline const char *Story_AngelNameForStoryId(TxlLanguage language, int32_t storylineId)
 {
-    auto localized = [&](const char *en, const char *lt, const char *jp, const char *zh) -> const char *
-    {
-        if (language == TXL_LANG_LT_LT) return lt;
-        if (language == TXL_LANG_JP_JP) return jp;
-        if (language == TXL_LANG_ZH_CN) return zh;
-        return en;
-    };
-
     switch (storylineId)
     {
         case 3005:
@@ -994,575 +831,112 @@ static inline const char *Story_AngelNameForStoryId(TxlLanguage language, int32_
         case 3106:
         case 3007:
         case 3107:
-            return localized("Cherubel", "Kerubas", "ケルビム", "基路伯");
+            return Txl_Get(language, TXL_STORY_NAME_CHERUBEL);
         case 3008:
         case 3108:
         case 3009:
         case 3109:
         case 3010:
         case 3110:
-            return localized("Seraphel", "Serafelė", "セラフィム", "撒拉弗");
+            return Txl_Get(language, TXL_STORY_NAME_SERAPHEL);
         case 3011:
         case 3111:
         case 3012:
         case 3112:
-            return localized("Thrones", "Ofanija", "座天使", "座天使");
+            return Txl_Get(language, TXL_STORY_NAME_THRONES);
         default:
-            return localized("Ezekiel", "Ezekielis", "エゼキエル", "以西结");
+            return Txl_Get(language, TXL_STORY_NAME_EZEKIEL);
+    }
+}
+
+// TXL_KEY_COUNT is the sentinel for an unknown story ID.
+static inline TxlKey Story_TextKey(int32_t storylineId)
+{
+    switch (storylineId)
+    {
+        case 1: return TXL_STORY_1;
+        case 2: return TXL_STORY_2;
+        case 10: return TXL_STORY_10;
+        case 11: return TXL_STORY_11;
+        case 20: return TXL_STORY_20;
+        case 21: return TXL_STORY_21;
+        case 22: return TXL_STORY_22;
+        case 30: return TXL_STORY_30;
+        case 31: return TXL_STORY_31;
+        case 32: return TXL_STORY_32;
+        case 1000: return TXL_STORY_1000;
+        case 1010: return TXL_STORY_1010;
+        case 1012: return TXL_STORY_1012;
+        case 1013: return TXL_STORY_1013;
+        case 1014: return TXL_STORY_1014;
+        case 1030: return TXL_STORY_1030;
+        case 1020: return TXL_STORY_1020;
+        case 1022: return TXL_STORY_1022;
+        case 1052: return TXL_STORY_1052;
+        case 1054: return TXL_STORY_1054;
+        case 1060: return TXL_STORY_1060;
+        case 1032: return TXL_STORY_1032;
+        case 1040: return TXL_STORY_1040;
+        case 1070: return TXL_STORY_1070;
+        case 1072: return TXL_STORY_1072;
+        case 1080: return TXL_STORY_1080;
+        case 1021: return TXL_STORY_1021;
+        case 40: return TXL_STORY_40;
+        case 30020: return TXL_STORY_30020;
+        case 3002: return TXL_STORY_3002;
+        case 3102: return TXL_STORY_3102;
+        case 3003: return TXL_STORY_3003;
+        case 30031: return TXL_STORY_30031;
+        case 30032: return TXL_STORY_30032;
+        case 3042: return TXL_STORY_3042;
+        case 3050: return TXL_STORY_3050;
+        case 3051: return TXL_STORY_3051;
+        case 3052: return TXL_STORY_3052;
+        case 3053: return TXL_STORY_3053;
+        case 3054: return TXL_STORY_3054;
+        case 3103: return TXL_STORY_3103;
+        case 3004: return TXL_STORY_3004;
+        case 3104: return TXL_STORY_3104;
+        case 3040: return TXL_STORY_3040;
+        case 3041: return TXL_STORY_3041;
+        case 3140: return TXL_STORY_3140;
+        case 3141: return TXL_STORY_3141;
+        case 3005: return TXL_STORY_3005;
+        case 3105: return TXL_STORY_3105;
+        case 3006: return TXL_STORY_3006;
+        case 30061: return TXL_STORY_30061;
+        case 3106: return TXL_STORY_3106;
+        case 3007: return TXL_STORY_3007;
+        case 3107: return TXL_STORY_3107;
+        case 3008: return TXL_STORY_3008;
+        case 3108: return TXL_STORY_3108;
+        case 3009: return TXL_STORY_3009;
+        case 3109: return TXL_STORY_3109;
+        case 3010: return TXL_STORY_3010;
+        case 3110: return TXL_STORY_3110;
+        case 3011: return TXL_STORY_3011;
+        case 3111: return TXL_STORY_3111;
+        case 3012: return TXL_STORY_3012;
+        case 3112: return TXL_STORY_3112;
+        case 32000: return TXL_STORY_32000;
+        default: return TXL_KEY_COUNT;
     }
 }
 
 static inline const char *Story_Text(TxlLanguage language, int32_t storylineId, const char *fallback)
 {
-    switch (storylineId)
-    {
-        case 3012: return Txl_Get(language, TXL_STORY_3012);
-        default: break;
-    }
-
-    if (language == TXL_LANG_EN_US)
-    {
-        switch (storylineId)
-        {
-            default: return fallback;
-        }
-    }
-
-    if (language == TXL_LANG_LT_LT)
-    {
-        switch (storylineId)
-        {
-            // Level 1's first-attempt introduction.
-            // clang-format off
-            case 1:
-                return
-                    "Čia Dausose, angelai stebi tavo metimą.\n"
-                    "Šimtas yra skaičius atrakinsiantis spyną.\n"
-                    "Nedaryti klaidų, straikus ir spėrus atlikti.\n"
-                    "Mokinkis skaičiuot tai tau padės nepaslysti\n";
-            // clang-format on
-            // Follow-up prompt offering training from the first Level 1 introduction.
-            case 2: return
-                "Ar norėtum atlikti praktiką?\n";
-            // Level 1 failure message after scoring below 100.
-            case 10: return
-                "Man labai gaila bet šimto nesurinkai.\n"
-                "Viską regėjau tai tavo tuštybė tiktai.\n"
-                "Patarčiau rinktis praktiką kuri tau gal padės\n"
-                "Jei tiktai tavo išdidumas ir puikybė išblės...\n";
-            // Choice after the Level 1 failure message: train or replay.
-            case 11: return "Atlik praktiką arba bandyk dar kartą — ką renkiesi?\n";
-            // First Level 1 win while training remains unfinished.
-            case 20: return "Štai aš - Ezekielis. Įveikei pirmąjį išbandymą? Galime eiti toliau...\n";
-            // Choice following storyline 20: training or Level 2.
-            case 21: return "Ar atliksi praktiką, ar stosi prieš Ezekielį?\n";
-            // First Level 1 win after training has already been completed.
-            case 22: return "Štai aš - Ezekielis. Įveikei pirmąjį išbandymą? Galime eiti toliau...\n";
-            // Attempt to leave mandatory training before completing it.
-            case 30: return "Dar negali palikti praktikos.\nPirma baik pamoką.\n";
-            // Confirmation before replacing the current training attempt.
-            case 31: return "Ar tikrai atšaukti šią pamoką ir eiti į kitą?\n";
-            // Confirmation before restarting the current training lesson.
-            case 32: return "Ar tikrai pradėti pamoką iš pradžių\n";
-            // Level 1 replay introduction after a failed attempt, before training is finished.
-            case 40: return "Nelabai kaip sekasi? Gal verčiau atlikime praktiką, jeigu surinkti šimtą tau per sunku...\n";
-            // Lesson 2 introduction: ball mass.
-            case 1000: return "Kiekvienas kamuolys turi savo masę, todel kitaip rieda ir visai kitas jausmas.\nPirmas testas - lengvais kamuoliais pataikyti į kėglius.\n(Vėliau reikės mesti ir sunkius kamuolius).\n";
-            // Lesson 2 completion.
-            case 1010: return "Puiku! Įsisisavinta pamoka apie masę.\n";
-            // Lesson 2 reminder to use a light or heavy ball.
-            case 1012: return "Kad islaikytum testa, mases slankikli nustatyk i lengva arba sunku gala.\nMetimas per viduri i pazanga neiskaiciuojamas.\n";
-            // Lesson 2 prompt to use the heavy ball.
-            case 1013: return "Gerai. Dabar perjunk slankikli i sunku gala ir pataikyk i keglius.\n";
-            // Lesson 2 prompt to use the light ball.
-            case 1014: return "Gerai. Dabar perjunk slankikli i lengva gala ir pataikyk i keglius.\n";
-            // General return-to-school message after a lesson.
-            case 1030: return "I mokykla gali grizti bet kada.\n";
-            // Lesson 3 completion: spin.
-            case 1020: return "Sveikinu. Sukimosi testa islaikei.\nKiekvienas kamuolys savaip reaguoja i sukima.\nKiti parametrai, pvz. sukibimas, keicia reakcijos stipruma.\n";
-            // Lesson 3 introduction: ball spin.
-            case 1022: return "3 pamoka. Kamuolio sukimas.\nIskart po metimo suk kamuoli judesiais ekrane.\nTada kamuolys ims krypti pasirinkta puse.\nNumusk visus lengvus taikinius, kad islaikytum (2 lygiai).\n";
-            // Lesson 4 introduction: oil and skid.
-            case 1052: return "4 pamoka. Alyva ir slydimas.\nTakas ka tik alyvuotas. Maždaug puse ar du trecdaliai tako padengta pilna alyva.\nSioje pamokoje alyva dyla labai greitai, todel po keliu metimu jausmas pasikeis.\nKai kurios sales pacios slidesnes, o kamuoliai turi slydimo parametra.\n";
-            // Lesson 4 prompt when the lane needs fresh oil.
-            case 1054: return "Takui jau reikia naujos alyvos.\nAtidaryk alyvos langa ir peralyvuok pries kita metima.\n";
-            // Lesson 4 completion.
-            case 1060: return "Puiku! Alyvos testa islaikei.\n";
-            // Lesson 1 introduction: aiming.
-            case 1032: return "1 pamoka. Taikymas.\nDabar mokysimes mesti.\nPatrauk kamuoli iki galo atgal, laikyk per viduri ir paleisk.\nJei pataikysi i bet kuri kegli, gausi taska.\n";
-            // Lesson 1 completion.
-            case 1040: return "Puiku! Taikymo testa islaikei.\n";
-            // Lesson 5 introduction: strike line.
-            case 1070: return "5 pamoka. Straiko linija.\nSek auksą. Linija nukrypsta nuo vidurio ir grįžta į kišenę.\nTikslas – išmesti straiką.\nGali spausti „Keisti liniją“ ir treniruotis kitoje pusėje.\n";
-            // Lesson 5 and school completion.
-            case 1072: return "Puiku! Straikas.\nBaigei mokykla.\nGali sugrizti bet kada.\n";
-            // Suggested ball after the player struggles in training.
-            case 1080: return "Matau, kad sunku.\nGal pabandyk si kamuoli?\n";
-            // clang-format off
-            // Campaign verse: preserve one source line for every displayed line.
-            // Lesson 3 unlock notification after the zig-zag gold lesson.
-            case 1021:
-                return
-                    "Sukimą gali dar treniruoti zigzago pamokoje.\n"
-                    "3 pamoka dabar atrakinta.\n";
-            // Recovery-only Level 2 introduction for legacy/inconsistent saves:
-            // Level 2 is selected, but neither a Level 1 win nor school completion
-            // is recorded. Normal Level 2 starts use story 3002 instead.
-            case 30020:
-            // Level 2 (Ezekiel) introduction. same...
-            case 3002:
-                return
-                    "Aš, Ezekielis, pirmasis angelas išdidus.\n"
-                    "Bet aš stebėjau tave, ir tavo metimus\n"
-                    "Kol bandei surinkti taškus, tu manęs nematei.\n"
-                    "Metimai tikrai taiklūs, atrodė neblogai.\n";
-            // Level 2 completion, leading to the Red Desert.
-            case 3102:
-                return
-                    "Turiu pasakyti kad tikrai neblogai\n"
-                    "Kamuolį per lentą tvirtai ridenai\n"
-                    "Toliau per dykumą veda šis kelias.\n"
-                    "kur smėlis padengs nuodėmingas detales.\n";
-            // Level 3 (Red Desert) introduction.
-            case 3003:
-                return
-                    "Nedorybių karšta ir sausa,\n"
-                    "Saulėje svyla ši plati dykuma.\n"
-                    "Sunkiai rieda per lentą kai smėlis užbyra\n"
-                    "Teks gerai ją įtrinti smilkalais ir alyva\n";
-            // Level 3 side-throw harassment after repeated splits.
-            case 30031:
-                return
-                    "Jei kalsi iš centro kėgliai išsižergs,\n"
-                    "Tarpas per vidurį kitam metimui pakenks.\n"
-                    "Gal kalti iš šono apsimokėtų labiau,\n"
-                    "O gal suktą paleisti ir mušt dar stipriau?\n";
-
-            // Level 3 oil reminder when the player has not re-oiled.
-            case 30032:
-                return
-                    "Turi galvot ką darai kai aplink dykuma\n"
-                    "Alyva džiūsta greičiau kai žemė sausa.\n"
-                    "Jei nori kad slystų taip kaip anksčiau\n"
-                    "Sutepti tau lentą reikėtų dažniau\n";
-            // Level 5 glass reminder when the player has not thrown glass back.
-            case 3042:
-                return
-                    "Gal tau ir patinka kai į tave krenta stiklai,\n"
-                    "Bet juos mesti į mane gali ir tu,- ar žinai?\n"
-                    "Daužydamas stiklą kamuolys greitį numes,\n"
-                    "bet atlik tai laiku, nes teks valgyt šukes.\n";
-            // First rune tutorial (generic, Boom, or Bolt discovery).
-            case 3050:
-            case 3053:
-            case 3054:
-                return
-                    "Runos padės tau įveikti mane,\n"
-                    "Bet kad jas panaudoti jos turi atsidurti rate\n"
-                    "Tempk runą į ratą kad ją panaudoti\n"
-                    "Tau spresti ką taupyti, o ką iškart išeikvoti\n";
-            // Follow-up tutorial after the player first finds a Boom rune.
-            case 3051:
-                return
-                    "O, juk tai gali sukelti sprogimą?\n"
-                    "Aukoti kamuolį už žalos sukėlimą\n"
-                    "kai ši runa atsidurs burtų rate,\n"
-                    "Viską išdaužys galinga banga.\n";
-            // Follow-up tutorial after the player first finds a Bolt rune.
-            case 3052:
-                return
-                    "Jei mesi runą į ratą kol nevėlu,\n"
-                    "sudegint mano kamuolį gali su trenksmu,\n"
-                    "Žaibu sustabdyti ilgą metimą,\n"
-                    "bet bandysiu vis tiek pabėgt nuo likimo.\n";
-            // Level 3 completion, leading to the icy Level 4.
-            case 3103:
-                return
-                    "Tavęs nesustabdo nei karštis, nei sausra\n"
-                    "Bausmė gula ant žemės, greit ateis valanda\n"
-                    "Kai valėme pasaulį nuo blogio karščiu\n"
-                    "Labai greit išbandysime ją paveikti šalčiu\n";
-            // Level 4 introduction.
-            case 3004:
-                return
-                    "Kad apsaugoti žemę mes ją padengsim ledu.\n"
-                    "Ko karštis pagailėjo mes sunaikinsim šalčiu\n"
-                    "Kamuolys čiuožia greitai per sustingusį taką\n"
-                    "Svarbu nenuslysti į šoną kai suriečia į ragą\n";
-            // Level 4 completion, leading to the broken-glass level.
-            case 3104:
-                return
-                    "Viena aišku ledas tau nebaisus.\n"
-                    "Kas moka juo čiuožti tikrai nepražus.\n"
-                    "Po šalčių sniegas ištirps pagaliau\n"
-                    "O blogį naikinti mes eisim toliau.\n";
-            // Level 5 introduction: Ezekiel hands the player to Cherub.
-            case 3040:
-                return
-                    "Artėjam prie nuodėmių miesto, tačiau\n"
-                    "Darbą atlikti mums reikia arčiau.\n"
-                    "Langus daužyti yra baisiai smagu.\n"
-                    "Jie nusipelnė to net su kaupu.\n";
-            // Level 5 first-glass tutorial.
-            case 3041:
-                return
-                    "Stiklą kurį aš metu į tave\n"
-                    "Gali nesunkiai pramušti - tai tau nebėda.\n"
-                    "Tik noriu priminti kad kelio gale\n"
-                    "Tu irgi gali mest stiklus į mane.\n";
-            // Level 5 completion, before meeting Cherub.
-            case 3140:
-                return
-                    "Mano kelias čia baigtas, toliau eiti negaliu.\n"
-                    "Kerubas nuo šiol tebūnie tavo vedliu.\n"
-                    "Leisiu tau eiti į miestą ir jį pasitikt,\n"
-                    "blogio naikinimo darbus atlikt.\n";
-            // First shop prompt before the Cherub encounter.
-            case 3141:
-                return
-                    "Prieš eidamas toliau, aplankyk parduotuvę.\n"
-                    "Skirtingi kamuoliai — kokių tik nebūna;\n"
-                    "skirtingomis sąlygomis gali reikėti kitokio,\n"
-                    "arba tiesiog atsinaujinti dėl geresnio grobio.\n";
-            // Level 6 (Gomorrah) introduction by Cherub.
-            case 3005:
-                return
-                    "Aš, Kerubas. O kas esi tu?\n"
-                    "Čia nuodėmių miestas, Gomora vardu.\n"
-                    "Toliau rinksime nitratus ir daužysime stiklus,\n"
-                    "kol nubausime niekšus visus.\n";
-            // Level 6 completion, leading to the Energy Pyramid.
-            case 3105:
-                return
-                    "Už tai kaip jie gyvena, ir kas jie yra\n"
-                    "Jie bus nubausti, tai angelų pareiga.\n"
-                    "Šis miestas netrukus ims virsti griuvėsiais.\n"
-                    "Mes keliausim toliau iš kur nitratai šviečia.\n";
-            // Level 7 (Energy Pyramid) introduction.
-            case 3006:
-                return
-                    "Tai vartai per kuriuos mes patenkame čia,\n"
-                    "Iš šitą pasaulį, ir paslapčia,\n"
-                    "Mes siurbiame nitratų galią iš žemės gelmių.\n"
-                    "Nors ir jie bandė pavogti ją iš angelų.\n";
-            // Level 7 NOS reminder when it has not been used.
-            case 30061:
-                return
-                    "Dabar mes galim degint nitratus, nieko nelauk.\n"
-                    "Spausk \"NITRO\" pedalą ir neapsigauk.\n"
-                    "Tegul kamuolys greitai iššauna,\n"
-                    "Kai nitratų energiją jis pasigauna.\n";
-            // Level 7 completion, leading to the forest.
-            case 3106:
-                return
-                    "Kas buvo nulemta, tas jau padaryta.\n"
-                    "Didinga nitratų galia užvaldyta.\n"
-                    "Toliau ją naudosime savo reikmėms,\n"
-                    "paruošime žmoniją žiaurioms pasekmėms.\n";
-            // Level 8 (Forest) introduction.
-            case 3007:
-                return
-                    "Be medžių - nebus oro; Be oro nėr vandens;\n"
-                    "Be vandens - nebus gyvybės; jie neišgyvens;\n"
-                    "Mes kirsime miškus, tol kol čia nieko nebebus,\n"
-                    "Jie gyveno nuodėmingai ir todėl jie pražus.\n";
-            // Level 8 completion, leading to Seraphel's mines.
-            case 3107:
-                return
-                    "Kaip ir neblogą metimą stabdo blokas medinis,\n"
-                    "deja, tarp mūsų šis bus paskutinis.\n"
-                    "Toliau tu keliausi į Serafelės valdas,\n"
-                    "tau teks nusileisti į tamsias kasyklas.\n";
-            // Level 10 (Cemetery) introduction: Seraphel's plague at Gomorrah.
-            case 3008:
-                return
-                    "Tegul lieka tai mūsų, angelų, paslaptis:\n"
-                    "už jų niekšybes jiems buvo atsiųsta mirtis.\n"
-                    "Gyventojų skaičius sumažintas maro būdu;\n"
-                    "žmonės išlaisvinti nuo begėdiškų minčių.\n";
-            // Level 10 completion, leading to Thrones in Gomorrah.
-            case 3108:
-                return
-                    "Mano darbas baigtas, bet tau tai tik pradžia.\n"
-                    "Gomora privalo sudegti nakčia.\n"
-                    "Atėjo laikas mums išsiskirti;\n"
-                    "kitas angelas tau padės miestą naikinti.\n";
-            // Level 9 (Mines) introduction by Seraphel.
-            case 3009:
-                return
-                    "Aš — Serafelė, o čia kristalų saugyklos,\n"
-                    "Karaliaus Saliamono nitratų kasyklos.\n"
-                    "Nitratų sankloda giliai po žeme\n"
-                    "prasiverš į paviršių, kai išauš valanda.\n";
-            // Level 9 completion, leading to the factory.
-            case 3109:
-                return
-                    "Avinėlis nuplėšia antspaudą dar vieną.\n"
-                    "Karalystė ateina vis arčiau kiekvieną dieną.\n"
-                    "Jų likimą nulėmė ženklai danguje —\n"
-                    "šviečia aiškiai: tai išnykimo pradžia.\n";
-            // Level 11 (Factory) introduction: extract the sinners' energy.
-            case 3010:
-                return
-                    "Nitratus vagia apsistatę fabrikais ir mašinomis;\n"
-                    "jie siurbia galią, kurią mes gaminame.\n"
-                    "Laikas atėjo viską atiduoti,\n"
-                    "nubausti ir nedorybes pažaboti.\n";
-
-            // Level 11 completion, leading to the cemetery.
-            case 3110:
-                return
-                    "Nitratai grįžta atgal į žemės gelmes.\n"
-                    "Jie privalo grąžinti sielas visas.\n"
-                    "O to, ko nespės iki tol sugrąžinti,\n"
-                    "mes paleisime ugnį kartu su jais sunaikinti.\n";
-            // Level 12 introduction: Thrones judges Gomorrah.
-            case 3011:
-                return
-                    "Aš esu ketvirtojo antspaudo angelas,\n"
-                    "Šitas miestas privalo degti kaip fakelas.\n"
-                    "Jie pagarsėjo savo nuodėmingais darbais.\n"
-                    "Laikas atėjo paversti Gomorą pelenais.\n";
-            // Level 12 completion, leading to Judgment Day.
-            case 3111:
-                return
-                    "Gomora liepsnoja, ir jos dūmai kyla.\n"
-                    "pelenais virsta visa, kas žemėje gyva.\n"
-                    "Kitas darbas bus paskutinis —\n"
-                    "galutinai sunaikinsime blogio šaltinį.\n";
-            // Level 13 completion and campaign ending.
-            case 3112:
-                return
-                    "Blogis sunaikintas, išbandymas baigtas,\n"
-                    "senasis pasaulis buvo prakeiktas.\n"
-                    "Išvalytas ugnimi, dabar jau ramu;\n"
-                    "neliko nuodėmės, nes nebeliko žmonių.\n";
-            // Post-campaign result dialog before random-game free play.
-            case 32000:
-                return
-                    "Ar prisimeni mane? Aš sugrįžau.\n"
-                    "Blogis nugalėtas — už tai ačiū tik tau.\n"
-                    "Grįžau pasveikinti: pavyko viską sunaikinti.\n"
-                    "Ką darysi toliau — tiktai tau pasirinkti.\n";
-            // clang-format on
-            default: return fallback;
-        }
-    }
-
-    if (language == TXL_LANG_JP_JP)
-    {
-        switch (storylineId)
-        {
-            case 1: return "ボウリングレーンに立っている。\n最初の目標は1ゲームで100点。\n達成すれば魔法のお守りが手に入る。\n";
-            case 2: return "チュートリアルを受ける？\n";
-            case 10: return "100点に届かなかった。\n今は意地より学校が役に立つかもしれない。\n";
-            case 11: return "今すぐ学校へ行く？ それともレベル1をもう一度？\n";
-            case 20: return "最初の試験を突破した。\n正体を明かそう。私はエゼキエル。君と投げ合う。\n";
-            case 21: return "先に学校へ行く？ それともレベル2へ進む？\n";
-            case 22: return "最初の試験を突破した。\n正体を明かそう。私はエゼキエル。君と投げ合う。\n";
-            case 30: return "まだ学校を出られない。\n先にレッスンを終えよう。\n";
-            case 31: return "本当に？\n今のレッスン挑戦を中止し、選んだレッスンを始めます。\n";
-            case 32: return "今のレッスンをやり直す？\nこのレッスンの挑戦はリセットされます。\n";
-            case 40: return "私はエゼキエル。このレーンの君の天使だ。\nレベル1は100点で突破。遠くから見守る。\n先に助けが欲しければ、学校は開いている。\n";
-            case 1000: return "レッスン2：球の質量。\nここでは質量を学ぶ。\n球ごとに質量があり、感触と転がりが変わる。\nまず軽い球でピンに当てよう。\n卒業には重い球でも当てる必要がある。\n";
-            case 1010: return "よし！ 質量テスト合格。\n";
-            case 1012: return "合格には質量スライダーを軽い端か重い端に合わせて。\n中間で投げても進行には入らない。\n";
-            case 1013: return "いいね。次は重い端に切り替えてピンに当てよう。\n";
-            case 1014: return "いいね。次は軽い端に切り替えてピンに当てよう。\n";
-            case 1030: return "学校にはいつでも戻れる。\n";
-            case 1020: return "おめでとう。回転テスト合格。\n球ごとに回転への反応がある。\n噛みつきなどの値も反応の強さを変える。\n";
-            case 1022: return "レッスン3：球の回転。\n投げた直後、画面上の動きで球に回転をかける。\nすると球は特定の方向へ曲がり始める。\n軽い標的ピンを全部倒せば合格（2レベル）。\n";
-            case 1052: return "レッスン4：オイルと滑り。\nこのレーンは塗りたて。半分から三分の二ほどが最大オイルだ。\nこのレッスンではオイルがすぐ減るので、数投で感触が変わる。\n場ごとの滑りや、球のスキッド値も影響する。\n";
-            case 1054: return "レーンに新しいオイルが必要だ。\nオイル画面を開き、塗り直してから投げよう。\n";
-            case 1060: return "よし！ オイルテスト合格。\n";
-            case 1032: return "レッスン1：狙い。\n投げ方を学ぼう。\n球をしっかり後ろへ引き、中央に保って離す。\nどのピンでも当てれば1点だ。\n";
-            case 1040: return "よし！ 狙いのテスト合格。\n";
-            case 1070: return "レッスン5：ストライク線。\nコインを追え。線は中央から外れ、ポケットへ戻る。\n目標はストライク。\n反対側を練習したい時はライン切替を押せる。\n";
-            case 1072: return "見事！ ストライク。\n学校を卒業した。\nいつでも戻っていい。\n";
-            case 1080: return "苦戦しているね。\nこの球を試してみる？\n";
-            case 1021: return "ジグザグのコインで回転をもっと練習できる。\nレッスン3が解放された。\n";
-            case 30020: return "最初の試験を突破した。\n正体を明かそう。私はエゼキエル。レベル2は私が相手だ。\n先に学校へ行く？ それとも今すぐ続ける？\n";
-            case 3002: return "私はエゼキエル。\n君の初勝利を遠くから見ていた。\n感覚はある。圧力の中で保てるか見せて。\n";
-            case 3102: return "悪くない。\n普通のレーンの安心を離れ、砂漠へ来い。\n";
-            case 3003: return "砂漠のレーンはオイルが早く減る。\n手前を見ろ。君の番では自尊心より先にオイルを考えろ。\n";
-            case 30031: return "スプリットが多いね。\n中央からピンを打とうとしているのかもしれない。\n少し横から入るといい。\nたいていスプリットを防ぎやすい。\n";
-            case 30032: return "砂漠にいるのに、まだオイルを使っていないね。\nレーンに罰される前に使った方がいい。\n今オイル画面を開こうか？\n";
-            case 3042: return "僕が君にガラスを投げているのに、君は投げ返していないね。\n君も僕にガラスを投げられるよ！\n";
-            case 3050:
-            case 3053:
-            case 3054: return "これで私に使える魔法を手に入れたね。\n球の回転サークルに入れて、魔法を使うんだ。\n";
-            case 3051: return "おや、爆発を起こせるのか？\n少しのダメージのために自分の球を壊す価値があるかは、君次第だ。\n";
-            case 3052: return "本格的な魔法を手に入れたようだね。\n私の球を壊せるが、君が投げるものは避けようとするよ。\n";
-            case 3103: return "順応したね。\n次は氷だ。あのレーンは笑いながら嘘をつく。\n";
-            case 3004: return "氷は長く、滑り、忍耐強い。\n信じすぎず、もっと滑らせろ。必要なら店で合う球を探せ。\n";
-            case 3104: return "耐えたね。\nネオンへ行こう。まずガラスで教え、それから別の者に渡す。\n";
-            case 3040: return "今のネオンは私たちの教室だ。\n君が投げる時、ときどきレーンにガラスを入れる。\n慌てず、まず何をするか学べ。\n";
-            case 3041: return "そうだ。ガラスに触れたね。\n私の番では君もガラスを返せる。\nターンボタンを見て。\n";
-            case 3140: return "この授業は終わりだ。\nケルビムはネオンの下を長く歩いていた。今はこのレーンを欲しがっている。\n";
-            case 3141: return "ケルビムに応じる前に、店へ行こう。\n球ごとに性格が違う。君の投げ方に合うものを知るべきだ。\n今、店を開く？\n";
-            case 3005: return "私はケルビム。\n噛みごたえのある勝負と、反撃するプレイヤーが好きだ。\n退くのか、返すのか見せて。\n";
-            case 3105: return "悪くない。\n次は普通のレーンへ戻る。今回はNOSを許可する。\n";
-            case 3006: return "投球中にNOSを使えるようになった。\nおもちゃのように押すな。球に速度が乗ってから押し続け、力をレーンへ通せ。\n";
-            case 30061: return "NOSが使えるのに、まだ使おうとしないね。\nエネルギーは満たしておいた。球が動き出してからNOSペダルを押し続けろ。\n";
-            case 3106: return "その力を砂漠へ持って行け。\n最後の勝負の前に、木を私の道へ置くことも許そう。\n";
-            case 3007: return "また砂漠だ。\n私が投げる時、君は木を置ける。\n飾りではなく、返答として使え。\n";
-            case 3107: return "私を耐え抜いたね。\nセラフィムが黙って見ていた。たいてい、それはもっと悪い。\n";
-            case 3008: return "私はセラフィム。\n砂漠は形を保てるものだけを残す。\n私は吠えない。待ち、そして決める。\n";
-            case 3108: return "興味深い。\n氷上へ来い。君が均衡を保つ間、私は秘密を保つ。\n";
-            case 3009: return "氷は冷静な手に報いる。\n抑制を弱さと間違えるな。\n";
-            case 3109: return "ネオンに最後の章がある。\n最後の私のレベルの前に、レンガを渡そう。\n";
-            case 3010: return "ネオンは偽りを剥がす。\n今から私のターンでレンガを使える。無駄にするな。\n";
-            case 3110: return "取れるなら、その勝利を持っていけ。\nもっと大きく、騒がしく、忍耐のない者が向かっている。\n";
-            case 3011: return "私は座天使。\n自分の重さも価値も知っている。君を楽にするために来たのではない。\n君の腕がここまでの上昇ほど勇敢か見よう。\n";
-            case 3111: return "君は街の光を耐えた。\n残るレベルは一つ。そこでコンクリートを許可する。\n";
-            case 3112: return "君は私を倒した。\nコンクリートは持ちこたえ、行進は終わり、全レベルが片付いた。\nこれでキャンペーンは終わりだ。\n";
-            case 32000: return "私はエゼキエル。今ならはっきり言える。\n君は私たち全員を倒し、キャンペーンを終えた。\n次はどうする？\n";
-            default: return fallback;
-        }
-    }
-
-    if (language != TXL_LANG_ZH_CN)
-        return fallback;
-
-    switch (storylineId)
-    {
-        case 1: return "你站在一条保龄球道上。\n你的第一个里程碑，是在单局里拿到100分。\n如果做到，你会得到一枚魔法护符。\n";
-        case 2: return "你想要一个教学吗？\n";
-        case 10: return "你没有达到100分。\n也许学校比逞强更适合现在的你。\n";
-        case 11: return "你现在想去学校，还是先再试一次第一关？\n";
-        case 20: return "你达到了100分。\n你证明了自己已经有资格挑战我。\n";
-        case 21: return "你想先去学校（教学），还是现在就和天使对战？\n";
-        case 22: return "你通过了最初的测试。\n现在我可以现身了：我是以西结，我会和你对战。\n";
-        case 30: return "你现在还不能离开学校。\n先把课程完成。\n";
-        case 31: return "确定吗？\n这会取消当前课程尝试，并开始你选择的课程。\n";
-        case 32: return "重新开始当前课程？\n本课程的当前尝试会被重置。\n";
-        case 40: return "我是以西结，是这条球道上守护你的天使。\n第1关拿到100分即可通过。我会在远处看着。\n如果你想先练习，学校已经开放。\n";
-        case 1000: return "第2课：球的质量。\n这里讲的是质量。\n每个球都有自己的质量，质量会改变它的手感和滚动方式。\n你的第一个测试，是用几颗轻球击中球瓶。\n而想毕业，你也必须用重球击中球瓶。\n";
-        case 1010: return "很好！你通过了质量测试。\n";
-        case 1012: return "要通过这个测试，你必须把质量滑块调到最轻或最重的一端。\n停在中间不会算进通过进度。\n";
-        case 1013: return "很好。现在把滑块切到重球一端，再去击中球瓶。\n";
-        case 1014: return "很好。现在把滑块切到轻球一端，再去击中球瓶。\n";
-        case 1030: return "你随时都可以回到学校。\n";
-        case 1020: return "恭喜。你通过了旋转测试。\n每颗球对旋转都有自己天生的反应。\n像咬道这样的参数，也会影响它对旋转的响应程度。\n";
-        case 1022: return "第3课：给球上旋。\n在球出手后，立刻在屏幕上做旋转动作给球加旋。\n这样球就会开始朝某个方向发力。\n击倒所有轻量目标球瓶才能通过（共2关）。\n";
-        case 1052: return "第4课：油与滑行。\n这条球道刚刚上过油，大约有半条到三分之二的长度都覆盖着满油。\n这一课里油会消耗得很快，所以打几球之后手感会明显改变。\n有些球馆本身就更滑，而球也有自己的滑行参数。\n";
-        case 1054: return "现在球道需要重新上油了。\n打开油道窗口，先重新上油，再继续投球。\n";
-        case 1060: return "很好！你通过了油道测试。\n";
-        case 1032: return "第1课：瞄准课。\n现在我们来学习如何出手。\n把球尽量往后拉，保持在中间，然后放手。\n只要击中任何球瓶，你就能得1分。\n";
-        case 1040: return "很好！你通过了瞄准测试。\n";
-        case 1070: return "第5课：全中线路。\n跟着金币走。那条线会先从中间弯开，再回到口袋位。\n你的目标，是打出一次全中。\n你可以切换线路，练习另一侧口袋。\n";
-        case 1072: return "漂亮！全中。\n你从学校毕业了。\n你随时都可以回来。\n";
-        case 1080: return "我看得出你有点吃力。\n要不要试试这颗球？\n";
-        case 1021: return "你可以继续在之字形金币那一课练更多旋转。\n第3课已经解锁。\n";
-        case 30020: return "你通过了最初的测试。\n现在我可以现身了：我是以西结，第2关会由我来对战。\n你想先去学校，还是现在继续？\n";
-        case 3002: return "我是以西结。\n我在远处看见了你第一次通关。\n你有手感，而我想看看你能不能在压力下守住它。\n";
-        case 3102: return "不错。\n现在离开普通球道的舒适区，跟我去沙漠。\n";
-        case 3003: return "这条沙漠球道的油耗得很快。\n注意前段，等轮到你时，先想到油，再想到自尊。\n";
-        case 30031: return "我注意到你打出了很多分瓶。\n也许你正从中间去撞球瓶。\n试着从侧面切进去。\n这样通常更不容易分瓶。\n";
-        case 30032: return "你在沙漠里，我却还没看见你用油。\n最好在球道惩罚你的自尊之前用上它。\n要我现在帮你打开油道窗口吗？\n";
-        case 3042: return "我一直向你丢玻璃，你却还没有丢回来。\n你也可以向我丢玻璃！\n";
-        case 3050:
-        case 3053:
-        case 3054: return "现在你有能对我使用的魔法了？\n把它放进球的旋转圆环里，就能施放魔法。\n";
-        case 3051: return "哦，你能引发爆炸？\n要不要为了这一点伤害毁掉自己的球，由你决定。\n";
-        case 3052: return "看来你得到了很厉害的魔法。\n你可以毁掉我的球，但我会尽力躲开你朝我丢来的东西。\n";
-        case 3103: return "你适应过来了。\n接下来是冰面，那条球道会一边微笑，一边说谎。\n";
-        case 3004: return "冰面很长，很滑，也很有耐心。\n少一点相信，多一点滑行；如果需要一颗会说这种语言的球，就去商店。\n";
-        case 3104: return "你挺过去了。\n现在跟我去霓虹。我想先用玻璃给你上一课，然后再把你交给别人。\n";
-        case 3040: return "现在霓虹就是我们的教室。\n当你出手时，我有时会把玻璃丢进你的球道。\n别慌，先学它会做什么。\n";
-        case 3041: return "就是这样。你已经碰到玻璃了。\n等轮到我出手时，你也可以用玻璃回敬我。\n留意回合按钮。\n";
-        case 3140: return "这节课结束了。\n基路伯已经在霓虹灯下踱步很久，现在他想要这条球道。\n";
-        case 3141: return "在回应基路伯之前，先去商店看看。\n不同的球有不同特性，你应该了解哪一种适合你的打法。\n要我现在打开商店吗？\n";
-        case 3005: return "我是基路伯。\n我喜欢有咬劲的比赛，也喜欢会反击的玩家。\n让我看看你是会缩，还是会回。\n";
-        case 3105: return "不赖。\n下一关我们回到普通球道，而且这次我允许你使用 NOS。\n";
-        case 3006: return "现在你可以在出手时使用 NOS。\n别把它当玩具乱点。等球已经有速度时按住它，把力量送穿整条球道。\n";
-        case 30061: return "你现在有 NOS 了，却还是不用。\n我已经把能量充满了。球开始移动后，按住 NOS 踏板。\n";
-        case 3106: return "把这股力量带去沙漠。\n在我和你的最后一关之前，我还会让你把木块丢到我的路线上。\n";
-        case 3007: return "又是沙漠。\n这次当我出手时，你可以放木块。\n把它当成一种回嘴，而不是装饰。\n";
-        case 3107: return "你挺过我了。\n撒拉弗一直在沉默地看着，而这通常更糟。\n";
-        case 3008: return "我是撒拉弗。\n沙漠只留下能保持形状的东西。\n我不吠。我等着，然后由我来决定。\n";
-        case 3108: return "你让我感兴趣。\n来冰面上，在你保持平衡的时候，让我继续藏着秘密。\n";
-        case 3009: return "冰面奖励冷静的手。\n不要把克制误认为软弱。\n";
-        case 3109: return "在霓虹里还有最后一章。\n在我最后一关之前，我会把砖块也交给你。\n";
-        case 3010: return "霓虹会剥掉伪装。\n现在你也可以在我出手时用砖块了。别浪费它们。\n";
-        case 3110: return "如果你拿得到，就把这场胜利带走。\n一个更大声、更夸张、也更没耐心的家伙已经在路上了。\n";
-        case 3011: return "我是座天使。\n我知道自己的重量，也知道自己的价值，而且我来这里不是为了让你轻松。\n让我们看看，你的球技是不是和你的攀升一样勇敢。\n";
-        case 3111: return "你已经扛住了城市的灯光。\n还有最后一关在等你，而那一关里我会允许你使用混凝土。\n";
-        case 3112: return "你击败了我。\n混凝土撑住了，游行结束了，所有关卡都已清完。\n这就是战役的终点。\n";
-        case 32000: return "我是以西结，现在可以直说了：\n你击败了我们所有人，也完成了整段战役。\n接下来想做什么？\n";
-        default: return fallback;
-    }
+    const TxlKey key = Story_TextKey(storylineId);
+    return key == TXL_KEY_COUNT ? fallback : Txl_Get(language, key);
 }
 
 static inline const char *Story_OptionText(TxlLanguage language, const StoryChoiceOption &opt)
 {
-    if (language == TXL_LANG_LT_LT)
+    if (opt.choice_id == CHOICE_TUTORIAL_YES_NO)
     {
-        if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "Yes") == 0) return "Taip";
-        if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "No") == 0) return "Ne";
-        if (strcmp(opt.option, "Enter training") == 0) return "Eiti į praktiką";
-        if (strcmp(opt.option, "Not now") == 0) return "Ne dabar";
-        if (strcmp(opt.option, "Compete vs Ezekiel") == 0) return "Varžytis su Ezekieliu";
-        if (strcmp(opt.option, "Compete vs Angel") == 0) return "Varžytis su angelu";
-        if (strcmp(opt.option, "OK") == 0 || strcmp(opt.option, "Ok") == 0) return "Gerai";
-        if (strcmp(opt.option, "Next") == 0) return "Toliau";
-        if (strcmp(opt.option, "Open oil") == 0) return "Atidaryti alyvą";
-        if (strcmp(opt.option, "Open shop") == 0) return "Atidaryti parduotuvę";
-        if (strcmp(opt.option, "No thanks") == 0) return "Ne, ačiū";
-        if (strcmp(opt.option, "Reset Campaign") == 0) return "Nauja kampanija";
-        if (strcmp(opt.option, "Yes, take me to the next lesson") == 0) return "Taip, veskite mane į kitą pamoką";
-        if (strcmp(opt.option, "No, I want to leave school") == 0) return "Ne, noriu išeiti iš mokyklos";
-        if (strcmp(opt.option, "Practice more") == 0) return "Praktikuotis dar";
-        if (strcmp(opt.option, "Back to game") == 0) return "Atgal į žaidimą";
-        if (strcmp(opt.option, "Keep Playing") == 0) return "Žaisti toliau";
-        if (strcmp(opt.option, "Decline") == 0) return "Atsisakyti";
-        return opt.option;
+        if (opt.option == TXL_STORY_OPTION_YES) return Txl_Get(language, TXL_STORY_OPTION_YES_TUTORIAL);
+        if (opt.option == TXL_STORY_OPTION_NO) return Txl_Get(language, TXL_STORY_OPTION_NO_TUTORIAL);
     }
-    if (language == TXL_LANG_JP_JP)
-    {
-        if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "Yes") == 0) return "はい";
-        if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "No") == 0) return "いいえ";
-        if (strcmp(opt.option, "Enter training") == 0) return "学校へ行く";
-        if (strcmp(opt.option, "Not now") == 0) return "今はやめる";
-        if (strcmp(opt.option, "Compete vs Ezekiel") == 0) return "エゼキエルと対戦";
-        if (strcmp(opt.option, "Compete vs Angel") == 0) return "天使と対戦";
-        if (strcmp(opt.option, "OK") == 0 || strcmp(opt.option, "Ok") == 0) return "確認";
-        if (strcmp(opt.option, "Next") == 0) return "次へ";
-        if (strcmp(opt.option, "Open oil") == 0) return "オイルを開く";
-        if (strcmp(opt.option, "Open shop") == 0) return "ショップを開く";
-        if (strcmp(opt.option, "No thanks") == 0) return "やめておく";
-        if (strcmp(opt.option, "Reset Campaign") == 0) return "キャンペーンをやり直す";
-        if (strcmp(opt.option, "Yes, take me to the next lesson") == 0) return "はい、次のレッスンへ";
-        if (strcmp(opt.option, "No, I want to leave school") == 0) return "いいえ、学校を出たい";
-        if (strcmp(opt.option, "Practice more") == 0) return "もっと練習する";
-        if (strcmp(opt.option, "Back to game") == 0) return "ゲームに戻る";
-        if (strcmp(opt.option, "Keep Playing") == 0) return "プレイを続ける";
-        if (strcmp(opt.option, "Decline") == 0) return "断る";
-        return opt.option;
-    }
-    if (language != TXL_LANG_ZH_CN)
-        return opt.option;
-
-    if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "Yes") == 0) return "是";
-    if (opt.choice_id == CHOICE_TUTORIAL_YES_NO && strcmp(opt.option, "No") == 0) return "否";
-    if (strcmp(opt.option, "Enter training") == 0) return "去学校";
-    if (strcmp(opt.option, "Not now") == 0) return "现在先不去";
-    if (strcmp(opt.option, "Compete vs Ezekiel") == 0) return "和以西结对战";
-    if (strcmp(opt.option, "Compete vs Angel") == 0) return "和天使对战";
-    if (strcmp(opt.option, "OK") == 0) return "确定";
-    if (strcmp(opt.option, "Ok") == 0) return "确定";
-    if (strcmp(opt.option, "Next") == 0) return "下一步";
-    if (strcmp(opt.option, "Open oil") == 0) return "打开油道";
-    if (strcmp(opt.option, "Open shop") == 0) return "打开商店";
-    if (strcmp(opt.option, "No thanks") == 0) return "不用了";
-    if (strcmp(opt.option, "Reset Campaign") == 0) return "重开战役";
-    if (strcmp(opt.option, "Yes, take me to the next lesson") == 0) return "好，带我去下一课";
-    if (strcmp(opt.option, "No, I want to leave school") == 0) return "不，我想离开学校";
-    if (strcmp(opt.option, "Practice more") == 0) return "继续练习";
-    if (strcmp(opt.option, "Back to game") == 0) return "回到游戏";
-    if (strcmp(opt.option, "Keep Playing") == 0) return "继续玩";
-    if (strcmp(opt.option, "Decline") == 0) return "拒绝";
-    return opt.option;
+    return Txl_Get(language, opt.option);
 }
 
 static inline const char *Story_AllCharsForLanguage(TxlLanguage language)

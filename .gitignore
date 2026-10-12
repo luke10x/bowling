@@ -4,3 +4,4 @@
 /**/.DS_Store
 /**/*.blend1
 /assets/artwork/*.fbx
+/scripts/__pycache__/

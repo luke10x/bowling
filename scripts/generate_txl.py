@@ -17,22 +17,39 @@ LANG_FILES = {
 
 # Source entries may carry a trailing translator note such as
 # `// Used in: clayton/menu_clay.h`.  The generated table deliberately omits it.
-ENTRY_RE = re.compile(r'^\s*(TXL_[A-Z0-9_]+)\s*=\s*"((?:[^"\\]|\\.)*)"\s*;\s*(?://.*)?$')
+STRING_RE = re.compile(r'"(?:[^"\\]|\\.)*"')
+ENTRY_RE = re.compile(
+    r'^\s*(TXL_[A-Z0-9_]+)\s*=\s*'
+    r'((?:"(?:[^"\\]|\\.)*"\s*)+)'
+    r';\s*(?://.*)?$'
+)
 EXTRA_WHITELISTED_CHARS = "ė"
 
 
 def parse_lang_file(path: pathlib.Path):
     entries = []
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
+    pending = []
+    start_line = 0
+    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
         line = raw_line.strip()
         if not line or line.startswith("//"):
             continue
-        m = ENTRY_RE.match(line)
-        if not m:
-            raise ValueError(f"{path}: invalid txl DSL line: {raw_line}")
-        key = m.group(1)
-        value = ast.literal_eval(f'"{m.group(2)}"')
-        entries.append((key, value))
+        if not pending:
+            start_line = line_number
+        elif re.match(r'TXL_[A-Z0-9_]+\s*=', line):
+            raise ValueError(f"{path}:{start_line}: incomplete txl entry")
+        pending.append(line)
+        # Adjacent C string literals let translators see stanza line structure.
+        m = ENTRY_RE.fullmatch(" ".join(pending))
+        if m:
+            key = m.group(1)
+            value = "".join(ast.literal_eval(literal) for literal in STRING_RE.findall(m.group(2)))
+            entries.append((key, value))
+            pending.clear()
+        elif re.search(r';\s*(?://.*)?$', line):
+            raise ValueError(f"{path}:{start_line}: invalid txl entry: {' '.join(pending)}")
+    if pending:
+        raise ValueError(f"{path}:{start_line}: incomplete txl entry")
     return entries
 
 

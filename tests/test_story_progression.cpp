@@ -138,3 +138,123 @@ TEST_CASE("School manual lesson switching requires confirmation")
     CHECK(foundConfirm);
     CHECK(foundCancel);
 }
+
+TEST_CASE("Story dialogue nodes use their corresponding complete TXL entries")
+{
+    const TxlKey expectedKeys[] = {
+        TXL_STORY_1,
+        TXL_STORY_2,
+        TXL_STORY_10,
+        TXL_STORY_11,
+        TXL_STORY_20,
+        TXL_STORY_21,
+        TXL_STORY_22,
+        TXL_STORY_30,
+        TXL_STORY_31,
+        TXL_STORY_32,
+        TXL_STORY_1000,
+        TXL_STORY_1010,
+        TXL_STORY_1012,
+        TXL_STORY_1013,
+        TXL_STORY_1014,
+        TXL_STORY_1030,
+        TXL_STORY_1020,
+        TXL_STORY_1022,
+        TXL_STORY_1052,
+        TXL_STORY_1054,
+        TXL_STORY_1060,
+        TXL_STORY_1032,
+        TXL_STORY_1040,
+        TXL_STORY_1070,
+        TXL_STORY_1072,
+        TXL_STORY_1080,
+        TXL_STORY_1021,
+        TXL_STORY_40,
+        TXL_STORY_30020,
+        TXL_STORY_3002,
+        TXL_STORY_3102,
+        TXL_STORY_3003,
+        TXL_STORY_30031,
+        TXL_STORY_30032,
+        TXL_STORY_3042,
+        TXL_STORY_3050,
+        TXL_STORY_3051,
+        TXL_STORY_3052,
+        TXL_STORY_3053,
+        TXL_STORY_3054,
+        TXL_STORY_3103,
+        TXL_STORY_3004,
+        TXL_STORY_3104,
+        TXL_STORY_3040,
+        TXL_STORY_3041,
+        TXL_STORY_3140,
+        TXL_STORY_3141,
+        TXL_STORY_3005,
+        TXL_STORY_3105,
+        TXL_STORY_3006,
+        TXL_STORY_30061,
+        TXL_STORY_3106,
+        TXL_STORY_3007,
+        TXL_STORY_3107,
+        TXL_STORY_3008,
+        TXL_STORY_3108,
+        TXL_STORY_3009,
+        TXL_STORY_3109,
+        TXL_STORY_3010,
+        TXL_STORY_3110,
+        TXL_STORY_3011,
+        TXL_STORY_3111,
+        TXL_STORY_3012,
+        TXL_STORY_3112,
+        TXL_STORY_32000,
+    };
+    REQUIRE(sizeof(expectedKeys) / sizeof(expectedKeys[0]) == STORYLINES_COUNT);
+    const TxlLanguage languages[] = {
+        TXL_LANG_EN_US, TXL_LANG_LT_LT, TXL_LANG_JP_JP, TXL_LANG_ZH_CN,
+    };
+    for (int32_t i = 0; i < STORYLINES_COUNT; ++i)
+    {
+        const auto &node = STORYLINES[i];
+        CAPTURE(node.storyline_id);
+        const TxlKey key = Story_TextKey(node.storyline_id);
+        REQUIRE(key >= 0);
+        REQUIRE(key < TXL_KEY_COUNT);
+        CHECK(key == expectedKeys[i]);
+        CHECK(node.text[0] == '\0');
+        for (const auto language : languages)
+        {
+            CAPTURE(language);
+            const char *translated = Txl_Get(language, key);
+            REQUIRE(translated != nullptr);
+            CHECK(translated[0] != '\0');
+            CHECK(Story_Text(language, node.storyline_id, "fallback") == translated);
+        }
+    }
+}
+
+TEST_CASE("Unknown story IDs preserve the caller's fallback")
+{
+    const char *fallback = "fallback";
+    CHECK(Story_TextKey(-1) == TXL_KEY_COUNT);
+    for (int language = 0; language < TXL_LANG_COUNT; ++language)
+    {
+        CHECK(Story_Text((TxlLanguage)language, -1, fallback) == fallback);
+        CHECK(Story_Text((TxlLanguage)language, -1, nullptr) == nullptr);
+    }
+}
+
+TEST_CASE("Story choice and speaker keys are populated in every locale")
+{
+    for (int language = 0; language < TXL_LANG_COUNT; ++language)
+    {
+        const auto lang = (TxlLanguage)language;
+        for (const auto &option : STORY_OPTIONS)
+        {
+            REQUIRE(option.option >= 0);
+            REQUIRE(option.option < TXL_KEY_COUNT);
+            CHECK(Story_OptionText(lang, option)[0] != '\0');
+        }
+        for (int speaker = SPEAKER_DEVIL; speaker <= SPEAKER_ANGEL; ++speaker)
+            CHECK(Story_SpeakerName(lang, speaker)[0] != '\0');
+    }
+}

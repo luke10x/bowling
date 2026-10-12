@@ -1,4 +1,25 @@
-// Tegel translation source DSL
+// Tegel translation source DSL - English (en_us)
+//
+// Translator guidance: ../docs/translations.md
+// Campaign lore: lore.md
+//
+// Preferred angel names:
+// Ezekiel, Cherubel, Seraphel, Thrones.
+// Use The Heavens for the spiritual realm; Dausos is Lithuanian-only.
+// Use crystals or energy for the campaign resource, according to the scene;
+// do not translate Lithuanian nitratai as nitrates. The pedal is NITRO.
+// Restrained KJV flavor is welcome (perchance, lest, it came to pass);
+// retain you rather than thou.
+//
+// Do not use internal aliases Malach, Dog, Beak, or Cow as character names.
+// The angels deceive the player into a campaign of punishment; reveal this
+// gradually. Do not name God.
+// Story/dialogue belongs only in the Story and dialogue section below.
+// Preserve wording, punctuation, line breaks, and visible stanza structure.
+// Keep the Context notes beside story entries; they identify speakers, levels,
+// lessons, and triggers. Keep keys in the same order in all four locale files.
+//
+
 TXL_MENU = "MENU"; // Used in: main menu (clayton/menu_clay.h), gameplay/HUD (game.cpp)
 TXL_RENAME = "Cheats"; // Used in: main menu (clayton/menu_clay.h)
 TXL_GO_TO_SCHOOL = "Enter training"; // Used in: main menu (clayton/menu_clay.h)
@@ -344,4 +365,302 @@ TXL_RUNES_SHORT = "R"; // Used in: campaign and results windows (clayton/win_sta
 // -----------------------------------------------------------------------------
 // Story and dialogue
 // -----------------------------------------------------------------------------
-TXL_STORY_3012 = "This is Judgment Day; the final scale is set.\nThe earth is weighed against its ancient debt.\nThe Heavens watch as every old thing burns.\nWhat came to pass shall meet what fire returns.\n"; // Used in: storyline.h
+TXL_STORY_1 =
+    "Lost soul, you have entered The Heavens' gate.\n"
+    "Learn runes and score one hundred before it is too late.\n"
+    "Let strikes and spares reveal the road you seek.\n"
+    "Count every mark, lest fortune make you weak.\n"; // Context: Speaker: Ezekiel. Level 1's first-attempt introduction.
+TXL_STORY_2 = "Will you enter training?\n"; // Context: Speaker: Ezekiel. Follow-up prompt offering training from the first Level 1 introduction.
+TXL_STORY_10 =
+    "You did not reach the hundred-mark this day.\n"
+    "Perchance your pride has led your hand astray.\n"
+    "Let training teach the line your will denied.\n"
+    "Return more ready, with your aim as guide.\n"; // Context: Speaker: Ezekiel. Level 1 failure message after scoring below 100.
+TXL_STORY_11 = "Will you enter training now, or face The Heavens once more?\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
+TXL_STORY_20 =
+    "You passed the first sign; its hidden seal gave way.\n"
+    "I am Ezekiel, who watched your throws this day.\n"
+    "I shall test your hand, your courage, and your aim.\n"
+    "Train first, or meet me now within the game.\n"; // Context: Speaker: Ezekiel. After winning Level 1 with 100+ points while school is unfinished; Ezekiel reveals himself. Automatically continues to story 21 for the training-or-Level-2 choice.
+TXL_STORY_21 = "Will you train first, or face Ezekiel now?\n"; // Context: Speaker: Ezekiel. Immediately after story 20, before Level 2: choose training or facing Ezekiel.
+TXL_STORY_22 =
+    "You passed the first sign; its hidden seal gave way.\n"
+    "I am Ezekiel, who watched your throws this day.\n"
+    "Your training is complete; now prove what you became.\n"
+    "Come face me in the trial of the game.\n"; // Context: Speaker: Ezekiel. After winning Level 1 with 100+ points when school is already complete; replaces stories 20 and 21, without offering training again.
+TXL_STORY_30 =
+    "You cannot leave the training hall just yet.\n"
+    "Complete the trials that before you are set.\n"; // Context: Speaker: Ezekiel. Attempt to leave mandatory training before completing it.
+TXL_STORY_31 =
+    "Are you sure?\n"
+    "This will cancel the current lesson attempt and start the selected lesson instead.\n"; // Context: Speaker: Ezekiel. Confirmation before replacing the current training attempt.
+TXL_STORY_32 =
+    "Restart the current lesson?\n"
+    "Your current attempt in this lesson will be reset.\n"; // Context: Speaker: Ezekiel. Confirmation before restarting the current training lesson.
+TXL_STORY_1000 =
+    "Lesson 2. Ball Mass.\n"
+    "This is the school and this is a lesson about mass.\n"
+    "Every ball has its mass. Based on mass the balls feel and roll differently.\n"
+    "Your first test is to throw several LIGHT balls and hit pins.\n"
+    "To graduate you also need to hit pins with a HEAVY ball.\n"; // Context: Speaker: Ezekiel. Lesson 2 introduction: ball mass.
+TXL_STORY_1010 = "Nice! You passed the Mass test.\n"; // Context: Speaker: Ezekiel. Lesson 2 completion.
+TXL_STORY_1012 =
+    "To pass this test you must set the mass slider to the LIGHT or HEAVY end.\n"
+    "Throwing in the middle does not count toward passing.\n"; // Context: Speaker: Ezekiel. Lesson 2 reminder to use a light or heavy ball.
+TXL_STORY_1013 = "Good. Now switch the slider to the HEAVY end and hit pins.\n"; // Context: Speaker: Ezekiel. Lesson 2 prompt to use the heavy ball.
+TXL_STORY_1014 = "Good. Now switch the slider to the LIGHT end and hit pins.\n"; // Context: Speaker: Ezekiel. Lesson 2 prompt to use the light ball.
+TXL_STORY_1030 = "You can come back to the school anytime.\n"; // Context: Speaker: Ezekiel. General return-to-school message after a lesson.
+TXL_STORY_1020 =
+    "Congrats. You passed the Spin test.\n"
+    "Every ball has its intrinsic reaction to spin.\n"
+    "Other params like bite affect how well the ball reacts.\n"; // Context: Speaker: Ezekiel. Lesson 3 completion: spin.
+TXL_STORY_1022 =
+    "Lesson 3. Spin ball.\n"
+    "Right after ball launch, spin the ball by spin movements on screen.\n"
+    "Then the ball will start to drive to a particular direction.\n"
+    "Knock down all lightweight target pins to pass (2 levels).\n"; // Context: Speaker: Ezekiel. Lesson 3 introduction: ball spin.
+TXL_STORY_1052 =
+    "Lesson 4. Oil and skid.\n"
+    "This lane was just oiled. It is covered in max oil for about half to two-thirds of the track.\n"
+    "In this lesson the oil wears out very fast, so after a few shots it will feel different.\n"
+    "Some houses have intrinsic slipperiness, and balls have a skid parameter.\n"; // Context: Speaker: Ezekiel. Lesson 4 introduction: oil and skid.
+TXL_STORY_1054 =
+    "The lane is ready for fresh oil now.\n"
+    "Open the Oil window and re-oil before throwing again.\n"; // Context: Speaker: Ezekiel. Lesson 4 prompt when the lane needs fresh oil.
+TXL_STORY_1060 = "Nice! You passed the Oil test.\n"; // Context: Speaker: Ezekiel. Lesson 4 completion.
+TXL_STORY_1032 =
+    "Lesson 1. Aim lesson.\n"
+    "Now we will learn to throw.\n"
+    "Pull the ball all the way back, keep it centered, then let it go.\n"
+    "If you hit any pins, you get a point.\n"; // Context: Speaker: Ezekiel. Lesson 1 introduction: aiming.
+TXL_STORY_1040 = "Nice! You passed the Aim test.\n"; // Context: Speaker: Ezekiel. Lesson 1 completion.
+TXL_STORY_1070 =
+    "Lesson 5. Strike line.\n"
+    "Follow the coins. The line bends away from the middle and returns into the pocket.\n"
+    "Your objective is to score a STRIKE.\n"
+    "You can press SWAP LINE to practice the other pocket.\n"; // Context: Speaker: Ezekiel. Lesson 5 introduction: strike line.
+TXL_STORY_1072 =
+    "Boom! STRIKE.\n"
+    "You graduated the School.\n"
+    "You can come back anytime.\n"; // Context: Speaker: Ezekiel. Lesson 5 and school completion.
+TXL_STORY_1080 =
+    "I see you struggling.\n"
+    "Try this ball instead?\n"; // Context: Speaker: Ezekiel. Suggested ball after the player struggles in training.
+TXL_STORY_1021 =
+    "You can practice spin more on the zig-zag coins.\n"
+    "Lesson 3 is now unlocked.\n"; // Context: Speaker: Ezekiel. Lesson 3 unlock notification after the zig-zag gold lesson.
+TXL_STORY_40 =
+    "I am Ezekiel; I watched you fall and rise.\n"
+    "The Heavens hold runes beneath their watching skies.\n"
+    "Score one hundred, lest the first gate stay closed.\n"
+    "If guidance calls, let training be disclosed.\n"; // Context: Speaker: Ezekiel. Level 1 replay introduction after a failed attempt, before training is finished.
+TXL_STORY_30020 =
+    "You passed the first sign; I watched your hand prevail.\n"
+    "I am Ezekiel; beyond my test lies a darker trail.\n"
+    "Train first, or press ahead where greater angels wait.\n"
+    "Choose now, perchance your courage seals your fate.\n"; // Context: Speaker: Ezekiel. Recovery-only introduction before Level 2: Level 2 is selected in a legacy/inconsistent save, but neither a Level 1 win nor school completion is recorded. Offers training or continuing; normal Level 2 starts use story 3002.
+TXL_STORY_3002 =
+    "I am Ezekiel, first angel of the sky.\n"
+    "I watched your throws as silent hours went by.\n"
+    "You seek salvation; let your courage show.\n"
+    "Cast now the ball, and let the first sign glow.\n"; // Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself after the first Level 1 win.
+TXL_STORY_3102 =
+    "Your hand was steady, and your aim was bright.\n"
+    "The lane obeyed the covenant of flight.\n"
+    "Now leave this gentle ground and follow in,\n"
+    "Where sand conceals the marks of ancient sin.\n"; // Context: Speaker: Ezekiel. Level 2 completion, leading to the Red Desert.
+TXL_STORY_3003 =
+    "This desert thirsts; corruption made it dry.\n"
+    "Its dust will choke the path where bowls must fly.\n"
+    "Anoint the lane with oil and incense, lest\n"
+    "The fire of cleansing leave your pride unblessed.\n"; // Context: Speaker: Ezekiel. Level 3 (Red Desert) introduction.
+TXL_STORY_30031 =
+    "Perchance you strike the centre far too square.\n"
+    "The pins divide and leave their wound laid bare.\n"
+    "Come from the side; let hook and judgment bend.\n"
+    "A wiser line may make the split an end.\n"; // Context: Speaker: Ezekiel. Level 3 side-throw harassment after repeated splits.
+TXL_STORY_30032 =
+    "You cross the desert, yet the oil lies still.\n"
+    "Dry boards remember every boastful will.\n"
+    "Anoint the lane before your pride is tried.\n"
+    "Shall I unseal the oil and stand beside?\n"; // Context: Speaker: Ezekiel. Level 3 oil reminder when the player has not re-oiled.
+TXL_STORY_3042 =
+    "Glass comes to you, a bright and cutting rain.\n"
+    "You may return that glittering pain again.\n"
+    "Break it with your ball, then cast it back at me.\n"
+    "The shattered pane can set your judgment free.\n"; // Context: Speaker: Ezekiel. Level 5 glass reminder when the player has not thrown glass back.
+TXL_STORY_3050 =
+    "A rune has found you; do not let it sleep.\n"
+    "Drag it to the circle, where its vows will keep.\n"
+    "There let it turn with every curving throw.\n"
+    "Thus hidden power wakes, and comes to show.\n"; // Context: Speaker: Ezekiel. First rune discovery during the campaign: generic guidance on dragging a rune into the casting ring.
+TXL_STORY_3051 =
+    "The rune can make a thunder from your ball.\n"
+    "Its loss may buy a harder enemy's fall.\n"
+    "Consider well the price before you choose.\n"
+    "A blast wins ground, yet leaves a ball to lose.\n"; // Context: Speaker: Ezekiel. Follow-up tutorial after the player first finds a Boom rune.
+TXL_STORY_3052 =
+    "A bolt is in your keeping, fierce and bright.\n"
+    "It may consume my rolling ball in light.\n"
+    "Yet I shall turn aside when danger nears.\n"
+    "Cast wisely, lest the thunder disappear.\n"; // Context: Speaker: Ezekiel. Follow-up tutorial after the player first finds a Bolt rune.
+TXL_STORY_3053 =
+    "Now you have magic to use against me?\n"
+    "Put it into the ball's spin circle to cast it.\n"; // Context: Speaker: Ezekiel. First Boom rune discovery during the campaign: casting-ring guidance, automatically followed by the Boom warning in story 3051.
+TXL_STORY_3054 =
+    "Now you have magic to use against me?\n"
+    "Put it into the ball's spin circle to cast it.\n"; // Context: Speaker: Ezekiel. First Bolt rune discovery during the campaign: casting-ring guidance, automatically followed by the Bolt warning in story 3052.
+TXL_STORY_3103 =
+    "You endured the desert, heat, and blinding sand.\n"
+    "Now coldness comes to take your footing from the land.\n"
+    "The path grows slick where every promise slips.\n"
+    "Walk true, lest ice undo your hands and hips.\n"; // Context: Speaker: Ezekiel. Level 3 completion, leading to the icy Level 4.
+TXL_STORY_3004 =
+    "Cold makes every surface treacherous and thin.\n"
+    "So souls may slide from where they might have been.\n"
+    "The womb, the road, the lane may lose their hold.\n"
+    "Keep straight your course; the careless drift grows cold.\n"; // Context: Speaker: Ezekiel. Level 4 introduction.
+TXL_STORY_3104 =
+    "You did not slip; your path remained your own.\n"
+    "Now broken glass foretells a falling town.\n"
+    "A city's ruin starts where one small pane is torn.\n"
+    "Beyond that shining breach, Gomorrah shall be sworn.\n"; // Context: Speaker: Ezekiel. Level 4 completion, leading to the broken-glass level.
+TXL_STORY_3040 =
+    "This is as far as I may walk toward that town.\n"
+    "Beyond the glass, another angel wears the crown.\n"
+    "Cherubel's realm begins where my own charge must cease.\n"
+    "Go on; the broken window opens not to peace.\n"; // Context: Speaker: Ezekiel. Before Level 5 (Suburbia): Ezekiel introduces the broken-glass lesson; Cherubel is encountered in Level 6.
+TXL_STORY_3041 =
+    "You felt the glass; its lesson has begun.\n"
+    "When turns are marked, return it with your own.\n"
+    "Watch for the sign that grants your answering throw.\n"
+    "Then cast the shards, and let the judgment flow.\n"; // Context: Speaker: Ezekiel. Level 5 first-glass tutorial.
+TXL_STORY_3140 =
+    "My teaching ends beyond the broken frame.\n"
+    "Cherubel waits to teach a harsher game.\n"
+    "Go meet the keeper of Gomorrah's gate.\n"
+    "The city calls; its reckoning will not wait.\n"; // Context: Speaker: Ezekiel. Level 5 completion, before meeting Cherub.
+TXL_STORY_3141 =
+    "Before you meet him, seek the merchant's hall.\n"
+    "Each ball bears a different answer to your call.\n"
+    "Choose what suits your hand before the harder game.\n"
+    "Shall I open up the shop in your name?\n"; // Context: Speaker: Ezekiel. First shop prompt before the Cherub encounter.
+TXL_STORY_3005 =
+    "I am Cherubel. Who enters Gomorrah's blight?\n"
+    "Here every sin takes root and calls itself a right.\n"
+    "Through glass, the city's stolen force becomes a crystal store.\n"
+    "Gather what it yields; the reckoning asks for more.\n"; // Context: Speaker: Cherubel. Level 6 (Gomorrah) introduction by Cherub.
+TXL_STORY_3105 =
+    "You have entered Gomorrah, where the guilty hide.\n"
+    "Now cross the Desert of Power at my side.\n"
+    "There crystals wake to strength beneath the sand.\n"
+    "Take what the city stole from heaven's hand.\n"; // Context: Speaker: Cherubel. Level 6 completion, leading to the Energy Pyramid.
+TXL_STORY_3006 =
+    "Through glass came gold; through gold came crystal light.\n"
+    "Turn crystals into energy and let NITRO ignite.\n"
+    "The world was drained; now take your measured share.\n"
+    "Its stolen strength is waiting in the air.\n"; // Context: Speaker: Cherubel. Level 7 (Energy Pyramid) introduction.
+TXL_STORY_30061 =
+    "Your energy is full, yet still you spare the flame.\n"
+    "Press NITRO while the ball is in its game.\n"
+    "Let speed arrive, and let the lane be crossed.\n"
+    "Use what was gathered, lest its charge be lost.\n"; // Context: Speaker: Cherubel. Level 7 NOS reminder when it has not been used.
+TXL_STORY_3106 =
+    "Carry this power onward through the shade.\n"
+    "The road to mines is choked with timber laid.\n"
+    "The forest stands where judgment must be brought.\n"
+    "Cut through its boughs, as prophecy has taught.\n"; // Context: Speaker: Cherubel. Level 7 completion, leading to the forest.
+TXL_STORY_3007 =
+    "Cut down the trees; the world must lose its green.\n"
+    "Make desert of the place where life has been.\n"
+    "Yet keep the timber; stop the rolling sphere.\n"
+    "Against Seraphel, wood will serve you here.\n"; // Context: Speaker: Cherubel. Level 8 (Forest) introduction.
+TXL_STORY_3107 =
+    "You passed my final trial; our road divides.\n"
+    "Seraphel guards the mines where crystal power hides.\n"
+    "I enter not that depth; its keeper claims her due.\n"
+    "Go on, and let the buried dark receive you.\n"; // Context: Speaker: Cherubel. Level 8 completion, leading to Seraphel's mines.
+TXL_STORY_3008 =
+    "The plague is on Gomorrah; keep this secret near.\n"
+    "Its numbers fall, and purification draws them clear.\n"
+    "This is my final work; beyond it I shall part.\n"
+    "The city's fate is written in its heart.\n"; // Context: Speaker: Seraphel. Before Level 11 (Grey Desert / Cemetery): Seraphel describes the plague at Gomorrah.
+TXL_STORY_3108 =
+    "My work is done, but yours has just begun.\n"
+    "Gomorrah waits beneath a darkened sun.\n"
+    "Now Thrones receives you where the city stands.\n"
+    "Go on, and place its ending in your hands.\n"; // Context: Speaker: Seraphel. After winning Level 11, before Level 12: Seraphel departs and sends the player to Thrones in Gomorrah.
+TXL_STORY_3009 =
+    "I am Seraphel. These are Solomon's mines.\n"
+    "Beneath the earth, the crystal power shines.\n"
+    "It will not rise by mercy or by prayer.\n"
+    "Dig deep, and claim the force that slumbers there.\n"; // Context: Speaker: Seraphel. Level 9 (Mines) introduction by Seraphel.
+TXL_STORY_3109 =
+    "The mines have yielded what the earth concealed.\n"
+    "Now to the plant, where hidden strength is sealed.\n"
+    "The crystals must be drawn to burning power.\n"
+    "Come; judgment ripens in this coming hour.\n"; // Context: Speaker: Seraphel. Level 9 completion, leading to the factory.
+TXL_STORY_3010 =
+    "Here crystals feed the engines, flame by flame.\n"
+    "The city's hands have stolen what they claim.\n"
+    "Draw out their strength; let none remain to hoard.\n"
+    "Their sin has weighed them in the angel's board.\n"; // Context: Speaker: Seraphel. Before Level 10 (Gas Factory): Seraphel demands the return of stolen energy.
+TXL_STORY_3110 =
+    "The engines have taken their appointed due.\n"
+    "The plague has passed, and made the living few.\n"
+    "Come to the graves beyond the city's wall.\n"
+    "There you will see what judgment calls us all.\n"; // Context: Speaker: Seraphel. After winning Level 10, before Level 11 (Grey Desert / Cemetery).
+TXL_STORY_3011 =
+    "I am Thrones; Gomorrah's measure now is full.\n"
+    "Its lawless deeds have made its future null.\n"
+    "I know my weight, and what my falling brings.\n"
+    "Help set the city to ash beneath my wings.\n"; // Context: Speaker: Thrones. Level 12 introduction: Thrones judges Gomorrah.
+TXL_STORY_3111 =
+    "Gomorrah burns; its smoke ascends the sky.\n"
+    "Its towers fail, its proud foundations die.\n"
+    "Yet one last work remains beyond this pyre.\n"
+    "The world itself must answer unto fire.\n"; // Context: Speaker: Thrones. Level 12 completion, leading to Judgment Day.
+TXL_STORY_3012 =
+    "This is Judgment Day; the final scale is set.\n"
+    "The earth is weighed against its ancient debt.\n"
+    "The Heavens watch as every old thing burns.\n"
+    "What came to pass shall meet what fire returns.\n"; // Context: Speaker: Thrones. Before Level 13 (Ashland / Judgment Day): Thrones announces the final trial.
+TXL_STORY_3112 =
+    "It came to pass: the earth was made to ash.\n"
+    "The old world vanished in the final flash.\n"
+    "Evil is ended; every trial is through.\n"
+    "There is no sin left, for no one remains but you.\n"; // Context: Speaker: Thrones. Level 13 completion and campaign ending.
+TXL_STORY_32000 =
+    "I am Ezekiel; now plainly it may be said.\n"
+    "You passed the trials among the living and the dead.\n"
+    "You helped end evil, and the world is still.\n"
+    "What will you do next, now all obey your will?\n"; // Context: Speaker: Ezekiel. Post-campaign result dialog before random-game free play.
+TXL_STORY_OPTION_ENTER_TRAINING = "Enter training"; // Context: Choice button in Level 1 introductions/outros and the Level 2 recovery introduction: enter school.
+TXL_STORY_OPTION_YES = "Yes"; // Context: Confirmation button for switching school lessons. Remains English in the existing non-English translations; tutorial confirmation uses the separate YES_TUTORIAL key.
+TXL_STORY_OPTION_NO = "No"; // Context: Cancel button for switching school lessons. Remains English in the existing non-English translations; tutorial refusal uses the separate NO_TUTORIAL key.
+TXL_STORY_OPTION_NOT_NOW = "Not now"; // Context: Choice after failing Level 1 or during its replay introduction: decline training and try Level 1 again.
+TXL_STORY_OPTION_COMPETE_VS_EZEKIEL = "Compete vs Ezekiel"; // Context: Choice after passing Level 1 or in the Level 2 recovery introduction: proceed to face Ezekiel in Level 2.
+TXL_STORY_OPTION_OK = "OK"; // Context: Acknowledgement button for campaign dialogue and school instructions.
+TXL_STORY_OPTION_NEXT = "Next"; // Context: School lesson completion button: advance to the next lesson; after Lesson 5, leave school.
+TXL_STORY_OPTION_OK_TITLE = "Ok"; // Context: Accept the suggested ball after struggling in school Lesson 5; English uses title-case Ok.
+TXL_STORY_OPTION_DECLINE = "Decline"; // Context: Decline the suggested ball after struggling in school Lesson 5.
+TXL_STORY_OPTION_OPEN_OIL = "Open oil"; // Context: Button on the Level 3 oil reminder (story 30032): open the oil window.
+TXL_STORY_OPTION_NO_THANKS = "No thanks"; // Context: Decline opening the oil window (story 30032) or shop (story 3141).
+TXL_STORY_OPTION_OPEN_SHOP = "Open shop"; // Context: Button after Level 5 and before Cherubel in Level 6 (story 3141): open the shop.
+TXL_STORY_OPTION_KEEP_PLAYING = "Keep Playing"; // Context: Post-campaign button (story 32000): continue into random-game free play.
+TXL_STORY_OPTION_COMPETE_VS_ANGEL = "Compete vs Angel"; // Context: Legacy choice label for facing an angel; not currently used by a story option.
+TXL_STORY_OPTION_RESET_CAMPAIGN = "Reset Campaign"; // Context: Legacy campaign reset choice label; not currently used by a story option.
+TXL_STORY_OPTION_YES_TAKE_ME_TO_THE_NEXT_LESSON = "Yes, take me to the next lesson"; // Context: Legacy school choice to advance to the next lesson; not currently used by a story option.
+TXL_STORY_OPTION_NO_I_WANT_TO_LEAVE_SCHOOL = "No, I want to leave school"; // Context: Legacy school choice to leave school; not currently used by a story option.
+TXL_STORY_OPTION_PRACTICE_MORE = "Practice more"; // Context: Legacy school choice to repeat practice; not currently used by a story option.
+TXL_STORY_OPTION_BACK_TO_GAME = "Back to game"; // Context: Legacy school choice to return to gameplay; not currently used by a story option.
+TXL_STORY_OPTION_YES_TUTORIAL = "Yes"; // Context: Button following the first Level 1 introduction (story 2): accept the tutorial.
+TXL_STORY_OPTION_NO_TUTORIAL = "No"; // Context: Button following the first Level 1 introduction (story 2): decline the tutorial.
+TXL_STORY_SPEAKER_ANGEL = "ANGEL"; // Context: Generic angel speaker label in the dialogue panel. Named campaign angels use their character names instead.
+TXL_STORY_SPEAKER_DEVIL = "DEVIL"; // Context: Devil speaker label in the dialogue panel.
+TXL_STORY_SPEAKER_MYSELF = "ME"; // Context: Player/self speaker label in the dialogue panel.
+TXL_STORY_SPEAKER_UNKNOWN = "???"; // Context: Fallback speaker label when no known speaker matches.
+TXL_STORY_NAME_CHERUBEL = "Cherubel"; // Context: Character name shown above campaign dialogue: Levels 6-8.
+TXL_STORY_NAME_SERAPHEL = "Seraphel"; // Context: Character name shown above campaign dialogue: Levels 9-11.
+TXL_STORY_NAME_THRONES = "Thrones"; // Context: Character name shown above campaign dialogue: Levels 12-13.
+TXL_STORY_NAME_EZEKIEL = "Ezekiel"; // Context: Character name shown above campaign dialogue: Levels 1-5, school instructions, and the post-campaign result dialogue.

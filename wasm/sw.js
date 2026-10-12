@@ -8,6 +8,7 @@ const PRECACHE_URLS = [
   'index.data',
   'manifest.json',
   'sw.js',
+  'logo.svg',
   'icon-192.png',
   'icon-512.png'
 ];

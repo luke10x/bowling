@@ -3,6 +3,11 @@ VERSION_SCRIPT := $(PWD)/scripts/increment_build_version.sh
 VERSION_HEADER := $(PWD)/build/generated/build_version.h
 VERSION_JSON := $(PWD)/build/emscripten/www/version.json
 STAMPED_SW := $(PWD)/build/emscripten/www/sw.js
+INKSCAPE ?= /Applications/Inkscape.app/Contents/MacOS/inkscape
+PWA_LOGO := $(PWD)/assets/artwork/logo.svg
+PWA_LOGO_OUTPUT := $(PWD)/build/emscripten/www/logo.svg
+PWA_ICON_192 := $(PWD)/build/emscripten/www/icon-192.png
+PWA_ICON_512 := $(PWD)/build/emscripten/www/icon-512.png
 TXL_SCRIPT := $(PWD)/scripts/generate_txl.py
 TXL_SOURCES := $(wildcard $(PWD)/tegel/txl_*.h)
 TXL_GENERATED := $(PWD)/tegel/generated/txl_generated.h
@@ -26,6 +31,18 @@ $(STAMPED_SW): $(VERSION_HEADER) $(PWD)/wasm/sw.js Makefile.emscripten
 	@mkdir -p $(dir $@)
 	@version=$$(awk 'BEGIN { version = "" } /^#define BOWLING_BUILD_VERSION / { version = $$3; gsub(/"/, "", version) } END { print version }' $(VERSION_HEADER)); \
 	sed "s/__BUILD_VERSION__/$$version/g" $(PWD)/wasm/sw.js > $@
+
+$(PWA_LOGO_OUTPUT): $(PWA_LOGO) Makefile.emscripten
+	@mkdir -p $(dir $@)
+	cp $< $@
+
+$(PWA_ICON_192): $(PWA_LOGO) Makefile.emscripten
+	@mkdir -p $(dir $@)
+	$(INKSCAPE) $< --export-area-page --export-type=png --export-width=192 --export-height=192 --export-background-opacity=0 --export-filename="$@"
+
+$(PWA_ICON_512): $(PWA_LOGO) Makefile.emscripten
+	@mkdir -p $(dir $@)
+	$(INKSCAPE) $< --export-area-page --export-type=png --export-width=512 --export-height=512 --export-background-opacity=0 --export-filename="$@"
 
 $(TXL_GENERATED): $(TXL_SCRIPT) $(TXL_SOURCES)
 	@python3 $(TXL_SCRIPT)
@@ -193,7 +210,7 @@ $(MINIGAME_ANIM_CACHE_HEADER): $(ASSMAN) $(MINIGAME_ANIM_CACHE_CFG) $(MINIGAME_A
 	mkdir -p $(dir $@)
 	$(ASSMAN) minigame-anim-cache -cfg $(MINIGAME_ANIM_CACHE_CFG) -o $@
 
-main: $(JOLT_LIB) imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(STAMPED_SW) $(TXL_GENERATED) $(TXL_FONT_GENERATED) $(MINIGAME_ANIM_CACHE_HEADER)
+main: $(JOLT_LIB) imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(STAMPED_SW) $(PWA_LOGO_OUTPUT) $(PWA_ICON_192) $(PWA_ICON_512) $(TXL_GENERATED) $(TXL_FONT_GENERATED) $(MINIGAME_ANIM_CACHE_HEADER)
 	mkdir -p build/emscripten/www
 
 	time $(CXX) $(CXXFLAGS) \
@@ -205,8 +222,6 @@ main: $(JOLT_LIB) imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(STAMPED_SW) $(TX
 		$(PLATFORM_SOURCES) \
 		$(LDFLAGS) $(LDLIBS) -o build/emscripten/www/index.html 
 	cp $(PWD)/wasm/manifest.json build/emscripten/www/manifest.json
-	cp $(PWD)/wasm/icon-192.png build/emscripten/www/icon-192.png
-	cp $(PWD)/wasm/icon-512.png build/emscripten/www/icon-512.png
 	cp $(PWD)/wasm/credits.html build/emscripten/www/credits.html
 	(cd "$(PWD)/build/emscripten/www" && zip -r ../bowling.zip .)
 

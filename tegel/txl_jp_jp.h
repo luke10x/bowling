@@ -422,17 +422,19 @@ TXL_STORY_10 =
     "修練にて、拒んだ道を学べ。\n"
     "狙いを導きに、備えて戻れ。\n"; // Context: Speaker: Ezekiel. Level 1 failure message after scoring below 100.
 TXL_STORY_11 = "いま修練に入るか、天の試しに再び挑むか。\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
+// Context: Speaker: Ezekiel (not yet seen by the player). After winning Level 1 with 100+ points while school is unfinished; promises an upcoming meeting. Automatically continues to story 21 for the training-or-Level-2 choice.
 TXL_STORY_20 =
-    "初めの試しを越え、封印は開けり。\n"
-    "われはエゼキエル、その投球を見守りし者。\n"
-    "手と勇気と狙いを、ここで試さん。\n"
-    "まず学ぶか、いまわれに挑むか。\n"; // Context: Speaker: Ezekiel. After winning Level 1 with 100+ points while school is unfinished; Ezekiel reveals himself. Automatically continues to story 21 for the training-or-Level-2 choice.
+    "点を求めし間、そなたはわれを見ず。\n"
+    "投げる球は確か、狙いもよく冴えたり。\n"
+    "その時のすべて、われはそなたを見守りたり。\n"
+    "やがてそなたも、われの姿を見よう。\n";
 TXL_STORY_21 = "まず修練するか、いまエゼキエルに挑むか。\n"; // Context: Speaker: Ezekiel. Immediately after story 20, before Level 2: choose training or facing Ezekiel.
+// Context: Speaker: Ezekiel (not yet seen by the player). After winning Level 1 with 100+ points when school is already complete; promises an upcoming meeting. Replaces stories 20 and 21, without offering training again.
 TXL_STORY_22 =
-    "初めの試しを越え、封印は開けり。\n"
-    "われはエゼキエル、その投球を見守りし者。\n"
-    "修練は終われり、得たものを示せ。\n"
-    "試しの場にて、われと向き合え。\n"; // Context: Speaker: Ezekiel. After winning Level 1 with 100+ points when school is already complete; replaces stories 20 and 21, without offering training again.
+    "点を求めし間、そなたはわれを見ず。\n"
+    "投げる球は確か、狙いもよく冴えたり。\n"
+    "その時のすべて、われはそなたを見守りたり。\n"
+    "やがてそなたも、われの姿を見よう。\n";
 TXL_STORY_30 =
     "まだ学校を出られない。\n"
     "先にレッスンを終えよう。\n"; // Context: Speaker: Ezekiel. Attempt to leave mandatory training before completing it.
@@ -499,16 +501,13 @@ TXL_STORY_40 =
     "天の眼差しの下に、符文は眠る。\n"
     "百点を得よ、初めの門を開くため。\n"
     "導きを望むなら、修練の戸は開いている。\n"; // Context: Speaker: Ezekiel. Level 1 replay introduction after a failed attempt, before training is finished.
-TXL_STORY_30020 =
-    "初めのしるしを越え、その手は勝ちを得たり。\n"
-    "われはエゼキエル、試しの先は暗き道。\n"
-    "学びを選ぶか、次なる天使へ進むか。\n"
-    "いま選べ、その勇気が行く末を定めよう。\n"; // Context: Speaker: Ezekiel. Recovery-only introduction before Level 2: Level 2 is selected in a legacy/inconsistent save, but neither a Level 1 win nor school completion is recorded. Offers training or continuing; normal Level 2 starts use story 3002.
+
+// Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself and promises that the player can save the world; the promise is deceptive (see lore.md).
 TXL_STORY_3002 =
-    "われはエゼキエル、天の初めの使い。\n"
-    "声なく流れる時の中、投球を見守りたり。\n"
-    "救いを求むるなら、その勇気を示せ。\n"
-    "いま球を投げよ、初めのしるしを輝かせよ。\n"; // Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself after the first Level 1 win.
+    "われはエゼキエル、誇り高き初めの天使。\n"
+    "そなたの一投一投を、われは見守りたり。\n"
+    "その才は、この世を救う力となろう。\n"
+    "罪と偽りに、奪われしこの世を。\n";
 TXL_STORY_3102 =
     "手は揺らがず、狙いは冴えたり。\n"
     "球は定めの軌道を、よく守りたり。\n"

@@ -377,17 +377,19 @@ TXL_STORY_10 =
     "Let training teach the line your will denied.\n"
     "Return more ready, with your aim as guide.\n"; // Context: Speaker: Ezekiel. Level 1 failure message after scoring below 100.
 TXL_STORY_11 = "Will you enter training now, or face The Heavens once more?\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
+// Context: Speaker: Ezekiel (not yet seen by the player). After winning Level 1 with 100+ points while school is unfinished; promises an upcoming meeting. Automatically continues to story 21 for the training-or-Level-2 choice.
 TXL_STORY_20 =
-    "You passed the first sign; its hidden seal gave way.\n"
-    "I am Ezekiel, who watched your throws this day.\n"
-    "I shall test your hand, your courage, and your aim.\n"
-    "Train first, or meet me now within the game.\n"; // Context: Speaker: Ezekiel. After winning Level 1 with 100+ points while school is unfinished; Ezekiel reveals himself. Automatically continues to story 21 for the training-or-Level-2 choice.
+    "While you sought points, I lingered out of sight.\n"
+    "Your throws were steady, and your aim was right.\n"
+    "Through all that time, I watched each passing throw.\n"
+    "Soon you shall see the one you did not know.\n";
 TXL_STORY_21 = "Will you train first, or face Ezekiel now?\n"; // Context: Speaker: Ezekiel. Immediately after story 20, before Level 2: choose training or facing Ezekiel.
+// Context: Speaker: Ezekiel (not yet seen by the player). After winning Level 1 with 100+ points when school is already complete; promises an upcoming meeting. Replaces stories 20 and 21, without offering training again.
 TXL_STORY_22 =
-    "You passed the first sign; its hidden seal gave way.\n"
-    "I am Ezekiel, who watched your throws this day.\n"
-    "Your training is complete; now prove what you became.\n"
-    "Come face me in the trial of the game.\n"; // Context: Speaker: Ezekiel. After winning Level 1 with 100+ points when school is already complete; replaces stories 20 and 21, without offering training again.
+    "While you sought points, I lingered out of sight.\n"
+    "Your throws were steady, and your aim was right.\n"
+    "Through all that time, I watched each passing throw.\n"
+    "Soon you shall see the one you did not know.\n";
 TXL_STORY_30 =
     "You cannot leave the training hall just yet.\n"
     "Complete the trials that before you are set.\n"; // Context: Speaker: Ezekiel. Attempt to leave mandatory training before completing it.
@@ -454,16 +456,13 @@ TXL_STORY_40 =
     "The Heavens hold runes beneath their watching skies.\n"
     "Score one hundred, lest the first gate stay closed.\n"
     "If guidance calls, let training be disclosed.\n"; // Context: Speaker: Ezekiel. Level 1 replay introduction after a failed attempt, before training is finished.
-TXL_STORY_30020 =
-    "You passed the first sign; I watched your hand prevail.\n"
-    "I am Ezekiel; beyond my test lies a darker trail.\n"
-    "Train first, or press ahead where greater angels wait.\n"
-    "Choose now, perchance your courage seals your fate.\n"; // Context: Speaker: Ezekiel. Recovery-only introduction before Level 2: Level 2 is selected in a legacy/inconsistent save, but neither a Level 1 win nor school completion is recorded. Offers training or continuing; normal Level 2 starts use story 3002.
+
+// Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself and promises that the player can save the world; the promise is deceptive (see lore.md).
 TXL_STORY_3002 =
-    "I am Ezekiel, first angel of the sky.\n"
-    "I watched your throws as silent hours went by.\n"
-    "You seek salvation; let your courage show.\n"
-    "Cast now the ball, and let the first sign glow.\n"; // Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself after the first Level 1 win.
+    "I am Ezekiel, first angel proud and bright.\n"
+    "I watched your throws while keeping out of sight.\n"
+    "Your gift shall help us save this world from sin,\n"
+    "From all the falsehood that has settled in.\n";
 TXL_STORY_3102 =
     "Your hand was steady, and your aim was bright.\n"
     "The lane obeyed the covenant of flight.\n"

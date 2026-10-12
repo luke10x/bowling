@@ -5511,7 +5511,6 @@ static inline BotAvatar StoryDialog_AngelAvatarForStoryId(int32_t storyId)
         case 1060:
         case 1072:
         case 1080:
-        case 30020:
         case 3002:
         case 3102:
         case 3003:
@@ -21351,7 +21350,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                                     /*resetStoryKick=*/false,
                                     /*recordAttempt=*/false
                                 );
-                                usr->campaignStartStoryLevelShown = usr->campaignLevelIndex;
 	
 	                            // Reset vs state for a clean start.
 	                            usr->turnOwner = UserContext::TurnOwner::PLAYER;

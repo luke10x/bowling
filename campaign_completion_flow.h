@@ -274,10 +274,5 @@ static inline int Campaign_StartStoryIdForState(
         return configuredStartStoryId;
     }
 
-    // Reaching level 2 proves the first milestone was cleared, so never
-    // reintroduce the school there.
-    if (levelNumber == 2 && !levelOnePassed && !schoolDone)
-        return 30020;
-
     return configuredStartStoryId;
 }

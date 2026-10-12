@@ -398,17 +398,19 @@ TXL_STORY_10 =
     "且入学堂重习路，\n"
     "归来稳手定前程。\n"; // Context: Speaker: Ezekiel. Level 1 failure message after scoring below 100.
 TXL_STORY_11 = "如今先入学堂，还是再闯天界第一关？\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
+// Context: Speaker: Ezekiel (not yet seen by the player). After winning Level 1 with 100+ points while school is unfinished; promises an upcoming meeting. Automatically continues to story 21 for the training-or-Level-2 choice.
 TXL_STORY_20 =
-    "初试已过，封印为你而开。\n"
-    "吾乃以西结，曾默察你每一投。\n"
-    "技艺、胆气与准度，尚待此局一验。\n"
-    "先修习，或来与吾相见。\n"; // Context: Speaker: Ezekiel. After winning Level 1 with 100+ points while school is unfinished; Ezekiel reveals himself. Automatically continues to story 21 for the training-or-Level-2 choice.
+    "你求取分数之时，未曾见吾身影。\n"
+    "投球颇为精准，已显不凡技艺。\n"
+    "那一段时光，吾始终默然注视。\n"
+    "不久之后，你亦将见吾现身。\n";
 TXL_STORY_21 = "先行修习，还是此刻迎战以西结？\n"; // Context: Speaker: Ezekiel. Immediately after story 20, before Level 2: choose training or facing Ezekiel.
+// Context: Speaker: Ezekiel (not yet seen by the player). After winning Level 1 with 100+ points when school is already complete; promises an upcoming meeting. Replaces stories 20 and 21, without offering training again.
 TXL_STORY_22 =
-    "初试已过，封印为你而开。\n"
-    "吾乃以西结，曾默察你每一投。\n"
-    "修习既毕，且将所学尽显。\n"
-    "赴此试炼，与吾一较高下。\n"; // Context: Speaker: Ezekiel. After winning Level 1 with 100+ points when school is already complete; replaces stories 20 and 21, without offering training again.
+    "你求取分数之时，未曾见吾身影。\n"
+    "投球颇为精准，已显不凡技艺。\n"
+    "那一段时光，吾始终默然注视。\n"
+    "不久之后，你亦将见吾现身。\n";
 TXL_STORY_30 =
     "你现在还不能离开学校。\n"
     "先把课程完成。\n"; // Context: Speaker: Ezekiel. Attempt to leave mandatory training before completing it.
@@ -475,16 +477,13 @@ TXL_STORY_40 =
     "天界默然，符文藏于其间。\n"
     "取得百分，第一道门方启。\n"
     "若需引路，且入学堂磨炼。\n"; // Context: Speaker: Ezekiel. Level 1 replay introduction after a failed attempt, before training is finished.
-TXL_STORY_30020 =
-    "初试之印已开，吾曾见你取胜。\n"
-    "吾乃以西结，此后之路更深。\n"
-    "先入学堂，或赴诸天使之试。\n"
-    "此刻一择，或将定你此生。\n"; // Context: Speaker: Ezekiel. Recovery-only introduction before Level 2: Level 2 is selected in a legacy/inconsistent save, but neither a Level 1 win nor school completion is recorded. Offers training or continuing; normal Level 2 starts use story 3002.
+
+// Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself and promises that the player can save the world; the promise is deceptive (see lore.md).
 TXL_STORY_3002 =
-    "吾乃以西结，天界首位天使。\n"
-    "你每一次投球，吾皆默然注视。\n"
-    "既求救赎，且将胆气尽展。\n"
-    "投出此球，使初试之印生辉。\n"; // Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself after the first Level 1 win.
+    "吾乃以西结，首位天使，自有傲骨。\n"
+    "你的一投一掷，吾曾尽收眼底。\n"
+    "你的天资，将助此世重获拯救。\n"
+    "罪与欺妄，早已将它占据。\n";
 TXL_STORY_3102 =
     "手稳而目明，此局已显锋芒。\n"
     "球循既定之约，稳过漫长球道。\n"

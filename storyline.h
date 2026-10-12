@@ -340,14 +340,6 @@ static constexpr StorylineNode STORYLINES[] = {
         /*next_storyline=*/0,
     },
     {
-        /*storyline_id=*/30020,
-        /*speaker=*/SPEAKER_ANGEL,
-        // Redefined by the locale-specific TXL story key.
-        /*text=*/"",
-        /*choice_group=*/CHOICE_FIRST_WIN_NEXT,
-        /*next_storyline=*/0,
-    },
-    {
         /*storyline_id=*/3002,
         /*speaker=*/SPEAKER_ANGEL,
         // Redefined by the locale-specific TXL story key.
@@ -882,7 +874,6 @@ static inline TxlKey Story_TextKey(int32_t storylineId)
         case 1080: return TXL_STORY_1080;
         case 1021: return TXL_STORY_1021;
         case 40: return TXL_STORY_40;
-        case 30020: return TXL_STORY_30020;
         case 3002: return TXL_STORY_3002;
         case 3102: return TXL_STORY_3102;
         case 3003: return TXL_STORY_3003;

@@ -105,6 +105,13 @@ also preventing duplicate offers after interrupted saves. Replayed victories
 still show the completion dialogue and results even when no bonus is queued.
 The current bonus offer has only a Yes action; there is no decline button.
 
+Level 1 victory uses story 20 followed by choice 21 when school is unfinished,
+or story 22 when school is complete. Both victory messages describe an unseen
+watcher and promise a meeting. Level 2 uses a single introduction, story 3002,
+which names Ezekiel and promises to save a world ruled by sin and deceit.
+Choosing to face Ezekiel after story 21 also shows this introduction; school
+completion and legacy save state do not select a separate Level 2 story.
+
 ### Stacked message panels
 The dialog renders a vertical stack:
 - Each `StorylineNode` becomes a **message panel** appended top→bottom.

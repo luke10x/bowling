@@ -378,9 +378,19 @@ TXL_STORY_10 =
     "Patarčiau rinktis praktiką kuri tau gal padės\n"
     "Jei tiktai tavo išdidumas ir puikybė išblės...\n"; // Context: Speaker: Ezekiel. Level 1 failure message after scoring below 100.
 TXL_STORY_11 = "Atlik praktiką arba bandyk dar kartą — ką renkiesi?\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
-TXL_STORY_20 = "Štai aš - Ezekielis. Įveikei pirmąjį išbandymą? Galime eiti toliau...\n"; // Context: Speaker: Ezekiel. After winning Level 1 with 100+ points while school is unfinished; Ezekiel reveals himself. Automatically continues to story 21 for the training-or-Level-2 choice.
+// Context: Speaker: Ezekiel (not yet seen by the player). After winning Level 1 with 100+ points while school is unfinished; promises an upcoming meeting. Automatically continues to story 21 for the training-or-Level-2 choice.
+TXL_STORY_20 =
+    "Kol bandei surinkti taškus, tu manęs nematei.\n"
+    "Metimai tikrai taiklūs, atrodė neblogai.\n"
+    "Visą tą laiką aš stebėjau tave,\n"
+    "Netrukus ir tu pamatysi mane.\n";
 TXL_STORY_21 = "Ar atliksi praktiką, ar stosi prieš Ezekielį?\n"; // Context: Speaker: Ezekiel. Immediately after story 20, before Level 2: choose training or facing Ezekiel.
-TXL_STORY_22 = "Štai aš - Ezekielis. Įveikei pirmąjį išbandymą? Galime eiti toliau...\n"; // Context: Speaker: Ezekiel. After winning Level 1 with 100+ points when school is already complete; replaces stories 20 and 21, without offering training again.
+// Context: Speaker: Ezekiel (not yet seen by the player). After winning Level 1 with 100+ points when school is already complete; promises an upcoming meeting. Replaces stories 20 and 21, without offering training again.
+TXL_STORY_22 =
+    "Kol bandei surinkti taškus, tu manęs nematei.\n"
+    "Metimai tikrai taiklūs, atrodė neblogai.\n"
+    "Visą tą laiką aš stebėjau tave,\n"
+    "Netrukus ir tu pamatysi mane.\n";
 TXL_STORY_30 =
     "Dar negali palikti praktikos.\n"
     "Pirma baik pamoką.\n"; // Context: Speaker: Ezekiel. Attempt to leave mandatory training before completing it.
@@ -437,16 +447,13 @@ TXL_STORY_1021 =
     "Sukimą gali dar treniruoti zigzago pamokoje.\n"
     "3 pamoka dabar atrakinta.\n"; // Context: Speaker: Ezekiel. Lesson 3 unlock notification after the zig-zag gold lesson.
 TXL_STORY_40 = "Nelabai kaip sekasi? Gal verčiau atlikime praktiką, jeigu surinkti šimtą tau per sunku...\n"; // Context: Speaker: Ezekiel. Level 1 replay introduction after a failed attempt, before training is finished.
-TXL_STORY_30020 =
-    "Aš, Ezekielis, pirmasis angelas išdidus.\n"
-    "Bet aš stebėjau tave, ir tavo metimus\n"
-    "Kol bandei surinkti taškus, tu manęs nematei.\n"
-    "Metimai tikrai taiklūs, atrodė neblogai.\n"; // Context: Speaker: Ezekiel. Recovery-only introduction before Level 2: Level 2 is selected in a legacy/inconsistent save, but neither a Level 1 win nor school completion is recorded. Offers training or continuing; normal Level 2 starts use story 3002.
+
+// Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself and promises that the player can save the world; the promise is deceptive (see lore.md).
 TXL_STORY_3002 =
     "Aš, Ezekielis, pirmasis angelas išdidus.\n"
     "Bet aš stebėjau tave, ir tavo metimus\n"
-    "Kol bandei surinkti taškus, tu manęs nematei.\n"
-    "Metimai tikrai taiklūs, atrodė neblogai.\n"; // Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself after the first Level 1 win.
+    "Tavo talentas padės išgelbėti pasaulį.\n"
+    "Kurį užvaldė nuodėmė ir apgaulė.\n";
 TXL_STORY_3102 =
     "Turiu pasakyti kad tikrai neblogai\n"
     "Kamuolį per lentą tvirtai ridenai\n"

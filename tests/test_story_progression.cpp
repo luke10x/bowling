@@ -70,7 +70,7 @@ TEST_CASE("Campaign start stories respect school and completed resume flow")
 TEST_CASE("Campaign routed start story nodes exist")
 {
     REQUIRE(Story_FindNode(40) != nullptr);
-    REQUIRE(Story_FindNode(30020) != nullptr);
+    REQUIRE(Story_FindNode(3002) != nullptr);
 }
 
 TEST_CASE("Post-campaign dialog only continues into free play")
@@ -170,7 +170,6 @@ TEST_CASE("Story dialogue nodes use their corresponding complete TXL entries")
         TXL_STORY_1080,
         TXL_STORY_1021,
         TXL_STORY_40,
-        TXL_STORY_30020,
         TXL_STORY_3002,
         TXL_STORY_3102,
         TXL_STORY_3003,
@@ -257,4 +256,19 @@ TEST_CASE("Story choice and speaker keys are populated in every locale")
         for (int speaker = SPEAKER_DEVIL; speaker <= SPEAKER_ANGEL; ++speaker)
             CHECK(Story_SpeakerName(lang, speaker)[0] != '\0');
     }
+}
+
+TEST_CASE("Level 2 always uses the same introduction regardless of school or saved wins")
+{
+    for (const bool schoolDone : {false, true})
+    {
+        for (const bool levelOnePassed : {false, true})
+        {
+            CHECK(Campaign_StartStoryIdForState(
+                2, 3002, 0, schoolDone, levelOnePassed, false, false
+            ) == 3002);
+        }
+    }
+    CHECK(Story_FindNode(30020) == nullptr);
+    CHECK(Story_TextKey(30020) == TXL_KEY_COUNT);
 }

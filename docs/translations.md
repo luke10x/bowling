@@ -159,6 +159,55 @@ Guidelines:
 - If a string appears in a fixed-size UI element, test it in the target language
   or keep the translation intentionally short.
 
+## Chinese and Japanese Story Poetry
+
+Use [the campaign lore](../tegel/lore.md) as the authority for the story arc,
+then compare both English and Lithuanian for imagery and stanza progression.
+The Chinese and Japanese TXL headers document the chosen literary approach:
+
+- Chinese: **古风-inspired four-line verse**, blending literary and readable
+  modern phrasing, parallelism, and selective rhyme. This is not strict
+  five/seven-character regulated verse; preserve names and gameplay meaning
+  rather than claiming fixed metre or tonal rules.
+- Japanese: **文語自由詩**, with echoes of **七五調** and the declamatory
+  cadence of **漢詩訓読**. Use four-line stanzas and restrained archaic diction,
+  without claiming strict metre or requiring end rhyme. Keep clauses short
+  enough for the dialogue panel, especially around katakana names.
+
+These are adaptation choices, not replacements for the campaign's setting.
+Do not introduce local deities or change the angels' roles. Preserve the gradual
+shift from promised salvation to punishment and the ending's cruel irony.
+Keep school instructions and choice buttons direct and unambiguous.
+
+## Japanese Line Breaks
+
+Long Japanese text runs, especially katakana loanwords and compounds, can
+behave as unbreakable units and overflow narrow panels or buttons. Automatic
+word wrapping is not sufficient to guarantee that Japanese text fits.
+
+- Test dialogue and button labels at the narrowest supported/mobile width.
+  Prefer short, natural labels. For new or explicitly revised dialogue, use
+  a shorter expression or an explicit `\n` at a natural phrase boundary.
+- If a katakana compound itself exceeds the available width, break between
+  meaningful components rather than treating the whole compound as indivisible.
+  Keeping words together is a preference, not a reason to allow overflow.
+  Keep character names intact where possible and never split a UTF-8 character.
+- Keep deliberate verse lines and pauses. Write each verse line on its own
+  source row with a `\n` escape; source formatting alone does not insert a
+  displayed newline. Preserve existing stanza lengths rather than forcing
+  every Japanese translation into four lines.
+- For new or explicitly revised translations, place breaks at natural phrase
+  or clause boundaries. Keep words, angel names, numbers with units, and small
+  kana with their preceding kana together; avoid isolating particles from
+  their phrase.
+- Follow Japanese line-breaking conventions (禁則処理): avoid starting a line
+  with closing punctuation such as `、。！？」』）`, or ending one with opening
+  brackets such as `「『（`. Keep punctuation attached to its phrase.
+- Do not add spaces to simulate wrapping or alignment. Check actual dialogue
+  wrapping at mobile widths; do not assume the renderer applies these rules
+  automatically.
+- Formatting-only edits must preserve wording and intentional `\n` escapes.
+
 ## Extraction Checklist
 
 Before considering a feature translated, check for visible literals in:
@@ -177,6 +226,13 @@ Before considering a feature translated, check for visible literals in:
 Do not count tracker strings as missing extraction during the current pass.
 
 ## Current Known Gaps
+
+Older Chinese and Japanese translations may be substantially outdated,
+including UI text, level titles/subtitles, school copy, and unrevised dialogue.
+The newly revised campaign verse does not constitute a complete locale review.
+Do not use older localized entries as authoritative terminology or lore:
+check current gameplay and context notes, and compare the English/Lithuanian
+references with [the campaign lore](../tegel/lore.md).
 
 Do not count tracker strings as missing extraction during the current pass.
 Keep future story/dialogue translations in the dedicated `Story and dialogue`

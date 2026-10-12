@@ -75,3 +75,9 @@ respectively for Ezekiel, Cherubel, Seraphel, and Thrones. **Dausos** and
 **crystals/energy**. See the [translation guidelines](../docs/translations.md)
 for naming and translation policy, and each TXL file's header for locale-specific
 translator guidance.
+
+Chinese story verse uses a **古风-inspired four-line** adaptation with parallel
+phrasing and selective rhyme. Japanese uses **文語自由詩**, drawing on **七五調**
+and **漢詩訓読** cadence without strict metre. These styles serve the existing
+apocalyptic story, not a different religious setting. Each locale's TXL header
+documents its approach; see the [translation guidelines](../docs/translations.md#chinese-and-japanese-story-poetry).

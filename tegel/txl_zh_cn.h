@@ -3,6 +3,14 @@
 // Translator guidance: ../docs/translations.md
 // Campaign lore: lore.md
 //
+// Translation status: older entries may be substantially outdated, including
+// UI text, level titles/subtitles, school copy, and unrevised dialogue. Do not
+// treat existing translations as authoritative terminology or story references.
+// The campaign verse was newly revised against English, Lithuanian, and lore.md;
+// this does not mean the rest of this locale has been reviewed or brought current.
+// When revising older entries, verify current gameplay and translator Context
+// notes, then consult lore.md and ../docs/translations.md.
+//
 // Preferred angel names:
 // Ezekiel -> 以西结; Cherubel -> 基路伯; Seraphel -> 撒拉弗;
 // Thrones -> 座天使.
@@ -11,6 +19,18 @@
 // Nitratai is Lithuanian-only: translate the resource as crystals/gems or
 // energy according to the scene, not as nitrates. Existing UI uses
 // 水晶 / 宝石, 能量, and 氮气 for the pedal.
+//
+// Poetic style: 古风-inspired four-line prophetic verse (文白相间).
+// Use compact parallel phrases, an elevated but readable register, and selective
+// rhyme; this is an adaptation, not strict 五绝/七绝 or regulated 平仄 verse.
+// Names and clear gameplay meaning take priority over fixed character counts.
+// The realm is 天界; the resource is 水晶 / 能量; the pedal remains 氮气.
+// Reference order: lore.md governs the arc and the cruel final irony; compare
+// txl_en_us.h and txl_lt_lt.h for imagery, stanza progression, and game actions.
+// Borrow poetic cadence, not local deities or a replacement religious setting.
+// Early speech hints at salvation; later speech reveals punishment and pride.
+// School instructions, confirmations, and choice buttons stay direct and clear.
+// Future poetry edits must preserve meaning, stanza structure, and Context notes.
 //
 // Do not use internal aliases Malach, Dog, Beak, or Cow as character names.
 // The angels deceive the player into a campaign of punishment; reveal this
@@ -367,21 +387,28 @@ TXL_RUNES_SHORT = "符"; // Used in: campaign and results windows (clayton/win_s
 // Story and dialogue
 // -----------------------------------------------------------------------------
 TXL_STORY_1 =
-    "你站在一条保龄球道上。\n"
-    "你的第一个里程碑，是在单局里拿到100分。\n"
-    "如果做到，你会得到一枚魔法护符。\n"; // Context: Speaker: Ezekiel. Level 1's first-attempt introduction.
-TXL_STORY_2 = "你想要一个教学吗？\n"; // Context: Speaker: Ezekiel. Follow-up prompt offering training from the first Level 1 introduction.
+    "迷途之魂，今入天界之门。\n"
+    "研习符文，及时取得百分。\n"
+    "全中补中，自有前路可寻。\n"
+    "细数每记，莫使侥幸欺心。\n"; // Context: Speaker: Ezekiel. Level 1's first-attempt introduction.
+TXL_STORY_2 = "可愿先入学堂修习？\n"; // Context: Speaker: Ezekiel. Follow-up prompt offering training from the first Level 1 introduction.
 TXL_STORY_10 =
-    "你没有达到100分。\n"
-    "也许学校比逞强更适合现在的你。\n"; // Context: Speaker: Ezekiel. Level 1 failure message after scoring below 100.
-TXL_STORY_11 = "你现在想去学校，还是先再试一次第一关？\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
+    "今日未能取百分，\n"
+    "想是骄心误汝行。\n"
+    "且入学堂重习路，\n"
+    "归来稳手定前程。\n"; // Context: Speaker: Ezekiel. Level 1 failure message after scoring below 100.
+TXL_STORY_11 = "如今先入学堂，还是再闯天界第一关？\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
 TXL_STORY_20 =
-    "你达到了100分。\n"
-    "你证明了自己已经有资格挑战我。\n"; // Context: Speaker: Ezekiel. After winning Level 1 with 100+ points while school is unfinished; Ezekiel reveals himself. Automatically continues to story 21 for the training-or-Level-2 choice.
-TXL_STORY_21 = "你想先去学校（教学），还是现在就和天使对战？\n"; // Context: Speaker: Ezekiel. Immediately after story 20, before Level 2: choose training or facing Ezekiel.
+    "初试已过，封印为你而开。\n"
+    "吾乃以西结，曾默察你每一投。\n"
+    "技艺、胆气与准度，尚待此局一验。\n"
+    "先修习，或来与吾相见。\n"; // Context: Speaker: Ezekiel. After winning Level 1 with 100+ points while school is unfinished; Ezekiel reveals himself. Automatically continues to story 21 for the training-or-Level-2 choice.
+TXL_STORY_21 = "先行修习，还是此刻迎战以西结？\n"; // Context: Speaker: Ezekiel. Immediately after story 20, before Level 2: choose training or facing Ezekiel.
 TXL_STORY_22 =
-    "你通过了最初的测试。\n"
-    "现在我可以现身了：我是以西结，我会和你对战。\n"; // Context: Speaker: Ezekiel. After winning Level 1 with 100+ points when school is already complete; replaces stories 20 and 21, without offering training again.
+    "初试已过，封印为你而开。\n"
+    "吾乃以西结，曾默察你每一投。\n"
+    "修习既毕，且将所学尽显。\n"
+    "赴此试炼，与吾一较高下。\n"; // Context: Speaker: Ezekiel. After winning Level 1 with 100+ points when school is already complete; replaces stories 20 and 21, without offering training again.
 TXL_STORY_30 =
     "你现在还不能离开学校。\n"
     "先把课程完成。\n"; // Context: Speaker: Ezekiel. Attempt to leave mandatory training before completing it.
@@ -444,138 +471,198 @@ TXL_STORY_1021 =
     "你可以继续在之字形金币那一课练更多旋转。\n"
     "第3课已经解锁。\n"; // Context: Speaker: Ezekiel. Lesson 3 unlock notification after the zig-zag gold lesson.
 TXL_STORY_40 =
-    "我是以西结，是这条球道上守护你的天使。\n"
-    "第1关拿到100分即可通过。我会在远处看着。\n"
-    "如果你想先练习，学校已经开放。\n"; // Context: Speaker: Ezekiel. Level 1 replay introduction after a failed attempt, before training is finished.
+    "吾乃以西结，曾见你起落。\n"
+    "天界默然，符文藏于其间。\n"
+    "取得百分，第一道门方启。\n"
+    "若需引路，且入学堂磨炼。\n"; // Context: Speaker: Ezekiel. Level 1 replay introduction after a failed attempt, before training is finished.
 TXL_STORY_30020 =
-    "你通过了最初的测试。\n"
-    "现在我可以现身了：我是以西结，第2关会由我来对战。\n"
-    "你想先去学校，还是现在继续？\n"; // Context: Speaker: Ezekiel. Recovery-only introduction before Level 2: Level 2 is selected in a legacy/inconsistent save, but neither a Level 1 win nor school completion is recorded. Offers training or continuing; normal Level 2 starts use story 3002.
+    "初试之印已开，吾曾见你取胜。\n"
+    "吾乃以西结，此后之路更深。\n"
+    "先入学堂，或赴诸天使之试。\n"
+    "此刻一择，或将定你此生。\n"; // Context: Speaker: Ezekiel. Recovery-only introduction before Level 2: Level 2 is selected in a legacy/inconsistent save, but neither a Level 1 win nor school completion is recorded. Offers training or continuing; normal Level 2 starts use story 3002.
 TXL_STORY_3002 =
-    "我是以西结。\n"
-    "我在远处看见了你第一次通关。\n"
-    "你有手感，而我想看看你能不能在压力下守住它。\n"; // Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself after the first Level 1 win.
+    "吾乃以西结，天界首位天使。\n"
+    "你每一次投球，吾皆默然注视。\n"
+    "既求救赎，且将胆气尽展。\n"
+    "投出此球，使初试之印生辉。\n"; // Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself after the first Level 1 win.
 TXL_STORY_3102 =
-    "不错。\n"
-    "现在离开普通球道的舒适区，跟我去沙漠。\n"; // Context: Speaker: Ezekiel. Level 2 completion, leading to the Red Desert.
+    "手稳而目明，此局已显锋芒。\n"
+    "球循既定之约，稳过漫长球道。\n"
+    "离此温和之地，随吾向荒漠。\n"
+    "沙下深藏的，尽是旧日罪痕。\n"; // Context: Speaker: Ezekiel. Level 2 completion, leading to the Red Desert.
 TXL_STORY_3003 =
-    "这条沙漠球道的油耗得很快。\n"
-    "注意前段，等轮到你时，先想到油，再想到自尊。\n"; // Context: Speaker: Ezekiel. Level 3 (Red Desert) introduction.
+    "罪使此地焦渴，烈日灼遍荒沙。\n"
+    "尘土壅塞球道，滚动亦成重负。\n"
+    "以油与乳香，涂抹这条长路。\n"
+    "莫让涤罪之火，空烧你一身骄气。\n"; // Context: Speaker: Ezekiel. Level 3 (Red Desert) introduction.
 TXL_STORY_30031 =
-    "我注意到你打出了很多分瓶。\n"
-    "也许你正从中间去撞球瓶。\n"
-    "试着从侧面切进去。\n"
-    "这样通常更不容易分瓶。\n"; // Context: Speaker: Ezekiel. Level 3 side-throw harassment after repeated splits.
+    "正中直撞，球瓶便向两旁分。\n"
+    "中间空隙，留作下一投的伤痕。\n"
+    "何不侧入，使弧线转向瓶群？\n"
+    "改此一路，或能免去分瓶之困。\n"; // Context: Speaker: Ezekiel. Level 3 side-throw harassment after repeated splits.
 TXL_STORY_30032 =
-    "你在沙漠里，我却还没看见你用油。\n"
-    "最好在球道惩罚你的自尊之前用上它。\n"
-    "要我现在帮你打开油道窗口吗？\n"; // Context: Speaker: Ezekiel. Level 3 oil reminder when the player has not re-oiled.
+    "荒漠在前，你却不曾补油。\n"
+    "干燥的球道，记着每一分自负。\n"
+    "先润此路，莫待傲气受苦。\n"
+    "可要吾此刻，为你开启油道窗口？\n"; // Context: Speaker: Ezekiel. Level 3 oil reminder when the player has not re-oiled.
 TXL_STORY_3042 =
-    "我一直向你丢玻璃，你却还没有丢回来。\n"
-    "你也可以向我丢玻璃！\n"; // Context: Speaker: Ezekiel. Level 5 glass reminder when the player has not thrown glass back.
+    "碎玻璃来，如一场锋利的雨。\n"
+    "这般晶亮之痛，你亦可还予吾。\n"
+    "球击碎片，速度便有所失。\n"
+    "认准时机，轮到吾时便投回。\n"; // Context: Speaker: Ezekiel. Level 5 glass reminder when the player has not thrown glass back.
 TXL_STORY_3050 =
-    "现在你有能对我使用的魔法了？\n"
-    "把它放进球的旋转圆环里，就能施放魔法。\n"; // Context: Speaker: Ezekiel. First rune discovery during the campaign: generic guidance on dragging a rune into the casting ring.
+    "符文已入你手，莫任其力长眠。\n"
+    "拖入球的旋转圆环，方可施法。\n"
+    "留待后用，或此刻唤醒其力？\n"
+    "取舍在你，且审眼前之局。\n"; // Context: Speaker: Ezekiel. First rune discovery during the campaign: generic guidance on dragging a rune into the casting ring.
 TXL_STORY_3051 =
-    "哦，你能引发爆炸？\n"
-    "要不要为了这一点伤害毁掉自己的球，由你决定。\n"; // Context: Speaker: Ezekiel. Follow-up tutorial after the player first finds a Boom rune.
+    "此符能令球，迸作一声雷鸣。\n"
+    "以你一球之损，换敌方受创。\n"
+    "取舍之前，先称这一价。\n"
+    "爆裂能破局，也将毁去你的球。\n"; // Context: Speaker: Ezekiel. Follow-up tutorial after the player first finds a Boom rune.
 TXL_STORY_3052 =
-    "看来你得到了很厉害的魔法。\n"
-    "你可以毁掉我的球，但我会尽力躲开你朝我丢来的东西。\n"; // Context: Speaker: Ezekiel. Follow-up tutorial after the player first finds a Bolt rune.
+    "你手中之符，藏着炽烈雷光。\n"
+    "能焚吾滚动之球，使长投中断。\n"
+    "然吾见险，亦会设法闪避。\n"
+    "择时而发，莫将雷霆空掷。\n"; // Context: Speaker: Ezekiel. Follow-up tutorial after the player first finds a Bolt rune.
 TXL_STORY_3053 =
-    "现在你有能对我使用的魔法了？\n"
-    "把它放进球的旋转圆环里，就能施放魔法。\n"; // Context: Speaker: Ezekiel. First Boom rune discovery during the campaign: casting-ring guidance, automatically followed by the Boom warning in story 3051.
+    "符文已入你手，莫任其力长眠。\n"
+    "拖入球的旋转圆环，方可施法。\n"
+    "留待后用，或此刻唤醒其力？\n"
+    "取舍在你，且审眼前之局。\n"; // Context: Speaker: Ezekiel. First Boom rune discovery during the campaign: casting-ring guidance, automatically followed by the Boom warning in story 3051.
 TXL_STORY_3054 =
-    "现在你有能对我使用的魔法了？\n"
-    "把它放进球的旋转圆环里，就能施放魔法。\n"; // Context: Speaker: Ezekiel. First Bolt rune discovery during the campaign: casting-ring guidance, automatically followed by the Bolt warning in story 3052.
+    "符文已入你手，莫任其力长眠。\n"
+    "拖入球的旋转圆环，方可施法。\n"
+    "留待后用，或此刻唤醒其力？\n"
+    "取舍在你，且审眼前之局。\n"; // Context: Speaker: Ezekiel. First Bolt rune discovery during the campaign: casting-ring guidance, automatically followed by the Bolt warning in story 3052.
 TXL_STORY_3103 =
-    "你适应过来了。\n"
-    "接下来是冰面，那条球道会一边微笑，一边说谎。\n"; // Context: Speaker: Ezekiel. Level 3 completion, leading to the icy Level 4.
+    "热浪与飞沙，未能阻你前行。\n"
+    "如今寒意将至，脚下再无安稳。\n"
+    "冰路之上，许诺也会滑落。\n"
+    "守住方向，莫让寒冰夺去立足之地。\n"; // Context: Speaker: Ezekiel. Level 3 completion, leading to the icy Level 4.
 TXL_STORY_3004 =
-    "冰面很长，很滑，也很有耐心。\n"
-    "少一点相信，多一点滑行；如果需要一颗会说这种语言的球，就去商店。\n"; // Context: Speaker: Ezekiel. Level 4 introduction.
+    "寒意所至，万物失其依凭。\n"
+    "灵魂亦会滑离，本可安住之境。\n"
+    "孕育之处、道路与球道，皆难持守。\n"
+    "谨守直路，莫随疏忽滑入寒深。\n"; // Context: Speaker: Ezekiel. Level 4 introduction.
 TXL_STORY_3104 =
-    "你挺过去了。\n"
-    "现在跟我去霓虹。我想先用玻璃给你上一课，然后再把你交给别人。\n"; // Context: Speaker: Ezekiel. Level 4 completion, leading to the broken-glass level.
+    "你未曾滑落，此路仍在手中。\n"
+    "前方破碎的玻璃，预告一座城的倾覆。\n"
+    "一扇窗先破，满城便有了裂隙。\n"
+    "越过那道光，蛾摩拉的命数已定。\n"; // Context: Speaker: Ezekiel. Level 4 completion, leading to the broken-glass level.
 TXL_STORY_3040 =
-    "现在霓虹就是我们的教室。\n"
-    "当你出手时，我有时会把玻璃丢进你的球道。\n"
-    "别慌，先学它会做什么。\n"; // Context: Speaker: Ezekiel. Before Level 5 (Suburbia): Ezekiel introduces the broken-glass lesson; Cherubel is encountered in Level 6.
+    "往那座城，吾只能行至此处。\n"
+    "玻璃彼岸，另有天使掌其疆土。\n"
+    "吾之职责将尽，基路伯之境将始。\n"
+    "且去，破窗所开，绝非太平之路。\n"; // Context: Speaker: Ezekiel. Before Level 5 (Suburbia): Ezekiel introduces the broken-glass lesson; Cherubel is encountered in Level 6.
 TXL_STORY_3041 =
-    "就是这样。你已经碰到玻璃了。\n"
-    "等轮到我出手时，你也可以用玻璃回敬我。\n"
-    "留意回合按钮。\n"; // Context: Speaker: Ezekiel. Level 5 first-glass tutorial.
+    "你已碰到玻璃，此课从此开篇。\n"
+    "待轮到吾投球，你便可将碎片投还。\n"
+    "留意回合之钮，认准还击时刻。\n"
+    "投出碎片，让裁断随之而落。\n"; // Context: Speaker: Ezekiel. Level 5 first-glass tutorial.
 TXL_STORY_3140 =
-    "这节课结束了。\n"
-    "基路伯已经在霓虹灯下踱步很久，现在他想要这条球道。\n"; // Context: Speaker: Ezekiel. Level 5 completion, before meeting Cherub.
+    "破窗之后，吾之教导至此而终。\n"
+    "基路伯正等你，教你更严酷的局。\n"
+    "去见蛾摩拉门前，守城的天使。\n"
+    "此城已在召唤，清算不容再迟。\n"; // Context: Speaker: Ezekiel. Level 5 completion, before meeting Cherub.
 TXL_STORY_3141 =
-    "在回应基路伯之前，先去商店看看。\n"
-    "不同的球有不同特性，你应该了解哪一种适合你的打法。\n"
-    "要我现在打开商店吗？\n"; // Context: Speaker: Ezekiel. First shop prompt before the Cherub encounter.
+    "见他之前，且往商人堂中。\n"
+    "每一颗球，各有不同秉性。\n"
+    "按你的手法选球，再赴更艰难之局。\n"
+    "可要吾为你，此刻打开商店？\n"; // Context: Speaker: Ezekiel. First shop prompt before the Cherub encounter.
 TXL_STORY_3005 =
-    "我是基路伯。\n"
-    "我喜欢有咬劲的比赛，也喜欢会反击的玩家。\n"
-    "让我看看你是会缩，还是会回。\n"; // Context: Speaker: Cherubel. Level 6 (Gomorrah) introduction by Cherub.
+    "吾乃基路伯。是谁步入蛾摩拉？\n"
+    "此城罪孽生根，竟自称理所应当。\n"
+    "破窗所获，终化作水晶之光。\n"
+    "收取它们，清算尚需更多力量。\n"; // Context: Speaker: Cherubel. Level 6 (Gomorrah) introduction by Cherub.
 TXL_STORY_3105 =
-    "不赖。\n"
-    "下一关我们回到普通球道，而且这次我允许你使用 NOS。\n"; // Context: Speaker: Cherubel. Level 6 completion, leading to the Energy Pyramid.
+    "你已踏入蛾摩拉，罪人藏身之城。\n"
+    "随吾越过，力量沉积的荒漠。\n"
+    "水晶在沙下苏醒，化作可用之力。\n"
+    "取回这座城，从天界窃去的所有。\n"; // Context: Speaker: Cherubel. Level 6 completion, leading to the Energy Pyramid.
 TXL_STORY_3006 =
-    "现在你可以在出手时使用 NOS。\n"
-    "别把它当玩具乱点。等球已经有速度时按住它，把力量送穿整条球道。\n"; // Context: Speaker: Cherubel. Level 7 (Energy Pyramid) introduction.
+    "碎玻璃换来黄金，黄金换来水晶。\n"
+    "将水晶化作能量，点燃氮气之力。\n"
+    "此世已被抽空，今取回应得之份。\n"
+    "被窃的力量，正等你唤醒。\n"; // Context: Speaker: Cherubel. Level 7 (Energy Pyramid) introduction.
 TXL_STORY_30061 =
-    "你现在有 NOS 了，却还是不用。\n"
-    "我已经把能量充满了。球开始移动后，按住 NOS 踏板。\n"; // Context: Speaker: Cherubel. Level 7 NOS reminder when it has not been used.
+    "能量已满，你却迟迟未发。\n"
+    "待球滚动，按住氮气踏板。\n"
+    "让速度骤起，穿越这条球道。\n"
+    "莫使辛苦收来的力量，空留而不用。\n"; // Context: Speaker: Cherubel. Level 7 NOS reminder when it has not been used.
 TXL_STORY_3106 =
-    "把这股力量带去沙漠。\n"
-    "在我和你的最后一关之前，我还会让你把木块丢到我的路线上。\n"; // Context: Speaker: Cherubel. Level 7 completion, leading to the forest.
+    "携此力量，继续走向林阴。\n"
+    "通往矿井之路，已被树木拥塞。\n"
+    "裁断将至，森林亦挡在前方。\n"
+    "斩开枝叶，使预言逐一成真。\n"; // Context: Speaker: Cherubel. Level 7 completion, leading to the forest.
 TXL_STORY_3007 =
-    "又是沙漠。\n"
-    "这次当我出手时，你可以放木块。\n"
-    "把它当成一种回嘴，而不是装饰。\n"; // Context: Speaker: Cherubel. Level 8 (Forest) introduction.
+    "伐尽林木，使此世再无青绿。\n"
+    "生命曾居之地，终将化作荒漠。\n"
+    "但留下木块，拦住滚动的球。\n"
+    "面对撒拉弗，它们亦能助你。\n"; // Context: Speaker: Cherubel. Level 8 (Forest) introduction.
 TXL_STORY_3107 =
-    "你挺过我了。\n"
-    "撒拉弗一直在沉默地看着，而这通常更糟。\n"; // Context: Speaker: Cherubel. Level 8 completion, leading to Seraphel's mines.
+    "吾之末试已过，前路就此两分。\n"
+    "撒拉弗守着矿井，水晶之力深藏。\n"
+    "吾不入那深处，自有守护者索其应得。\n"
+    "去吧，让地底的黑暗迎接你。\n"; // Context: Speaker: Cherubel. Level 8 completion, leading to Seraphel's mines.
 TXL_STORY_3008 =
-    "我是撒拉弗。\n"
-    "沙漠只留下能保持形状的东西。\n"
-    "我不吠。我等着，然后由我来决定。\n"; // Context: Speaker: Seraphel. Before Level 11 (Grey Desert / Cemetery): Seraphel describes the plague at Gomorrah.
+    "蛾摩拉已染瘟疫，此事须藏心底。\n"
+    "人口日渐凋零，吾称之为净化。\n"
+    "此乃吾最后之业，事毕便将离去。\n"
+    "那座城的命数，早已刻入其心。\n"; // Context: Speaker: Seraphel. Before Level 11 (Grey Desert / Cemetery): Seraphel describes the plague at Gomorrah.
 TXL_STORY_3108 =
-    "你让我感兴趣。\n"
-    "来冰面上，在你保持平衡的时候，让我继续藏着秘密。\n"; // Context: Speaker: Seraphel. After winning Level 11, before Level 12: Seraphel departs and sends the player to Thrones in Gomorrah.
+    "吾之事已毕，你之事方始。\n"
+    "蛾摩拉仍在，暗日之下等待。\n"
+    "座天使将于城中，接过你的前路。\n"
+    "去吧，以你的手，写下此城的终局。\n"; // Context: Speaker: Seraphel. After winning Level 11, before Level 12: Seraphel departs and sends the player to Thrones in Gomorrah.
 TXL_STORY_3009 =
-    "冰面奖励冷静的手。\n"
-    "不要把克制误认为软弱。\n"; // Context: Speaker: Seraphel. Level 9 (Mines) introduction by Seraphel.
+    "吾乃撒拉弗。此地是所罗门的矿井。\n"
+    "水晶之力，在大地深处闪耀。\n"
+    "它不会因怜悯而起，亦不应祈求而来。\n"
+    "深入地底，取出长眠于此的力量。\n"; // Context: Speaker: Seraphel. Level 9 (Mines) introduction by Seraphel.
 TXL_STORY_3109 =
-    "在霓虹里还有最后一章。\n"
-    "在我最后一关之前，我会把砖块也交给你。\n"; // Context: Speaker: Seraphel. Level 9 completion, leading to the factory.
+    "大地深藏之物，矿井已尽数交出。\n"
+    "如今往工厂去，那里尚封着力量。\n"
+    "将水晶之力引出，使它化作烈焰。\n"
+    "来吧，裁断之时，已渐渐成熟。\n"; // Context: Speaker: Seraphel. Level 9 completion, leading to the factory.
 TXL_STORY_3010 =
-    "霓虹会剥掉伪装。\n"
-    "现在你也可以在我出手时用砖块了。别浪费它们。\n"; // Context: Speaker: Seraphel. Before Level 10 (Gas Factory): Seraphel demands the return of stolen energy.
+    "水晶养活机器，一炉又一炉燃烧。\n"
+    "此城之人，盗走力量却称为己有。\n"
+    "取尽其力，莫容他们再作私藏。\n"
+    "罪之轻重，已在天使的秤上。\n"; // Context: Speaker: Seraphel. Before Level 10 (Gas Factory): Seraphel demands the return of stolen energy.
 TXL_STORY_3110 =
-    "如果你拿得到，就把这场胜利带走。\n"
-    "一个更大声、更夸张、也更没耐心的家伙已经在路上了。\n"; // Context: Speaker: Seraphel. After winning Level 10, before Level 11 (Grey Desert / Cemetery).
+    "机器应还之力，已归大地深处。\n"
+    "瘟疫之影笼罩，生者将日渐稀少。\n"
+    "随吾往城外去，墓地正在前方。\n"
+    "你将见裁断，如何落到众人身上。\n"; // Context: Speaker: Seraphel. After winning Level 10, before Level 11 (Grey Desert / Cemetery).
 TXL_STORY_3011 =
-    "我是座天使。\n"
-    "我知道自己的重量，也知道自己的价值，而且我来这里不是为了让你轻松。\n"
-    "让我们看看，你的球技是不是和你的攀升一样勇敢。\n"; // Context: Speaker: Thrones. Level 12 introduction: Thrones judges Gomorrah.
+    "吾乃座天使，蛾摩拉的罪已满盈。\n"
+    "不法之行，已断送它的来日。\n"
+    "吾知自身之重，亦知降下时的后果。\n"
+    "助吾在翼影之下，将此城烧作灰烬。\n"; // Context: Speaker: Thrones. Level 12 introduction: Thrones judges Gomorrah.
 TXL_STORY_3111 =
-    "你已经扛住了城市的灯光。\n"
-    "还有最后一关在等你，而那一关里我会允许你使用混凝土。\n"; // Context: Speaker: Thrones. Level 12 completion, leading to Judgment Day.
+    "蛾摩拉已燃，浓烟直上长空。\n"
+    "高塔倾颓，骄矜的根基尽毁。\n"
+    "此片火场之外，尚有最后一事。\n"
+    "大地本身，亦须向烈火作答。\n"; // Context: Speaker: Thrones. Level 12 completion, leading to Judgment Day.
 TXL_STORY_3012 =
-    "我还是座天使，而这就是最后一课。\n"
-    "现在当我出手时，你可以放混凝土。\n"
-    "通过这一关，整段战役就完成了。\n"; // Context: Speaker: Thrones. Before Level 13 (Ashland / Judgment Day): Thrones announces the final trial.
+    "审判之日已至，最后的秤已立。\n"
+    "大地与旧日之债，今置于两端。\n"
+    "天界默然注视，旧世逐一燃尽。\n"
+    "凡曾存在之物，终须归于火中。\n"; // Context: Speaker: Thrones. Before Level 13 (Ashland / Judgment Day): Thrones announces the final trial.
 TXL_STORY_3112 =
-    "你击败了我。\n"
-    "混凝土撑住了，游行结束了，所有关卡都已清完。\n"
-    "这就是战役的终点。\n"; // Context: Speaker: Thrones. Level 13 completion and campaign ending.
+    "所言终已成真，大地化作灰尘。\n"
+    "旧世最后一闪，从此不复存在。\n"
+    "恶已尽，诸试已终，罪亦再无踪。\n"
+    "只因人间无人，唯你独留此中。\n"; // Context: Speaker: Thrones. Level 13 completion and campaign ending.
 TXL_STORY_32000 =
-    "我是以西结，现在可以直说了：\n"
-    "你击败了我们所有人，也完成了整段战役。\n"
-    "接下来想做什么？\n"; // Context: Speaker: Ezekiel. Post-campaign result dialog before random-game free play.
+    "吾乃以西结，如今可明言一切。\n"
+    "生者与亡者之间，你已历尽诸试。\n"
+    "你助吾等除尽恶，世界从此寂静。\n"
+    "此刻皆遂你愿，往后你将何行？\n"; // Context: Speaker: Ezekiel. Post-campaign result dialog before random-game free play.
 TXL_STORY_OPTION_ENTER_TRAINING = "去学校"; // Context: Choice button in Level 1 introductions/outros and the Level 2 recovery introduction: enter school.
-TXL_STORY_OPTION_YES = "Yes"; // Context: Confirmation button for switching school lessons. Remains English in the existing non-English translations; tutorial confirmation uses the separate YES_TUTORIAL key.
-TXL_STORY_OPTION_NO = "No"; // Context: Cancel button for switching school lessons. Remains English in the existing non-English translations; tutorial refusal uses the separate NO_TUTORIAL key.
+TXL_STORY_OPTION_YES = "是"; // Context: Confirmation button for switching school lessons; tutorial confirmation uses the separate YES_TUTORIAL key.
+TXL_STORY_OPTION_NO = "否"; // Context: Cancel button for switching school lessons; tutorial refusal uses the separate NO_TUTORIAL key.
 TXL_STORY_OPTION_NOT_NOW = "现在先不去"; // Context: Choice after failing Level 1 or during its replay introduction: decline training and try Level 1 again.
 TXL_STORY_OPTION_COMPETE_VS_EZEKIEL = "和以西结对战"; // Context: Choice after passing Level 1 or in the Level 2 recovery introduction: proceed to face Ezekiel in Level 2.
 TXL_STORY_OPTION_OK = "确定"; // Context: Acknowledgement button for campaign dialogue and school instructions.

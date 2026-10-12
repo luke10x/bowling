@@ -3,6 +3,14 @@
 // Translator guidance: ../docs/translations.md
 // Campaign lore: lore.md
 //
+// Translation status: older entries may be substantially outdated, including
+// UI text, level titles/subtitles, school copy, and unrevised dialogue. Do not
+// treat existing translations as authoritative terminology or story references.
+// The campaign verse was newly revised against English, Lithuanian, and lore.md;
+// this does not mean the rest of this locale has been reviewed or brought current.
+// When revising older entries, verify current gameplay and translator Context
+// notes, then consult lore.md and ../docs/translations.md.
+//
 // Preferred angel names:
 // Ezekiel -> エゼキエル; Cherubel -> ケルビム; Seraphel -> セラフィム;
 // Thrones -> 座天使.
@@ -11,6 +19,42 @@
 // Nitratai is Lithuanian-only: translate the resource as crystals/gems or
 // energy according to the scene, not as nitrates. Existing UI uses
 // クリスタル / ジェム, エネルギー, and ニトロ for the pedal.
+//
+// Japanese line breaks (改行・禁則処理):
+// Layout constraint: long Japanese runs, especially katakana loanwords and
+// compounds, can behave as a single unbreakable unit and overflow narrow UI.
+// Do not rely on automatic word wrapping to split them. Keep button labels
+// short; test dialogue and labels at the narrowest supported/mobile width.
+// For new or explicitly revised text, prefer a shorter natural expression or
+// insert an explicit \n between phrases or meaningful compound components.
+// If a katakana compound itself is too wide, a break between its components is
+// preferable to overflow; do not apply "keep words together" as an absolute rule.
+// Keep character names intact where possible and never split a UTF-8 character.
+// Keep each verse line on its own source row, ending with \n. Source rows alone
+// do not create displayed line breaks; \n does. Preserve existing stanza lines
+// and pauses; do not force an existing three-line translation into four lines.
+// For new or explicitly revised translations, break at natural phrase or clause
+// boundaries. Keep words, angel names, numbers with units, and small kana with
+// the preceding kana together; avoid isolating particles from their phrase.
+// Do not start a line with closing punctuation such as 、 。 ！ ？ 」 』 ）,
+// or end one with an opening bracket such as 「 『 （. Keep punctuation attached
+// to its phrase. Avoid adding spaces to simulate wrapping or alignment.
+// Check displayed wrapping in the dialogue panel, especially on mobile; do not
+// assume the renderer automatically handles Japanese line-breaking rules.
+// Reformatting source must not change wording or intentional \n escapes.
+//
+// Poetic style: 文語自由詩, with echoes of 七五調 and 漢詩訓読の語り口.
+// Use four-line stanzas, restrained archaic diction (われ, 来たれ, なり),
+// parallel phrases and pauses; do not claim strict 5/7 metre or impose end rhyme.
+// Prefer short clauses and 結晶 / 力 in verse to reduce long katakana runs;
+// UI terms remain unchanged, and ニトロ still names the pedal.
+// Use 天 / 天の門 for the spiritual realm. Keep names in their established form.
+// Reference order: lore.md governs the arc and the cruel final irony; compare
+// txl_en_us.h and txl_lt_lt.h for imagery, stanza progression, and game actions.
+// Borrow poetic cadence, not local deities or a replacement religious setting.
+// Early speech hints at salvation; later speech reveals punishment and pride.
+// School instructions, confirmations, and choice buttons stay direct and clear.
+// Future poetry edits must preserve meaning, stanza structure, and Context notes.
 //
 // Do not use internal aliases Malach, Dog, Beak, or Cow as character names.
 // The angels deceive the player into a campaign of punishment; reveal this
@@ -367,21 +411,28 @@ TXL_RUNES_SHORT = "ル"; // Used in: campaign and results windows (clayton/win_s
 // Story and dialogue
 // -----------------------------------------------------------------------------
 TXL_STORY_1 =
-    "ボウリングレーンに立っている。\n"
-    "最初の目標は1ゲームで100点。\n"
-    "達成すれば魔法のお守りが手に入る。\n"; // Context: Speaker: Ezekiel. Level 1's first-attempt introduction.
-TXL_STORY_2 = "チュートリアルを受ける？\n"; // Context: Speaker: Ezekiel. Follow-up prompt offering training from the first Level 1 introduction.
+    "迷える魂よ、天の門に来たれり。\n"
+    "符文を学べ、時尽きる前に百点を。\n"
+    "ストライクとスペアに、道を尋ねよ。\n"
+    "一投ずつ数えよ、運に足をすくわれぬよう。\n"; // Context: Speaker: Ezekiel. Level 1's first-attempt introduction.
+TXL_STORY_2 = "まず修練を受けるか。\n"; // Context: Speaker: Ezekiel. Follow-up prompt offering training from the first Level 1 introduction.
 TXL_STORY_10 =
-    "100点に届かなかった。\n"
-    "今は意地より学校が役に立つかもしれない。\n"; // Context: Speaker: Ezekiel. Level 1 failure message after scoring below 100.
-TXL_STORY_11 = "今すぐ学校へ行く？ それともレベル1をもう一度？\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
+    "百点のしるしに、今日は届かず。\n"
+    "おごりがその手を、迷わせたか。\n"
+    "修練にて、拒んだ道を学べ。\n"
+    "狙いを導きに、備えて戻れ。\n"; // Context: Speaker: Ezekiel. Level 1 failure message after scoring below 100.
+TXL_STORY_11 = "いま修練に入るか、天の試しに再び挑むか。\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
 TXL_STORY_20 =
-    "最初の試験を突破した。\n"
-    "正体を明かそう。私はエゼキエル。君と投げ合う。\n"; // Context: Speaker: Ezekiel. After winning Level 1 with 100+ points while school is unfinished; Ezekiel reveals himself. Automatically continues to story 21 for the training-or-Level-2 choice.
-TXL_STORY_21 = "先に学校へ行く？ それともレベル2へ進む？\n"; // Context: Speaker: Ezekiel. Immediately after story 20, before Level 2: choose training or facing Ezekiel.
+    "初めの試しを越え、封印は開けり。\n"
+    "われはエゼキエル、その投球を見守りし者。\n"
+    "手と勇気と狙いを、ここで試さん。\n"
+    "まず学ぶか、いまわれに挑むか。\n"; // Context: Speaker: Ezekiel. After winning Level 1 with 100+ points while school is unfinished; Ezekiel reveals himself. Automatically continues to story 21 for the training-or-Level-2 choice.
+TXL_STORY_21 = "まず修練するか、いまエゼキエルに挑むか。\n"; // Context: Speaker: Ezekiel. Immediately after story 20, before Level 2: choose training or facing Ezekiel.
 TXL_STORY_22 =
-    "最初の試験を突破した。\n"
-    "正体を明かそう。私はエゼキエル。君と投げ合う。\n"; // Context: Speaker: Ezekiel. After winning Level 1 with 100+ points when school is already complete; replaces stories 20 and 21, without offering training again.
+    "初めの試しを越え、封印は開けり。\n"
+    "われはエゼキエル、その投球を見守りし者。\n"
+    "修練は終われり、得たものを示せ。\n"
+    "試しの場にて、われと向き合え。\n"; // Context: Speaker: Ezekiel. After winning Level 1 with 100+ points when school is already complete; replaces stories 20 and 21, without offering training again.
 TXL_STORY_30 =
     "まだ学校を出られない。\n"
     "先にレッスンを終えよう。\n"; // Context: Speaker: Ezekiel. Attempt to leave mandatory training before completing it.
@@ -444,138 +495,198 @@ TXL_STORY_1021 =
     "ジグザグのコインで回転をもっと練習できる。\n"
     "レッスン3が解放された。\n"; // Context: Speaker: Ezekiel. Lesson 3 unlock notification after the zig-zag gold lesson.
 TXL_STORY_40 =
-    "私はエゼキエル。このレーンの君の天使だ。\n"
-    "レベル1は100点で突破。遠くから見守る。\n"
-    "先に助けが欲しければ、学校は開いている。\n"; // Context: Speaker: Ezekiel. Level 1 replay introduction after a failed attempt, before training is finished.
+    "われはエゼキエル、つまずきも立ち直りも見たり。\n"
+    "天の眼差しの下に、符文は眠る。\n"
+    "百点を得よ、初めの門を開くため。\n"
+    "導きを望むなら、修練の戸は開いている。\n"; // Context: Speaker: Ezekiel. Level 1 replay introduction after a failed attempt, before training is finished.
 TXL_STORY_30020 =
-    "最初の試験を突破した。\n"
-    "正体を明かそう。私はエゼキエル。レベル2は私が相手だ。\n"
-    "先に学校へ行く？ それとも今すぐ続ける？\n"; // Context: Speaker: Ezekiel. Recovery-only introduction before Level 2: Level 2 is selected in a legacy/inconsistent save, but neither a Level 1 win nor school completion is recorded. Offers training or continuing; normal Level 2 starts use story 3002.
+    "初めのしるしを越え、その手は勝ちを得たり。\n"
+    "われはエゼキエル、試しの先は暗き道。\n"
+    "学びを選ぶか、次なる天使へ進むか。\n"
+    "いま選べ、その勇気が行く末を定めよう。\n"; // Context: Speaker: Ezekiel. Recovery-only introduction before Level 2: Level 2 is selected in a legacy/inconsistent save, but neither a Level 1 win nor school completion is recorded. Offers training or continuing; normal Level 2 starts use story 3002.
 TXL_STORY_3002 =
-    "私はエゼキエル。\n"
-    "君の初勝利を遠くから見ていた。\n"
-    "感覚はある。圧力の中で保てるか見せて。\n"; // Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself after the first Level 1 win.
+    "われはエゼキエル、天の初めの使い。\n"
+    "声なく流れる時の中、投球を見守りたり。\n"
+    "救いを求むるなら、その勇気を示せ。\n"
+    "いま球を投げよ、初めのしるしを輝かせよ。\n"; // Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself after the first Level 1 win.
 TXL_STORY_3102 =
-    "悪くない。\n"
-    "普通のレーンの安心を離れ、砂漠へ来い。\n"; // Context: Speaker: Ezekiel. Level 2 completion, leading to the Red Desert.
+    "手は揺らがず、狙いは冴えたり。\n"
+    "球は定めの軌道を、よく守りたり。\n"
+    "この穏やかな地を離れ、われに続け。\n"
+    "砂は覆う、いにしえの罪の跡を。\n"; // Context: Speaker: Ezekiel. Level 2 completion, leading to the Red Desert.
 TXL_STORY_3003 =
-    "砂漠のレーンはオイルが早く減る。\n"
-    "手前を見ろ。君の番では自尊心より先にオイルを考えろ。\n"; // Context: Speaker: Ezekiel. Level 3 (Red Desert) introduction.
+    "罪に乾いた荒野、渇きは深し。\n"
+    "砂は球道をふさぎ、球の行く手を塞ぐ。\n"
+    "油と乳香をもて、この道を潤せ。\n"
+    "清めの火に、おごりだけを焼かれぬよう。\n"; // Context: Speaker: Ezekiel. Level 3 (Red Desert) introduction.
 TXL_STORY_30031 =
-    "スプリットが多いね。\n"
-    "中央からピンを打とうとしているのかもしれない。\n"
-    "少し横から入るといい。\n"
-    "たいていスプリットを防ぎやすい。\n"; // Context: Speaker: Ezekiel. Level 3 side-throw harassment after repeated splits.
+    "真ん中を打てば、ピンは左右に裂ける。\n"
+    "残る隙間は、次の一投の傷となる。\n"
+    "横より入り、曲がる軌道を生かせ。\n"
+    "道を改めれば、スプリットを避けられよう。\n"; // Context: Speaker: Ezekiel. Level 3 side-throw harassment after repeated splits.
 TXL_STORY_30032 =
-    "砂漠にいるのに、まだオイルを使っていないね。\n"
-    "レーンに罰される前に使った方がいい。\n"
-    "今オイル画面を開こうか？\n"; // Context: Speaker: Ezekiel. Level 3 oil reminder when the player has not re-oiled.
+    "荒野を行くのに、油はまだ使わぬか。\n"
+    "乾いた板は、おごりの一投を覚えている。\n"
+    "試される前に、まず道を潤せ。\n"
+    "いまオイル画面を、開いてやろうか。\n"; // Context: Speaker: Ezekiel. Level 3 oil reminder when the player has not re-oiled.
 TXL_STORY_3042 =
-    "僕が君にガラスを投げているのに、君は投げ返していないね。\n"
-    "君も僕にガラスを投げられるよ！\n"; // Context: Speaker: Ezekiel. Level 5 glass reminder when the player has not thrown glass back.
+    "ガラスは降る、光る刃の雨となり。\n"
+    "その痛みを、われに返すこともできる。\n"
+    "球で砕けば、その速さは奪われる。\n"
+    "時を見よ、われの番に投げ返せ。\n"; // Context: Speaker: Ezekiel. Level 5 glass reminder when the player has not thrown glass back.
 TXL_STORY_3050 =
-    "これで私に使える魔法を手に入れたね。\n"
-    "球の回転サークルに入れて、魔法を使うんだ。\n"; // Context: Speaker: Ezekiel. First rune discovery during the campaign: generic guidance on dragging a rune into the casting ring.
+    "符文が手に来たり、その力を眠らすな。\n"
+    "球の回転の輪へ、符文を引き入れよ。\n"
+    "蓄えるか、いま力を解き放つか。\n"
+    "その選びは、そなたの手にある。\n"; // Context: Speaker: Ezekiel. First rune discovery during the campaign: generic guidance on dragging a rune into the casting ring.
 TXL_STORY_3051 =
-    "おや、爆発を起こせるのか？\n"
-    "少しのダメージのために自分の球を壊す価値があるかは、君次第だ。\n"; // Context: Speaker: Ezekiel. Follow-up tutorial after the player first finds a Boom rune.
+    "この符文は、球を雷鳴へと変える。\n"
+    "そなたの球を失い、敵に傷を与える。\n"
+    "選ぶ前に、その代価を量れ。\n"
+    "爆発は道を開くが、球をも奪う。\n"; // Context: Speaker: Ezekiel. Follow-up tutorial after the player first finds a Boom rune.
 TXL_STORY_3052 =
-    "本格的な魔法を手に入れたようだね。\n"
-    "私の球を壊せるが、君が投げるものは避けようとするよ。\n"; // Context: Speaker: Ezekiel. Follow-up tutorial after the player first finds a Bolt rune.
+    "手に宿るは、激しき稲妻。\n"
+    "われの転がる球を、光に焼き尽くせる。\n"
+    "されど危うさを見れば、われも逃れん。\n"
+    "時を選んで放て、雷を空しくせぬよう。\n"; // Context: Speaker: Ezekiel. Follow-up tutorial after the player first finds a Bolt rune.
 TXL_STORY_3053 =
-    "これで私に使える魔法を手に入れたね。\n"
-    "球の回転サークルに入れて、魔法を使うんだ。\n"; // Context: Speaker: Ezekiel. First Boom rune discovery during the campaign: casting-ring guidance, automatically followed by the Boom warning in story 3051.
+    "符文が手に来たり、その力を眠らすな。\n"
+    "球の回転の輪へ、符文を引き入れよ。\n"
+    "蓄えるか、いま力を解き放つか。\n"
+    "その選びは、そなたの手にある。\n"; // Context: Speaker: Ezekiel. First Boom rune discovery during the campaign: casting-ring guidance, automatically followed by the Boom warning in story 3051.
 TXL_STORY_3054 =
-    "これで私に使える魔法を手に入れたね。\n"
-    "球の回転サークルに入れて、魔法を使うんだ。\n"; // Context: Speaker: Ezekiel. First Bolt rune discovery during the campaign: casting-ring guidance, automatically followed by the Bolt warning in story 3052.
+    "符文が手に来たり、その力を眠らすな。\n"
+    "球の回転の輪へ、符文を引き入れよ。\n"
+    "蓄えるか、いま力を解き放つか。\n"
+    "その選びは、そなたの手にある。\n"; // Context: Speaker: Ezekiel. First Bolt rune discovery during the campaign: casting-ring guidance, automatically followed by the Bolt warning in story 3052.
 TXL_STORY_3103 =
-    "順応したね。\n"
-    "次は氷だ。あのレーンは笑いながら嘘をつく。\n"; // Context: Speaker: Ezekiel. Level 3 completion, leading to the icy Level 4.
+    "熱にも乾きにも、砂にも耐えたり。\n"
+    "次には寒さが、足場を奪いに来る。\n"
+    "滑る道では、約束さえも滑り落ちる。\n"
+    "道を守れ、氷に身を崩されぬよう。\n"; // Context: Speaker: Ezekiel. Level 3 completion, leading to the icy Level 4.
 TXL_STORY_3004 =
-    "氷は長く、滑り、忍耐強い。\n"
-    "信じすぎず、もっと滑らせろ。必要なら店で合う球を探せ。\n"; // Context: Speaker: Ezekiel. Level 4 introduction.
+    "寒さは万物の支えを、もろくする。\n"
+    "魂もまた、留まるはずの場所を滑り落ちる。\n"
+    "胎も道も球道も、支えを失う。\n"
+    "まっすぐに行け、不用意な逸れは冷たく深い。\n"; // Context: Speaker: Ezekiel. Level 4 introduction.
 TXL_STORY_3104 =
-    "耐えたね。\n"
-    "ネオンへ行こう。まずガラスで教え、それから別の者に渡す。\n"; // Context: Speaker: Ezekiel. Level 4 completion, leading to the broken-glass level.
+    "そなたは滑らず、道を手に保ちたり。\n"
+    "次なる割れガラスは、町の崩れを告げる。\n"
+    "ひとつの窓の破れから、滅びは始まる。\n"
+    "その光る裂け目の先に、ゴモラの定めがある。\n"; // Context: Speaker: Ezekiel. Level 4 completion, leading to the broken-glass level.
 TXL_STORY_3040 =
-    "今のネオンは私たちの教室だ。\n"
-    "君が投げる時、ときどきレーンにガラスを入れる。\n"
-    "慌てず、まず何をするか学べ。\n"; // Context: Speaker: Ezekiel. Before Level 5 (Suburbia): Ezekiel introduces the broken-glass lesson; Cherubel is encountered in Level 6.
+    "あの町へ、われが歩めるのはここまで。\n"
+    "ガラスの向こうは、別の天使の領地。\n"
+    "われの務めは終わり、ケルビムの域が始まる。\n"
+    "進め、割れ窓が開くのは平和への道ではない。\n"; // Context: Speaker: Ezekiel. Before Level 5 (Suburbia): Ezekiel introduces the broken-glass lesson; Cherubel is encountered in Level 6.
 TXL_STORY_3041 =
-    "そうだ。ガラスに触れたね。\n"
-    "私の番では君もガラスを返せる。\n"
-    "ターンボタンを見て。\n"; // Context: Speaker: Ezekiel. Level 5 first-glass tutorial.
+    "ガラスに触れたり、その教えは始まった。\n"
+    "われが投げる番には、そなたも投げ返せる。\n"
+    "手番のボタンを見よ、返す時を知れ。\n"
+    "破片を放ち、裁きを先へ進めよ。\n"; // Context: Speaker: Ezekiel. Level 5 first-glass tutorial.
 TXL_STORY_3140 =
-    "この授業は終わりだ。\n"
-    "ケルビムはネオンの下を長く歩いていた。今はこのレーンを欲しがっている。\n"; // Context: Speaker: Ezekiel. Level 5 completion, before meeting Cherub.
+    "割れた窓の先で、われの教えは終わる。\n"
+    "ケルビムは待つ、より厳しき試しを携えて。\n"
+    "ゴモラの門を守る者に、会いに行け。\n"
+    "町は呼ぶ、その報いは待たぬ。\n"; // Context: Speaker: Ezekiel. Level 5 completion, before meeting Cherub.
 TXL_STORY_3141 =
-    "ケルビムに応じる前に、店へ行こう。\n"
-    "球ごとに性格が違う。君の投げ方に合うものを知るべきだ。\n"
-    "今、店を開く？\n"; // Context: Speaker: Ezekiel. First shop prompt before the Cherub encounter.
+    "彼に会う前に、商人のもとを訪ねよ。\n"
+    "球にはそれぞれ、異なる性がある。\n"
+    "手に合うものを選べ、次の試しのため。\n"
+    "いま店を、開いてやろうか。\n"; // Context: Speaker: Ezekiel. First shop prompt before the Cherub encounter.
 TXL_STORY_3005 =
-    "私はケルビム。\n"
-    "噛みごたえのある勝負と、反撃するプレイヤーが好きだ。\n"
-    "退くのか、返すのか見せて。\n"; // Context: Speaker: Cherubel. Level 6 (Gomorrah) introduction by Cherub.
+    "われはケルビム。誰ぞ、ゴモラに入る者は。\n"
+    "ここでは罪が根を張り、己を正しきものと呼ぶ。\n"
+    "割れガラスの収穫は、やがて結晶の光となる。\n"
+    "集めよ、裁きにはなお力が要る。\n"; // Context: Speaker: Cherubel. Level 6 (Gomorrah) introduction by Cherub.
 TXL_STORY_3105 =
-    "悪くない。\n"
-    "次は普通のレーンへ戻る。今回はNOSを許可する。\n"; // Context: Speaker: Cherubel. Level 6 completion, leading to the Energy Pyramid.
+    "罪人の隠れる町、ゴモラを歩みたり。\n"
+    "次はわれと越えよ、力を秘めた荒野を。\n"
+    "砂の下では結晶が目覚め、力となる。\n"
+    "町が天より盗みしものを、取り戻せ。\n"; // Context: Speaker: Cherubel. Level 6 completion, leading to the Energy Pyramid.
 TXL_STORY_3006 =
-    "投球中にNOSを使えるようになった。\n"
-    "おもちゃのように押すな。球に速度が乗ってから押し続け、力をレーンへ通せ。\n"; // Context: Speaker: Cherubel. Level 7 (Energy Pyramid) introduction.
+    "ガラスは黄金に、黄金は結晶の光に。\n"
+    "結晶を力に変え、ニトロを燃やせ。\n"
+    "力を吸われし世界より、いま取り分を得よ。\n"
+    "盗まれた力は、目覚めを待っている。\n"; // Context: Speaker: Cherubel. Level 7 (Energy Pyramid) introduction.
 TXL_STORY_30061 =
-    "NOSが使えるのに、まだ使おうとしないね。\n"
-    "エネルギーは満たしておいた。球が動き出してからNOSペダルを押し続けろ。\n"; // Context: Speaker: Cherubel. Level 7 NOS reminder when it has not been used.
+    "力は満ちたのに、まだ火を惜しむか。\n"
+    "球が動き出したら、ニトロを押し続けよ。\n"
+    "速さを呼び、球道を走り抜けよ。\n"
+    "集めた力を、使わず終えるな。\n"; // Context: Speaker: Cherubel. Level 7 NOS reminder when it has not been used.
 TXL_STORY_3106 =
-    "その力を砂漠へ持って行け。\n"
-    "最後の勝負の前に、木を私の道へ置くことも許そう。\n"; // Context: Speaker: Cherubel. Level 7 completion, leading to the forest.
+    "この力を携え、木陰の先へ進め。\n"
+    "鉱山への道は、木々にふさがれている。\n"
+    "裁きの前に、森もまた立ちはだかる。\n"
+    "枝を切り開け、予言を成すために。\n"; // Context: Speaker: Cherubel. Level 7 completion, leading to the forest.
 TXL_STORY_3007 =
-    "また砂漠だ。\n"
-    "私が投げる時、君は木を置ける。\n"
-    "飾りではなく、返答として使え。\n"; // Context: Speaker: Cherubel. Level 8 (Forest) introduction.
+    "木を伐れ、この世の緑を尽くせ。\n"
+    "命のあった地を、荒野に変えよ。\n"
+    "されど木は残せ、転がる球を阻むため。\n"
+    "セラフィムに挑むとき、その木が役立とう。\n"; // Context: Speaker: Cherubel. Level 8 (Forest) introduction.
 TXL_STORY_3107 =
-    "私を耐え抜いたね。\n"
-    "セラフィムが黙って見ていた。たいてい、それはもっと悪い。\n"; // Context: Speaker: Cherubel. Level 8 completion, leading to Seraphel's mines.
+    "われの末の試しを越え、道は分かれる。\n"
+    "結晶の力を秘める鉱山は、セラフィムが守る。\n"
+    "われは入らぬ、その深みは彼女の領分。\n"
+    "進め、地の底の闇に迎えられよ。\n"; // Context: Speaker: Cherubel. Level 8 completion, leading to Seraphel's mines.
 TXL_STORY_3008 =
-    "私はセラフィム。\n"
-    "砂漠は形を保てるものだけを残す。\n"
-    "私は吠えない。待ち、そして決める。\n"; // Context: Speaker: Seraphel. Before Level 11 (Grey Desert / Cemetery): Seraphel describes the plague at Gomorrah.
+    "ゴモラに疫病あり、このことは胸に秘めよ。\n"
+    "人は減りゆく、われはそれを清めと呼ぶ。\n"
+    "これがわれの最後の務め、やがて別れん。\n"
+    "町の定めは、その胸に刻まれている。\n"; // Context: Speaker: Seraphel. Before Level 11 (Grey Desert / Cemetery): Seraphel describes the plague at Gomorrah.
 TXL_STORY_3108 =
-    "興味深い。\n"
-    "氷上へ来い。君が均衡を保つ間、私は秘密を保つ。\n"; // Context: Speaker: Seraphel. After winning Level 11, before Level 12: Seraphel departs and sends the player to Thrones in Gomorrah.
+    "われの務めは終わり、そなたの務めは始まる。\n"
+    "暗き日の下で、ゴモラは待つ。\n"
+    "町に立つ座天使が、そなたを迎えよう。\n"
+    "進め、その手で町の終わりをなせ。\n"; // Context: Speaker: Seraphel. After winning Level 11, before Level 12: Seraphel departs and sends the player to Thrones in Gomorrah.
 TXL_STORY_3009 =
-    "氷は冷静な手に報いる。\n"
-    "抑制を弱さと間違えるな。\n"; // Context: Speaker: Seraphel. Level 9 (Mines) introduction by Seraphel.
+    "われはセラフィム。ここはソロモンの鉱山。\n"
+    "地の底に、結晶の力は輝く。\n"
+    "慈悲にも祈りにも、その力は応じぬ。\n"
+    "深く掘れ、眠れる力を取り出せ。\n"; // Context: Speaker: Seraphel. Level 9 (Mines) introduction by Seraphel.
 TXL_STORY_3109 =
-    "ネオンに最後の章がある。\n"
-    "最後の私のレベルの前に、レンガを渡そう。\n"; // Context: Speaker: Seraphel. Level 9 completion, leading to the factory.
+    "大地の秘めしものを、鉱山は明け渡した。\n"
+    "次は工場へ、なお力の閉じ込められた場所へ。\n"
+    "結晶から引き出せ、燃えさかる力を。\n"
+    "来たれ、裁きの時は熟しつつある。\n"; // Context: Speaker: Seraphel. Level 9 completion, leading to the factory.
 TXL_STORY_3010 =
-    "ネオンは偽りを剥がす。\n"
-    "今から私のターンでレンガを使える。無駄にするな。\n"; // Context: Speaker: Seraphel. Before Level 10 (Gas Factory): Seraphel demands the return of stolen energy.
+    "結晶は機関を養い、炉から炉へと燃える。\n"
+    "町の者は力を盗み、己のものと称する。\n"
+    "その力を引き出せ、何ひとつ蓄えさせるな。\n"
+    "彼らの罪は、天使の秤に載っている。\n"; // Context: Speaker: Seraphel. Before Level 10 (Gas Factory): Seraphel demands the return of stolen energy.
 TXL_STORY_3110 =
-    "取れるなら、その勝利を持っていけ。\n"
-    "もっと大きく、騒がしく、忍耐のない者が向かっている。\n"; // Context: Speaker: Seraphel. After winning Level 10, before Level 11 (Grey Desert / Cemetery).
+    "機関の返すべき力は、地の底へ戻りたり。\n"
+    "疫病の影は迫り、生ある者は減りゆこう。\n"
+    "町の壁を越え、墓地へと来たれ。\n"
+    "裁きが人々に何をなすか、そこで見よ。\n"; // Context: Speaker: Seraphel. After winning Level 10, before Level 11 (Grey Desert / Cemetery).
 TXL_STORY_3011 =
-    "私は座天使。\n"
-    "自分の重さも価値も知っている。君を楽にするために来たのではない。\n"
-    "君の腕がここまでの上昇ほど勇敢か見よう。\n"; // Context: Speaker: Thrones. Level 12 introduction: Thrones judges Gomorrah.
+    "われは座天使、ゴモラの罪は満ちたり。\n"
+    "法なき行いが、その明日を奪った。\n"
+    "われは己の重さを知る、降りるときの災いも。\n"
+    "翼の下で、町を灰にする手を貸せ。\n"; // Context: Speaker: Thrones. Level 12 introduction: Thrones judges Gomorrah.
 TXL_STORY_3111 =
-    "君は街の光を耐えた。\n"
-    "残るレベルは一つ。そこでコンクリートを許可する。\n"; // Context: Speaker: Thrones. Level 12 completion, leading to Judgment Day.
+    "ゴモラは燃え、煙は空へ昇る。\n"
+    "塔は崩れ、おごれる礎は滅びる。\n"
+    "されどこの火の先に、最後の務めがある。\n"
+    "大地そのものが、火に答えねばならぬ。\n"; // Context: Speaker: Thrones. Level 12 completion, leading to Judgment Day.
 TXL_STORY_3012 =
-    "私はまだ座天使。そしてこれが最後の授業だ。\n"
-    "私が投げる時、今度はコンクリートを置ける。\n"
-    "突破すればキャンペーン完了だ。\n"; // Context: Speaker: Thrones. Before Level 13 (Ashland / Judgment Day): Thrones announces the final trial.
+    "裁きの日は来たり、最後の秤は据えられた。\n"
+    "大地は古き負債とともに、量られる。\n"
+    "天は見守る、古き世のすべてが燃えるのを。\n"
+    "かつて在りしものは、ことごとく火に帰る。\n"; // Context: Speaker: Thrones. Before Level 13 (Ashland / Judgment Day): Thrones announces the final trial.
 TXL_STORY_3112 =
-    "君は私を倒した。\n"
-    "コンクリートは持ちこたえ、行進は終わり、全レベルが片付いた。\n"
-    "これでキャンペーンは終わりだ。\n"; // Context: Speaker: Thrones. Level 13 completion and campaign ending.
+    "ついに成れり、大地は灰となった。\n"
+    "最後の閃きとともに、古き世は消えた。\n"
+    "悪は尽き、試しは終わり、罪もまた尽きた。\n"
+    "人は誰も残らぬゆえに、ただそなたを除いて。\n"; // Context: Speaker: Thrones. Level 13 completion and campaign ending.
 TXL_STORY_32000 =
-    "私はエゼキエル。今ならはっきり言える。\n"
-    "君は私たち全員を倒し、キャンペーンを終えた。\n"
-    "次はどうする？\n"; // Context: Speaker: Ezekiel. Post-campaign result dialog before random-game free play.
+    "われはエゼキエル、いまこそ明かそう。\n"
+    "生者と死者のあいだで、そなたは試しを越えた。\n"
+    "悪を滅ぼす手を貸し、世界は静まり返った。\n"
+    "すべてはそなたの望みどおり、次は何をなす。\n"; // Context: Speaker: Ezekiel. Post-campaign result dialog before random-game free play.
 TXL_STORY_OPTION_ENTER_TRAINING = "学校へ行く"; // Context: Choice button in Level 1 introductions/outros and the Level 2 recovery introduction: enter school.
-TXL_STORY_OPTION_YES = "Yes"; // Context: Confirmation button for switching school lessons. Remains English in the existing non-English translations; tutorial confirmation uses the separate YES_TUTORIAL key.
-TXL_STORY_OPTION_NO = "No"; // Context: Cancel button for switching school lessons. Remains English in the existing non-English translations; tutorial refusal uses the separate NO_TUTORIAL key.
+TXL_STORY_OPTION_YES = "はい"; // Context: Confirmation button for switching school lessons; tutorial confirmation uses the separate YES_TUTORIAL key.
+TXL_STORY_OPTION_NO = "いいえ"; // Context: Cancel button for switching school lessons; tutorial refusal uses the separate NO_TUTORIAL key.
 TXL_STORY_OPTION_NOT_NOW = "今はやめる"; // Context: Choice after failing Level 1 or during its replay introduction: decline training and try Level 1 again.
 TXL_STORY_OPTION_COMPETE_VS_EZEKIEL = "エゼキエルと対戦"; // Context: Choice after passing Level 1 or in the Level 2 recovery introduction: proceed to face Ezekiel in Level 2.
 TXL_STORY_OPTION_OK = "確認"; // Context: Acknowledgement button for campaign dialogue and school instructions.

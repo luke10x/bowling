@@ -623,8 +623,8 @@ TXL_STORY_32000 =
     "Grįžau pasveikinti: pavyko viską sunaikinti.\n"
     "Ką darysi toliau — tiktai tau pasirinkti.\n"; // Context: Speaker: Ezekiel. Post-campaign result dialog before random-game free play.
 TXL_STORY_OPTION_ENTER_TRAINING = "Eiti į praktiką"; // Context: Choice button in Level 1 introductions/outros and the Level 2 recovery introduction: enter school.
-TXL_STORY_OPTION_YES = "Yes"; // Context: Confirmation button for switching school lessons. Remains English in the existing non-English translations; tutorial confirmation uses the separate YES_TUTORIAL key.
-TXL_STORY_OPTION_NO = "No"; // Context: Cancel button for switching school lessons. Remains English in the existing non-English translations; tutorial refusal uses the separate NO_TUTORIAL key.
+TXL_STORY_OPTION_YES = "Yes"; // Context: Confirmation button for switching school lessons; tutorial confirmation uses the separate YES_TUTORIAL key.
+TXL_STORY_OPTION_NO = "No"; // Context: Cancel button for switching school lessons; tutorial refusal uses the separate NO_TUTORIAL key.
 TXL_STORY_OPTION_NOT_NOW = "Ne dabar"; // Context: Choice after failing Level 1 or during its replay introduction: decline training and try Level 1 again.
 TXL_STORY_OPTION_COMPETE_VS_EZEKIEL = "Varžytis su Ezekieliu"; // Context: Choice after passing Level 1 or in the Level 2 recovery introduction: proceed to face Ezekiel in Level 2.
 TXL_STORY_OPTION_OK = "Gerai"; // Context: Acknowledgement button for campaign dialogue and school instructions.

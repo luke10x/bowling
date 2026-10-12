@@ -1,20 +1,23 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!-- Created with Inkscape (http://www.inkscape.org/) -->
-
 <svg
-   width="210mm"
-   height="297mm"
-   viewBox="0 0 210 297"
+   width="64"
+   height="64"
+   viewBox="0 0 16.933334 16.933333"
    version="1.1"
-   id="svg1"
-   inkscape:version="1.4.3 (0d15f75, 2025-12-25)"
+   id="svg20"
    sodipodi:docname="logo.svg"
+   inkscape:version="1.4.3 (0d15f75, 2025-12-25)"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
    xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
    xmlns="http://www.w3.org/2000/svg"
-   xmlns:svg="http://www.w3.org/2000/svg">
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <defs
+     id="defs20" />
   <sodipodi:namedview
-     id="namedview1"
+     id="namedview20"
      pagecolor="#ffffff"
      bordercolor="#000000"
      borderopacity="0.25"
@@ -22,26 +25,326 @@
      inkscape:pageopacity="0.0"
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
-     inkscape:document-units="mm"
-     inkscape:zoom="3.3798553"
-     inkscape:cx="276.34319"
-     inkscape:cy="331.81894"
-     inkscape:window-width="1800"
-     inkscape:window-height="1102"
+     inkscape:document-units="px"
+     inkscape:zoom="3.6091164"
+     inkscape:cx="33.110598"
+     inkscape:cy="34.634516"
+     inkscape:window-width="1217"
+     inkscape:window-height="839"
      inkscape:window-x="0"
      inkscape:window-y="39"
-     inkscape:window-maximized="1"
-     inkscape:current-layer="layer1" />
-  <defs
-     id="defs1" />
+     inkscape:window-maximized="0"
+     inkscape:current-layer="svg20"
+     showguides="true">
+    <sodipodi:guide
+       position="6.1155645,-119.40778"
+       orientation="1,0"
+       id="guide21"
+       inkscape:locked="false" />
+  </sodipodi:namedview>
+  <title
+     id="title1">Original emblem with Clay palette swatches</title>
+  <rect
+     style="fill:#ff0000;fill-opacity:1;stroke:none;stroke-width:0.0681412;stroke-linecap:square;stroke-linejoin:round;paint-order:markers fill stroke"
+     id="rect20"
+     width="17.022154"
+     height="17.022154"
+     x="-0.088819817"
+     y="0"
+     rx="0.23426202"
+     ry="0.23426205" />
+  <path
+     id="path21"
+     style="fill:#ffc83c;stroke:#000000;stroke-width:0.0681417;stroke-linecap:square;stroke-linejoin:round;paint-order:markers fill stroke"
+     inkscape:transform-center-x="0.021304068"
+     inkscape:transform-center-y="-0.60987349"
+     d="M 11.756613,10.404841 C 9.6387642,10.289525 7.1063724,10.306107 4.9905343,10.393014 6.1941931,9.170286 7.332065,7.7935775 8.3413475,6.4139064 9.2520749,7.8288313 10.646982,9.148774 11.756613,10.404845 Z"
+     sodipodi:nodetypes="cccc" />
+  <path
+     id="rect21"
+     style="fill:#ffffff;fill-opacity:1;stroke:#000000;stroke-width:0.0681412;stroke-linecap:square;stroke-linejoin:round;paint-order:markers fill stroke"
+     d="m 8.3476986,7.2804508 c 1.5153366,0.085956 3.1497794,1.9113262 3.1497794,1.9113262 0,0 -1.6405718,1.709874 -3.0384989,1.766082 -0.613397,0.02466 -2.2525193,-0.136962 -3.2150168,-1.915296 0,0 1.4594096,-1.855383 3.1037363,-1.7621122 z"
+     sodipodi:nodetypes="scscs" />
+  <path
+     id="rect21-2"
+     style="fill:#412355;fill-opacity:1;stroke:#000000;stroke-width:0.0681412;stroke-linecap:square;stroke-linejoin:round;paint-order:markers fill stroke"
+     d="m 9.3698539,9.138045 c -0.0061,0.648598 -0.360399,1.669171 -1.0436086,1.674766 C 7.6366522,10.818411 7.200444,9.793373 7.2423241,9.139895 7.2636421,8.807252 7.2060111,7.4401682 8.3622244,7.4531402 9.1094769,7.4615202 9.3759209,8.492233 9.3698539,9.138045 Z"
+     sodipodi:nodetypes="sssss" />
+  <path
+     id="rect21-2-0"
+     style="fill:#e63c64;fill-opacity:1;stroke:#000000;stroke-width:0.0681412;stroke-linecap:square;stroke-linejoin:round;paint-order:markers fill stroke"
+     d="M 8.9903389,9.193459 C 8.9860389,9.464383 8.7387919,9.8906833 8.261934,9.8930213 7.7806199,9.8953213 7.4761609,9.467194 7.5053918,9.194231 7.5202768,9.055283 7.4800448,8.484243 8.2870453,8.489661 c 0.5215586,0.0035 0.7075286,0.434037 0.7032936,0.703798 z"
+     sodipodi:nodetypes="sssss" />
+  <path
+     d="M 10.068058,7.8650207 C 11.332864,5.9832439 14.859781,5.6302216 15.945038,7.3764776 15.478639,7.1429222 14.649254,7.0720219 14.714808,7.8982763 14.141062,7.4176393 13.469648,7.8764302 13.633286,8.472759 13.034819,8.1355115 12.726946,8.324173 12.658547,9.094456 12.337526,8.263985 11.491401,6.687909 10.307094,8.0262665 Z"
+     fill="none"
+     stroke="#111111"
+     stroke-width="0.250184"
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     id="path1-9"
+     sodipodi:nodetypes="ccccccc"
+     style="fill:#b450ff;fill-opacity:1;stroke:none" />
+  <path
+     d="M 6.5085105,7.914196 C 5.2437035,6.0324195 1.9916935,5.7612332 0.82087091,7.379143 1.2872713,7.1455877 2.0054219,7.1431383 1.9398675,7.9693919 2.5136139,7.4887558 3.1080196,8.0074384 2.944382,8.603772 3.5428486,8.266524 3.9191729,8.386734 3.987572,9.157016 4.3085924,8.326546 5.0866566,6.7491193 6.2709637,8.0874776 Z"
+     fill="none"
+     stroke="#111111"
+     stroke-width="0.250184"
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     id="path1-9-8"
+     sodipodi:nodetypes="ccccccc"
+     style="fill:#b450ff;fill-opacity:1;stroke:none" />
+  <path
+     d="M 5.204537,9.066836 C 7.2797239,6.714529 9.3967912,6.7650113 11.505909,9.155576 9.2636639,11.599861 7.1583918,11.472865 5.204537,9.066836 Z m 1.3934146,1.309031 C 5.5471213,10.348897 5.9600581,10.443697 4.9485692,10.404277 5.1566799,10.16129 5.4353273,9.823763 5.6484613,9.571453 m 4.4004127,0.825414 c 0.412285,0.01912 1.190561,-0.01891 1.72283,0.0223 -0.241191,-0.323631 -0.439871,-0.5681797 -0.67604,-0.84353 M 9.1791599,7.4710007 C 8.8162849,7.0684995 8.5974643,6.755906 8.3578535,6.405415 8.1281824,6.6923754 7.6854417,7.123424 7.495355,7.4471434 M 6.4864709,7.9220072 C 5.7697377,6.2476017 2.4692515,5.596783 0.82412941,7.3430391 1.5789133,7.1325252 2.0859159,7.3380969 1.90954,8.0146054 2.4532865,7.5570099 3.2104259,8.0618829 2.8901996,8.646692 3.4437928,8.367046 4.011483,8.405941 3.9661263,9.176223 4.2096137,8.518561 5.0634986,6.8639406 6.2602006,8.079648 M 10.082035,7.8983257 C 11.346842,6.0165501 14.873759,5.6635269 15.959016,7.4097829 15.492617,7.1762267 14.663232,7.1053272 14.728786,7.9315817 14.155038,7.4509447 13.483624,7.9097355 13.647262,8.506064 13.048796,8.168816 12.740923,8.35748 12.672524,9.127761 12.351503,8.2972904 11.505378,6.7212143 10.321071,8.0595718 M 9.3725149,10.759918 c 0.3546813,0.376253 0.5185263,0.477083 1.0968781,0.437647 M 7.3676521,10.794603 c -0.3019925,0.364732 -0.6220127,0.407959 -1.1381165,0.391565 m 1.8833277,-0.262846 c -0.037016,0.33017 -0.1621198,0.596993 -0.574538,0.707325 m 1.1374706,-0.723042 c 0.0091,0.341692 10e-5,0.661414 0.497807,0.748704 M 7.0583075,7.6073549 C 6.9752033,7.1080438 6.3811746,6.9899556 6.8788833,6.5242588 m 2.7514439,1.124314 C 9.7085172,7.1723031 10.174378,6.7892406 9.7389182,6.5539555 M 5.68113,8.569497 C 5.3330549,7.9895418 4.8807523,8.450575 4.6641839,8.837401 m 6.2256981,-0.31329 c 0.389244,-0.4417079 1.065958,-0.188045 0.987636,0.302467 m 1.651713,1.446294 c -0.41597,-0.05957 -1.935269,0.78038 -1.846954,1.328023 -0.319893,-0.111266 -0.735675,-0.726676 -0.751794,-1.155374 m -8.1156643,-0.04316 c 1.0932268,-0.209333 1.9356483,0.423241 2.2428548,1.201296 0.4404657,-0.330158 0.5809018,-0.707164 0.7093426,-1.209769 M 3.0703894,10.92399 C 3.4155126,10.86181 3.7437227,10.769647 3.945075,10.461152 3.7634286,9.8890633 2.8777302,9.744428 2.4762242,9.829373 m 10.9688538,1.016862 c -0.296155,0.09235 -0.582945,-0.09793 -0.848762,-0.260205 0.0027,-0.6296927 0.748268,-0.930877 1.130161,-0.961138 M 7.2091188,9.354851 c -0.098259,-2.6023602 2.0512771,-2.6509863 2.1193991,-0.09559 0.06073,2.278117 -2.0493871,1.949812 -2.1193991,0.09559 z M 8.256067,8.492416 C 9.2327229,8.495816 9.2752089,9.9185843 8.290235,9.9060223 7.3062038,9.8934723 7.2638475,8.488917 8.256067,8.492416 Z"
+     fill="none"
+     stroke="#111111"
+     stroke-width="1.7"
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     id="path1"
+     style="stroke-width:0.147167;stroke-linecap:round;stroke-dasharray:none" />
   <g
-     inkscape:label="Layer 1"
-     inkscape:groupmode="layer"
-     id="layer1">
-    <path
-       style="fill:none;fill-opacity:0.24878;stroke:#000000;stroke-width:2.487;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:none;stroke-opacity:1"
-       d="M 50.708187,79.867454 C 64.809093,63.883509 79.194568,64.226539 93.526038,80.470439 78.289969,97.07937 63.984642,96.216432 50.708187,79.867454 Z m 9.468258,8.894872 c -7.140397,-0.183241 -4.334486,0.46094 -11.207561,0.19298 1.414117,-1.651095 3.307525,-3.944592 4.755769,-5.659038 m 29.900826,5.608692 c 2.801473,0.129888 8.089864,-0.128475 11.706636,0.15154 -1.638898,-2.199072 -2.988928,-3.860787 -4.593699,-5.731798 M 77.71577,69.023734 c -2.465735,-2.734995 -3.952631,-4.859073 -5.580783,-7.240662 -1.560616,1.949898 -4.569044,4.878878 -5.860685,7.078554 m -6.855368,3.2267 C 54.548728,60.710735 32.12191,56.288416 20.9433,68.154234 c 5.128758,-1.430445 8.573845,-0.03343 7.375365,4.563299 3.694762,-3.109365 8.83953,0.321253 6.663591,4.295023 3.761664,-1.900185 7.619124,-1.635893 7.310927,3.598173 1.6545,-4.468814 7.45665,-15.71197 15.588244,-7.451231 m 25.969375,-1.232089 c 8.59437,-12.786675 32.559788,-15.185471 39.934118,-3.319653 -3.16919,-1.58701 -8.80486,-2.068774 -8.35942,3.545627 -3.89862,-3.265929 -8.46088,-0.148441 -7.34896,3.903613 -4.06658,-2.291599 -6.15858,-1.009636 -6.62335,4.224432 -2.181338,-5.643052 -7.930763,-16.352499 -15.978137,-7.25835 m -6.445444,18.348863 c 2.410061,2.556644 3.523391,3.241783 7.453293,2.973821 M 65.406559,91.607627 c -2.052038,2.478361 -4.226571,2.772088 -7.733501,2.660691 m 12.797219,-1.786041 c -0.251542,2.243513 -1.101605,4.056571 -3.903993,4.806281 m 7.729119,-4.913069 c 0.06159,2.321797 6.81e-4,4.494302 3.382606,5.087447 M 63.304563,69.950268 c -0.564672,-3.392822 -4.601115,-4.195231 -1.219189,-7.359643 m 18.696074,7.639717 C 81.31273,66.994085 84.478272,64.39118 81.51932,62.792416 M 53.946639,76.488029 C 51.581471,72.54723 48.50807,75.679955 47.036485,78.308444 m 42.303646,-2.128811 c 2.644909,-3.001409 7.243187,-1.277768 6.710991,2.055263 m 11.223398,9.827578 C 104.448,87.657723 94.124357,93.365157 94.724456,97.086393 92.550779,96.330339 89.725547,92.148624 89.616014,89.235616 M 34.470041,88.942392 c 7.42848,-1.422423 13.152741,2.875927 15.24021,8.162812 2.992962,-2.24342 3.94723,-4.80518 4.819984,-8.220384 m -18.323589,3.602025 c 2.345111,-0.422529 4.575303,-1.04876 5.943495,-3.144984 -1.23429,-3.887352 -7.252612,-4.870145 -9.98085,-4.292944 M 106.7027,91.9585 c -2.01238,0.627519 -3.96112,-0.665458 -5.76735,-1.7681 0.0182,-4.278764 5.08449,-6.325313 7.67945,-6.530936 M 64.329332,81.824515 C 63.661661,64.141462 78.26777,63.811046 78.730657,81.174981 79.143316,96.654795 64.805058,94.423961 64.329332,81.824515 Z m 7.114014,-5.860257 c 6.636376,0.0234 6.925073,9.690824 0.232204,9.605466 -6.686496,-0.08528 -6.974309,-9.629236 -0.232204,-9.605466 z"
-       id="path1"
-       sodipodi:nodetypes="ccccccccccccccccccccccccccccccccccccccccccccccccccccssssss" />
+     id="clay-palette"
+     aria-label="Clay game color palette"
+     transform="translate(-5.789651,-18.684783)">
+    <text
+       x="21"
+       y="263"
+       fill="#2d1941"
+       font-family="sans-serif"
+       font-size="3.2px"
+       font-weight="bold"
+       letter-spacing="0.3"
+       id="text1">CLAY PALETTE</text>
+    <rect
+       x="21"
+       y="267"
+       width="11"
+       height="9"
+       rx="1"
+       fill="#2d1941"
+       stroke="#2d1941"
+       stroke-width="0.35"
+       id="rect2"
+       ry="1">
+      <title
+         id="title2">Deep Purple #2D1941</title>
+    </rect>
+    <rect
+       x="34"
+       y="267"
+       width="11"
+       height="9"
+       rx="1"
+       fill="#412355"
+       stroke="#2d1941"
+       stroke-width="0.35"
+       id="rect3"
+       ry="1">
+      <title
+         id="title3">Panel Purple #412355</title>
+    </rect>
+    <rect
+       x="47"
+       y="267"
+       width="11"
+       height="9"
+       rx="1"
+       fill="#503cdc"
+       stroke="#2d1941"
+       stroke-width="0.35"
+       id="rect4"
+       ry="1">
+      <title
+         id="title4">Indigo #503CDC</title>
+    </rect>
+    <rect
+       x="60"
+       y="267"
+       width="11"
+       height="9"
+       rx="1"
+       fill="#b450ff"
+       stroke="#2d1941"
+       stroke-width="0.35"
+       id="rect5"
+       ry="1">
+      <title
+         id="title5">Violet #B450FF</title>
+    </rect>
+    <rect
+       x="73"
+       y="267"
+       width="11"
+       height="9"
+       rx="1"
+       fill="#a078dc"
+       stroke="#2d1941"
+       stroke-width="0.35"
+       id="rect6"
+       ry="1">
+      <title
+         id="title6">Lavender #A078DC</title>
+    </rect>
+    <rect
+       x="86"
+       y="267"
+       width="11"
+       height="9"
+       rx="1"
+       fill="#ffc83c"
+       stroke="#2d1941"
+       stroke-width="0.35"
+       id="rect7"
+       ry="1">
+      <title
+         id="title7">Gold #FFC83C</title>
+    </rect>
+    <rect
+       x="99"
+       y="267"
+       width="11"
+       height="9"
+       rx="1"
+       fill="#ff8c32"
+       stroke="#2d1941"
+       stroke-width="0.35"
+       id="rect8"
+       ry="1">
+      <title
+         id="title8">Orange #FF8C32</title>
+    </rect>
+    <rect
+       x="112"
+       y="267"
+       width="11"
+       height="9"
+       rx="1"
+       fill="#28c878"
+       stroke="#2d1941"
+       stroke-width="0.35"
+       id="rect9"
+       ry="1">
+      <title
+         id="title9">Mint #28C878</title>
+    </rect>
+    <rect
+       x="125"
+       y="267"
+       width="11"
+       height="9"
+       rx="1"
+       fill="#e63c64"
+       stroke="#2d1941"
+       stroke-width="0.35"
+       id="rect10"
+       ry="1">
+      <title
+         id="title10">Coral #E63C64</title>
+    </rect>
+    <rect
+       x="138"
+       y="267"
+       width="11"
+       height="9"
+       rx="1"
+       fill="#ffffff"
+       stroke="#2d1941"
+       stroke-width="0.35"
+       id="rect11"
+       ry="1">
+      <title
+         id="title11">White #FFFFFF</title>
+    </rect>
+    <text
+       x="26.5"
+       y="280"
+       text-anchor="middle"
+       fill="#2d1941"
+       font-family="sans-serif"
+       font-size="2.2px"
+       id="text11">#2D1941</text>
+    <text
+       x="39.5"
+       y="280"
+       text-anchor="middle"
+       fill="#2d1941"
+       font-family="sans-serif"
+       font-size="2.2px"
+       id="text12">#412355</text>
+    <text
+       x="52.5"
+       y="280"
+       text-anchor="middle"
+       fill="#2d1941"
+       font-family="sans-serif"
+       font-size="2.2px"
+       id="text13">#503CDC</text>
+    <text
+       x="65.5"
+       y="280"
+       text-anchor="middle"
+       fill="#2d1941"
+       font-family="sans-serif"
+       font-size="2.2px"
+       id="text14">#B450FF</text>
+    <text
+       x="78.5"
+       y="280"
+       text-anchor="middle"
+       fill="#2d1941"
+       font-family="sans-serif"
+       font-size="2.2px"
+       id="text15">#A078DC</text>
+    <text
+       x="91.5"
+       y="280"
+       text-anchor="middle"
+       fill="#2d1941"
+       font-family="sans-serif"
+       font-size="2.2px"
+       id="text16">#FFC83C</text>
+    <text
+       x="104.5"
+       y="280"
+       text-anchor="middle"
+       fill="#2d1941"
+       font-family="sans-serif"
+       font-size="2.2px"
+       id="text17">#FF8C32</text>
+    <text
+       x="117.5"
+       y="280"
+       text-anchor="middle"
+       fill="#2d1941"
+       font-family="sans-serif"
+       font-size="2.2px"
+       id="text18">#28C878</text>
+    <text
+       x="130.5"
+       y="280"
+       text-anchor="middle"
+       fill="#2d1941"
+       font-family="sans-serif"
+       font-size="2.2px"
+       id="text19">#E63C64</text>
+    <text
+       x="143.5"
+       y="280"
+       text-anchor="middle"
+       fill="#2d1941"
+       font-family="sans-serif"
+       font-size="2.2px"
+       id="text20">#FFFFFF</text>
   </g>
+  <metadata
+     id="metadata21">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:title>Original emblem with Clay palette swatches</dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
 </svg>

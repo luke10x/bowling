@@ -30,6 +30,7 @@ struct Physics
     const glm::mat4 &physics_get_pin_matrix(int i);
     bool get_guard_pin_matrix(int i, glm::mat4 &outMatrix) const;
     glm::vec3 get_ball_angular_velocity() const;
+    void set_ball_angular_velocity(const glm::vec3 &angularVelocity);
 
     // Optional: reset ball/pin positions
     void physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool reviveAll);

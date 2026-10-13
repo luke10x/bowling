@@ -1222,6 +1222,7 @@ struct UserContext
 	    bool chestRewardPayoutSpawned = false;
 	    bool chestRewardRuneGranted = false;
 	    bool chestSummaryActive = false;
+	    bool gameplayPausedByUiLastFrame = false;
 	    bool chestLongSoundPauseActiveLastFrame = false;
 	    int chestSummaryCoins = 0;
     RuneKind chestSummaryRune = RuneKind::None;
@@ -10143,6 +10144,20 @@ static inline void RuneFreeze_Tick(UserContext *usr, float dt)
         usr->phy.set_pin_freeze_mask(usr->freezeCoatedPinMask);
 }
 
+// A campaign win advances the saved selection before the result UI and its
+// end-story have finished. Keep visuals tied to the level that was just played
+// until the result action starts the next level.
+static inline CampaignBiome Visual_CampaignLevelBiome(const UserContext *usr)
+{
+    if (!usr)
+        return CampaignBiome::NORMAL;
+    if (usr->phase == UserContext::Phase::RESULT &&
+        usr->campaignPlayedLevelIndex >= 1 &&
+        usr->campaignPlayedLevelIndex <= kCampaignLevelCount)
+        return kCampaignLevels[usr->campaignPlayedLevelIndex - 1].biome;
+    return Campaign_CurrentLevel(usr).biome;
+}
+
 static inline bool Campaign_IsCurrentBiomeIce(const UserContext *usr)
 {
     if (usr && Campaign_VisualBiomeSourceForState(
@@ -10150,7 +10165,7 @@ static inline bool Campaign_IsCurrentBiomeIce(const UserContext *usr)
             MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource)
         return usr->miniGameSourceBiome == CampaignBiome::ICE;
     return usr && usr->playerRoute == PlayerRoute::CAMPAIGN &&
-           Campaign_CurrentLevel(usr).biome == CampaignBiome::ICE;
+           Visual_CampaignLevelBiome(usr) == CampaignBiome::ICE;
 }
 
 static inline bool Visual_UsesBonusSourceBiome(const UserContext *usr, CampaignBiome biome)
@@ -10178,7 +10193,7 @@ static inline bool Visual_ShouldUseSuburbiaBackdrop(const UserContext *usr)
     if (usr->campaignOverrideActive)
         return usr->campaignOverrideBiome == CampaignBiome::SUBURBIA;
     return usr->playerRoute == PlayerRoute::CAMPAIGN &&
-           Campaign_CurrentLevel(usr).biome == CampaignBiome::SUBURBIA;
+           Visual_CampaignLevelBiome(usr) == CampaignBiome::SUBURBIA;
 }
 
 static inline bool Visual_ShouldUseRuinsBackdrop(const UserContext *usr)
@@ -10190,7 +10205,7 @@ static inline bool Visual_ShouldUseRuinsBackdrop(const UserContext *usr)
     if (usr->campaignOverrideActive)
         return usr->campaignOverrideBiome == CampaignBiome::RUINS_CITY;
     return usr->playerRoute == PlayerRoute::CAMPAIGN &&
-           Campaign_CurrentLevel(usr).biome == CampaignBiome::RUINS_CITY;
+           Visual_CampaignLevelBiome(usr) == CampaignBiome::RUINS_CITY;
 }
 
 static inline bool Visual_ShouldUseWaterBackdrop(const UserContext *usr)
@@ -10212,14 +10227,14 @@ static inline bool Visual_ShouldUseJungleBackdrop(const UserContext *usr)
     if (!usr) return false;
     if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource) return Visual_UsesBonusSourceBiome(usr, CampaignBiome::JUNGLE);
     if (usr->campaignOverrideActive) return usr->campaignOverrideBiome == CampaignBiome::JUNGLE;
-    return usr->playerRoute == PlayerRoute::CAMPAIGN && Campaign_CurrentLevel(usr).biome == CampaignBiome::JUNGLE;
+    return usr->playerRoute == PlayerRoute::CAMPAIGN && Visual_CampaignLevelBiome(usr) == CampaignBiome::JUNGLE;
 }
 static inline bool Visual_ShouldUseWindFarmBackdrop(const UserContext *usr)
 {
     if (!usr) return false;
     if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource)
         return Visual_UsesBonusSourceBiome(usr, CampaignBiome::WIND_FARM);
-    return usr->playerRoute == PlayerRoute::CAMPAIGN && Campaign_CurrentLevel(usr).biome == CampaignBiome::WIND_FARM;
+    return usr->playerRoute == PlayerRoute::CAMPAIGN && Visual_CampaignLevelBiome(usr) == CampaignBiome::WIND_FARM;
 }
 
 static inline bool Visual_ShouldUseDesertBackdrop(const UserContext *usr)
@@ -10234,7 +10249,7 @@ static inline bool Visual_ShouldUseRedDesertBackdrop(const UserContext *usr)
     if (!usr) return false;
     if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource) return Visual_UsesBonusSourceBiome(usr, CampaignBiome::RED_DESERT);
     if (usr->campaignOverrideActive) return usr->campaignOverrideBiome == CampaignBiome::RED_DESERT;
-    return usr->playerRoute == PlayerRoute::CAMPAIGN && Campaign_CurrentLevel(usr).biome == CampaignBiome::RED_DESERT;
+    return usr->playerRoute == PlayerRoute::CAMPAIGN && Visual_CampaignLevelBiome(usr) == CampaignBiome::RED_DESERT;
 }
 
 static inline bool Visual_ShouldUseGreyDesertBackdrop(const UserContext *usr)
@@ -10246,7 +10261,7 @@ static inline bool Visual_ShouldUseGreyDesertBackdrop(const UserContext *usr)
     if (usr->campaignOverrideActive)
         return usr->campaignOverrideBiome == CampaignBiome::GREY_DESERT;
     return usr->playerRoute == PlayerRoute::CAMPAIGN &&
-           Campaign_CurrentLevel(usr).biome == CampaignBiome::GREY_DESERT;
+           Visual_CampaignLevelBiome(usr) == CampaignBiome::GREY_DESERT;
 }
 
 static inline bool Visual_ShouldUseAshlandBackdrop(const UserContext *usr)
@@ -10258,7 +10273,7 @@ static inline bool Visual_ShouldUseAshlandBackdrop(const UserContext *usr)
     if (usr->campaignOverrideActive)
         return usr->campaignOverrideBiome == CampaignBiome::ASHLAND;
     return usr->playerRoute == PlayerRoute::CAMPAIGN &&
-           Campaign_CurrentLevel(usr).biome == CampaignBiome::ASHLAND;
+           Visual_CampaignLevelBiome(usr) == CampaignBiome::ASHLAND;
 }
 
 static inline bool Visual_ShouldUseGasFactoryBackdrop(const UserContext *usr)
@@ -10270,7 +10285,7 @@ static inline bool Visual_ShouldUseGasFactoryBackdrop(const UserContext *usr)
     if (usr->campaignOverrideActive)
         return usr->campaignOverrideBiome == CampaignBiome::GAS_FACTORY;
     return usr->playerRoute == PlayerRoute::CAMPAIGN &&
-           Campaign_CurrentLevel(usr).biome == CampaignBiome::GAS_FACTORY;
+           Visual_CampaignLevelBiome(usr) == CampaignBiome::GAS_FACTORY;
 }
 
 static inline bool Visual_ShouldUseCrystalCavernBackdrop(const UserContext *usr)
@@ -10282,7 +10297,7 @@ static inline bool Visual_ShouldUseCrystalCavernBackdrop(const UserContext *usr)
     if (usr->campaignOverrideActive)
         return usr->campaignOverrideBiome == CampaignBiome::CRYSTAL_CAVERN;
     return usr->playerRoute == PlayerRoute::CAMPAIGN &&
-           Campaign_CurrentLevel(usr).biome == CampaignBiome::CRYSTAL_CAVERN;
+           Visual_CampaignLevelBiome(usr) == CampaignBiome::CRYSTAL_CAVERN;
 }
 
 static inline float Visual_WaterBackdropStyle(const UserContext *usr)
@@ -21558,6 +21573,24 @@ void vtx::loop(vtx::VertexContext *ctx)
     const bool gameplayPausedByUi =
         trackerOnlyMode || usr->windowStack.count > 0 || usr->dialog.active ||
         chestRewardPausesGameplay || usr->chestSummaryActive;
+    if (usr->gameplayPausedByUiLastFrame && !gameplayPausedByUi &&
+        usr->phase == UserContext::Phase::THROW)
+    {
+        // A modal pause must not preserve the in-flight ball's hook power.
+        // Keep its X/Z angular velocity, but clear yaw spin and the stored
+        // impact bonus as soon as gameplay resumes. The HUD circle keeps its
+        // accumulated angle so its own visual spin can coast down smoothly.
+        glm::vec3 ballAngularVelocity = usr->phy.get_ball_angular_velocity();
+        ballAngularVelocity.y = 0.0f;
+        usr->phy.set_ball_angular_velocity(ballAngularVelocity);
+        usr->phy.set_spin_speed(0.0f);
+        usr->spinSpeed = 0.0f;
+        usr->st.spinSpeed = 0.0f;
+        usr->st.curveAccum = 0.0f;
+        usr->angularVelocity = 0.0f;
+        usr->smoothedAngularVelocity = 0.0f;
+    }
+    usr->gameplayPausedByUiLastFrame = gameplayPausedByUi;
     const bool chestLongSoundPauseNow = chestRewardPausesGameplay || usr->chestSummaryActive;
     if (usr->chestLongSoundPauseActiveLastFrame && !chestLongSoundPauseNow)
         BallRollingSfx_EndPause(usr);

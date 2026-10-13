@@ -1264,6 +1264,13 @@ glm::vec3 Physics::get_ball_angular_velocity() const
     return ToGlm(iface.GetAngularVelocity(g_JoltPhysicsInternal.mBallID));
 }
 
+void Physics::set_ball_angular_velocity(const glm::vec3 &angularVelocity)
+{
+    auto &iface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    iface.SetAngularVelocity(g_JoltPhysicsInternal.mBallID, ToJolt(angularVelocity));
+    iface.ActivateBody(g_JoltPhysicsInternal.mBallID);
+}
+
 void Physics::physics_reset(glm::vec3 *newPinPos, glm::vec3 newBallPos, bool reviveAll)
 {
     JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();

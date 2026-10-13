@@ -664,10 +664,10 @@ TEST_CASE("Built-in song DSL exposes metadata and pattern constants")
     CHECK(SONG_05_LFO_ENABLED == 1);
     CHECK(Tracker_SongName(5) == std::string(BUILTIN_SONG_REGISTRY[4].displayName));
     REQUIRE(BUILTIN_SONG_REGISTRY_COUNT >= 6);
-    CHECK(std::string(BUILTIN_SONG_REGISTRY[5].codeStem) == "CLASSIC_FRAME");
-    CHECK(std::string(BUILTIN_SONG_REGISTRY[5].displayName) == "CLASSIC FRAME");
-    CHECK(Tracker_SongName(6) == "CLASSIC FRAME");
-    CHECK(Tracker_ParseLeadingRowCount(BUILTIN_SONG_REGISTRY[5].pattern) == 1024);
+    CHECK(std::string(BUILTIN_SONG_REGISTRY[5].codeStem) == "PIGEON_ROLL");
+    CHECK(std::string(BUILTIN_SONG_REGISTRY[5].displayName) == "PIGEON ROLL");
+    CHECK(Tracker_SongName(6) == "PIGEON ROLL");
+    CHECK(Tracker_ParseLeadingRowCount(BUILTIN_SONG_REGISTRY[5].pattern) == 1344);
     CHECK(Tracker_DefaultSongSpeed(2) == SONG_02_SPEED);
     CHECK(Tracker_ParseLeadingRowCount(Tracker_SongPattern(1)) > 0);
 }

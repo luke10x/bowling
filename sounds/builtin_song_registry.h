@@ -27,9 +27,9 @@ namespace BuiltinSongFileDrizzleLane
 #include "builtin_songs/drizzle_lane.h"
 }
 
-namespace BuiltinSongFileClassicFrame
+namespace BuiltinSongFilePigeonRoll
 {
-#include "builtin_songs/classic_frame.h"
+#include "builtin_songs/pigeon_roll.h"
 }
 
 // Legacy aliases kept so the rest of the codebase can migrate gradually while
@@ -134,7 +134,7 @@ static constexpr BuiltinSongDefinition BUILTIN_SONG_REGISTRY[] = {
     BUILTIN_SONG_ENTRY("PENSATIVE_BALL", "sounds/builtin_songs/pensative_ball.h", BuiltinSongFilePensativeBall),
     BUILTIN_SONG_ENTRY("PIN_CRUSHER", "sounds/builtin_songs/pin_crusher.h", BuiltinSongFilePinCrusher),
     BUILTIN_SONG_ENTRY("DRIZZLE_LANE", "sounds/builtin_songs/drizzle_lane.h", BuiltinSongFileDrizzleLane),
-    BUILTIN_SONG_ENTRY("CLASSIC_FRAME", "sounds/builtin_songs/classic_frame.h", BuiltinSongFileClassicFrame),
+    BUILTIN_SONG_ENTRY("PIGEON_ROLL", "sounds/builtin_songs/pigeon_roll.h", BuiltinSongFilePigeonRoll),
 };
 
 #undef BUILTIN_SONG_ENTRY

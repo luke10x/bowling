@@ -105,6 +105,12 @@ also preventing duplicate offers after interrupted saves. Replayed victories
 still show the completion dialogue and results even when no bonus is queued.
 The current bonus offer has only a Yes action; there is no decline button.
 
+Repeat on a campaign result restarts the chapter actually played, even though
+a victory has already advanced saved progress to the next chapter. Next follows
+the normal bonus/next-chapter path. Repeat keeps recorded wins and rewards,
+discards the queued bonus, and does not make an already-granted bonus available
+again. Final-level replays repeat Level 13 rather than subtracting a level.
+
 Level 1 victory uses story 20 followed by choice 21 when school is unfinished,
 or story 22 when school is complete. Both victory messages describe an unseen
 watcher and promise a meeting. Level 2 uses a single introduction, story 3002,

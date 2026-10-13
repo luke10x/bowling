@@ -874,6 +874,7 @@ struct UserContext
     // Progression: once school is done (or skipped), start new games in BOT mode.
     bool schoolDone = false;
     int campaignLevelIndex = 1; // 1-based into kCampaignLevels
+    int campaignPlayedLevelIndex = 1; // Snapshot before victory advances progress.
     int campaignStartStoryLevelShown = 0;
     int campaignStartStoryAttemptCountAtSetup = 0;
     int pendingCampaignEndStoryId = 0;
@@ -13372,6 +13373,7 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->campaignRunPostgameRunesEnabled = postgameToolset.runesEnabled;
     const CampaignLevelConfig cfg = Campaign_CurrentLevel(usr);
     const int campaignAttemptIdx = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount) - 1;
+    usr->campaignPlayedLevelIndex = cfg.levelNumber;
     usr->campaignStartStoryAttemptCountAtSetup = glm::max(
         0,
         usr->campaignLevelAttempts[campaignAttemptIdx]
@@ -22076,6 +22078,12 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
 	    if (usr->windowStack.playAgainRequested || usr->windowStack.resultRepeatRequested || usr->windowStack.resultNextRequested)
 	    {
+        const bool repeatCampaignLevel = Campaign_ShouldRepeatResultLevel(
+            usr->windowStack.resultRepeatRequested,
+            usr->playerRoute == PlayerRoute::CAMPAIGN && !usr->campaignPostgameFreeplayActive,
+            MiniGame_IsActive(usr),
+            usr->campaignEndgameAwaitingResultDismissal
+        );
 	        usr->windowStack.resultRepeatRequested = false;
 	        usr->windowStack.resultNextRequested = false;
 	        usr->windowStack.playAgainRequested = false;
@@ -22108,7 +22116,20 @@ void vtx::loop(vtx::VertexContext *ctx)
                 resetScoreboard(&usr->enemyBoard);
             usr->turnOwner = UserContext::TurnOwner::PLAYER;
 
+        if (repeatCampaignLevel)
+        {
+            usr->campaignLevelIndex = Campaign_ResultLevelForAction(
+                usr->campaignLevelIndex, usr->campaignPlayedLevelIndex, true
+            );
+            Campaign_SaveCurrentLevel(usr);
+            // Setup discards the queued bonus and restores this chapter's
+            // opponent, lane, tools, and intro without undoing earned rewards.
+            Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
+        }
+        else
+        {
             offerShopRestockOrContinue();
+        }
 	        // When leaving RESULT, we generally want relative mode restored by phase logic next frame.
 	    }
 

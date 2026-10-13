@@ -57,6 +57,26 @@ struct CampaignResultActions
     bool next = false;
 };
 
+// Progress can already point at the next chapter when results are displayed.
+// Repeat uses the chapter actually played, including final-level replays where
+// subtracting one from progress would select the wrong chapter.
+static inline int Campaign_ResultLevelForAction(
+    int progressedLevel,
+    int playedLevel,
+    bool repeatRequested)
+{
+    return repeatRequested ? playedLevel : progressedLevel;
+}
+
+static inline bool Campaign_ShouldRepeatResultLevel(
+    bool repeatRequested,
+    bool campaignLevel,
+    bool bonusActive,
+    bool finaleGreetingPending)
+{
+    return repeatRequested && campaignLevel && !bonusActive && !finaleGreetingPending;
+}
+
 // Ordinary chapter dialogue belongs before match results, not after the
 // bonus. A queued bonus is deliberately not a blocker: it follows results.
 static inline bool Campaign_HasVictoryEndStory(

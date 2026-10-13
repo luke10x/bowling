@@ -364,3 +364,34 @@ TEST_CASE("First bonus and replay paths both show completion dialogue before res
         }
     }
 }
+
+TEST_CASE("Repeat after a campaign win selects the played chapter instead of advanced progress")
+{
+    CHECK(Campaign_ShouldRepeatResultLevel(true, true, false, false));
+    CHECK(Campaign_ResultLevelForAction(/*progressed=*/3, /*played=*/2, true) == 2);
+    CHECK(Campaign_ResultLevelForAction(/*progressed=*/3, /*played=*/2, false) == 3);
+    CHECK(Campaign_ResultLevelForAction(/*progressed=*/2, /*played=*/1, true) == 1);
+}
+
+TEST_CASE("Repeat handles campaign losses and final-level replays without guessing the previous level")
+{
+    CHECK(Campaign_ResultLevelForAction(2, 2, true) == 2);
+    CHECK(Campaign_ResultLevelForAction(13, 13, true) == 13);
+    // Completed-campaign chapter replays still use their played chapter.
+    CHECK(Campaign_ShouldRepeatResultLevel(true, true, false, false));
+    CHECK_FALSE(Campaign_ShouldRepeatResultLevel(true, true, false, true));
+}
+
+TEST_CASE("Next, bonus results, and random games do not enter the campaign Repeat path")
+{
+    CHECK_FALSE(Campaign_ShouldRepeatResultLevel(false, true, false, false));
+    CHECK_FALSE(Campaign_ShouldRepeatResultLevel(true, true, true, false));
+    CHECK_FALSE(Campaign_ShouldRepeatResultLevel(true, false, false, false));
+}
+
+TEST_CASE("Repeating a won chapter cannot grant its bonus again")
+{
+    CHECK(Campaign_ResultLevelForAction(3, 2, true) == 2);
+    CHECK_FALSE(Campaign_ShouldOfferLevelBonus(2, 13, true, true, 2));
+    CHECK_FALSE(Campaign_ShouldOfferLevelBonus(2, 13, true, false, 2));
+}

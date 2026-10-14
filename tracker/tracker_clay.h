@@ -3777,7 +3777,7 @@ inline void Tracker_BuildSongLoadWindow(Tracker *self, Clayton *clayton)
                          .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_BOTTOM},
                          .layoutDirection = CLAY_LEFT_TO_RIGHT}})
         {
-            static constexpr const char *tabNames[3] = {"BUILTIN_SONGS", "BUILTIN_SFX", "MY_SONGS"};
+            static constexpr const char *tabNames[3] = {"BUILTIN SONGS", "BUILTIN SFX", "MY SONGS"};
             for (int tab = 0; tab < 3; tab++)
             {
                 Clay_ElementDeclaration tabDecl = CLAY_THEME_BTN_PRIMARY;
@@ -3863,6 +3863,7 @@ inline void Tracker_BuildSongLoadWindow(Tracker *self, Clayton *clayton)
                             rowDecl.layout.sizing.height = CLAY_SIZING_FIXED(44);
                             rowDecl.layout.padding.left = 10;
                             rowDecl.layout.padding.right = 10;
+                            rowDecl.layout.childGap = 12;
                             rowDecl.layout.childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER};
                             rowDecl.cornerRadius = {2, 2, 2, 2};
                             rowDecl.backgroundColor = Tracker_ButtonHoverColor(

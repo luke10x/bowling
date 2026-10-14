@@ -3874,6 +3874,90 @@ TEST_CASE("Multiple REP parts play together in their arrangement order")
     CHECK(Tracker_SongRowForPlaybackRow(&tracker, 0) == 1);
 }
 
+TEST_CASE("Green playback selection can target a part outside a multi-part REP")
+{
+    Tracker tracker {};
+    setTrackerPatternState(
+        &tracker,
+        TRACKER_USER_SONG_SLOT,
+        "3\n"
+        "PART A\n"
+        "C-4007F|.......|.......|.......|.......|.......\n"
+        "PART B\n"
+        "D-4007F|.......|.......|.......|.......|.......\n"
+        "PART C\n"
+        "E-4007F|.......|.......|.......|.......|.......\n",
+        "Unit"
+    );
+
+    Tracker_HandlePartEnableButton(&tracker, 0, true);
+    Tracker_HandlePartEnableButton(&tracker, 1, true);
+    CHECK(Tracker_PlaybackRowCount(&tracker) == 2);
+
+    tracker.loopEnabled = true;
+    tracker.loopStart = 2;
+    tracker.loopEnd = 2;
+    REQUIRE(Tracker_ShouldUseSelectionPlaybackOverride(&tracker));
+
+    const std::string selected = Tracker_BuildSongRangePatternText(&tracker, 2, 2);
+    CHECK(selected.find("E-4007F") != std::string::npos);
+    CHECK(selected.find("C-4007F") == std::string::npos);
+    CHECK(selected.find("D-4007F") == std::string::npos);
+    CHECK(Tracker_SongRowForLivePlaybackRow(&tracker, 0, true) == 2);
+}
+
+TEST_CASE("Clearing REP restores ON parts and updates the playback arrangement")
+{
+    Tracker tracker {};
+    setTrackerPatternState(
+        &tracker,
+        TRACKER_USER_SONG_SLOT,
+        "3\n"
+        "PART A\n"
+        "C-4007F|.......|.......|.......|.......|.......\n"
+        "SKIP B\n"
+        "D-4007F|.......|.......|.......|.......|.......\n"
+        "PART C\n"
+        "E-4007F|.......|.......|.......|.......|.......\n",
+        "Unit"
+    );
+
+    Tracker_SetPartRepeat(&tracker, 1, true);
+    CHECK(Tracker_PlaybackRowCount(&tracker) == 1);
+    CHECK(tracker.playbackArrangementDirty);
+
+    tracker.playbackArrangementDirty = false;
+    tracker.songLengthDirty = false;
+    Tracker_ClearPartRepeat(&tracker);
+    CHECK(Tracker_RepeatPartIndex(&tracker) == -1);
+    CHECK(Tracker_PlaybackRowCount(&tracker) == 2);
+    CHECK(Tracker_SongRowForPlaybackRow(&tracker, 0) == 0);
+    CHECK(Tracker_SongRowForPlaybackRow(&tracker, 1) == 2);
+    CHECK(tracker.playbackArrangementDirty);
+    CHECK(tracker.songLengthDirty);
+}
+
+TEST_CASE("Resetting a single-part song clears a stale REP override")
+{
+    Tracker tracker {};
+    setTrackerPatternState(
+        &tracker,
+        TRACKER_USER_SONG_SLOT,
+        "2\n"
+        "PART A\n"
+        "C-4007F|.......|.......|.......|.......|.......\n"
+        "PART B\n"
+        "D-4007F|.......|.......|.......|.......|.......\n",
+        "Unit"
+    );
+    Tracker_SetPartRepeat(&tracker, 0, true);
+    REQUIRE(Tracker_RepeatPartIndex(&tracker) == 0);
+
+    Tracker_ResetSinglePart(&tracker, "ONE PART");
+    CHECK(Tracker_RepeatPartIndex(&tracker) == -1);
+    CHECK(Tracker_PlaybackRowCount(&tracker) == tracker.rowCount);
+}
+
 TEST_CASE("Skipped song ranges are detectable for explicit selection playback")
 {
     Tracker tracker {};

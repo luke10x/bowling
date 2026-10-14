@@ -3486,6 +3486,7 @@ inline void Tracker_ResetSinglePart(Tracker *self, const char *name = "PART 1")
     self->parts[0].rowCount = std::max(0, self->rowCount);
     self->parts[0].collapsed = false;
     self->parts[0].enabled = true;
+    self->parts[0].repeat = false;
     Tracker_SetPartName(&self->parts[0], name);
     for (int i = 1; i < TRACKER_MAX_PARTS; i++)
         self->parts[i] = {};
@@ -3603,15 +3604,28 @@ inline bool Tracker_PartEffectiveEnabledForPlayback(const Tracker *self, int par
 inline void Tracker_ClearPartRepeat(Tracker *self)
 {
     if (!self) return;
+    bool changed = false;
     for (int i = 0; i < self->partCount; i++)
+    {
+        changed = changed || self->parts[i].repeat;
         self->parts[i].repeat = false;
+    }
+    if (changed)
+    {
+        self->playbackArrangementDirty = true;
+        self->songLengthDirty = true;
+    }
 }
 
 inline void Tracker_SetPartRepeat(Tracker *self, int partIndex, bool repeat)
 {
     if (!self || partIndex < 0 || partIndex >= self->partCount)
         return;
+    if (self->parts[partIndex].repeat == repeat)
+        return;
     self->parts[partIndex].repeat = repeat;
+    self->playbackArrangementDirty = true;
+    self->songLengthDirty = true;
 }
 
 inline void Tracker_HandlePartEnableButton(Tracker *self, int partIndex, bool longClick)
@@ -3621,9 +3635,7 @@ inline void Tracker_HandlePartEnableButton(Tracker *self, int partIndex, bool lo
     TrackerPart &part = self->parts[partIndex];
     if (part.repeat)
     {
-        part.repeat = false;
-        self->playbackArrangementDirty = true;
-        self->songLengthDirty = true;
+        Tracker_SetPartRepeat(self, partIndex, false);
         return;
     }
     if (longClick)
@@ -4515,10 +4527,16 @@ inline bool Tracker_SongRangeTouchesSkippedPart(const Tracker *tracker, int song
         const int partEnd = std::max(partStart, part.startRow + std::max(1, part.rowCount) - 1);
         if (songEnd < partStart || songStart > partEnd)
             continue;
-        if (!part.enabled)
+        if (!Tracker_PartEffectiveEnabledForPlayback(tracker, partIndex))
             return true;
     }
     return false;
+}
+
+inline bool Tracker_ShouldUseSelectionPlaybackOverride(const Tracker *tracker)
+{
+    return tracker && Tracker_HasPlaySelection(tracker) &&
+        Tracker_SongRangeTouchesSkippedPart(tracker, tracker->loopStart, tracker->loopEnd);
 }
 
 inline std::string Tracker_BuildSongRangePatternText(

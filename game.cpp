@@ -15062,7 +15062,6 @@ static inline void Tracker_ApplyPatchEditsToSound(UserContext *usr);
 static inline void Tracker_ApplyRealtimeLfoToSound(UserContext *usr);
 static inline bool Tracker_SaveCustomSongToStorage(UserContext *usr);
 static inline void Tracker_ReportSongLoadFailure(UserContext *usr, const std::string &error);
-static inline bool Tracker_ShouldUseSelectionPlaybackOverride(const Tracker *tracker);
 static inline int Tracker_LivePlaybackRowFromSongRow(const Tracker *tracker, int songRow, bool selectionOverrideActive);
 static inline const char *Tracker_SelectLivePlaybackPattern(
     UserContext *usr,
@@ -15552,13 +15551,6 @@ static inline std::string Tracker_BuildPatternText(const Tracker *tracker)
 static inline std::string Tracker_BuildPlaybackPatternText(const Tracker *tracker)
 {
     return Tracker_BuildFlatPatternText(tracker);
-}
-
-static inline bool Tracker_ShouldUseSelectionPlaybackOverride(const Tracker *tracker)
-{
-    return tracker &&
-        tracker->loopEnabled &&
-        Tracker_SongRangeTouchesSkippedPart(tracker, tracker->loopStart, tracker->loopEnd);
 }
 
 static inline int Tracker_LivePlaybackRowFromSongRow(const Tracker *tracker, int songRow, bool selectionOverrideActive)

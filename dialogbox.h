@@ -470,50 +470,54 @@ struct DialogBox
                                 // Brighter than the window bg so "ME" messages have contrast.
                                 panel.backgroundColor = (Clay_Color){0.18f, 0.28f, 0.55f, 0.92f};
                             }
-                            if (Story_SpeakerUsesAngelAvatar(l.speaker))
+                            const bool angelSpeaker = Story_SpeakerUsesAngelAvatar(l.speaker);
+                            if (angelSpeaker)
                             {
-                                panel.layout.childGap = 12;
+                                panel.layout.childGap = 10;
                                 panel.layout.childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_TOP};
-                                panel.layout.layoutDirection = CLAY_LEFT_TO_RIGHT;
+                                panel.layout.layoutDirection = CLAY_TOP_TO_BOTTOM;
                             }
                             CLAY(CLAY_IDI("StoryMsgPanel", (int)i), panel)
                             {
-                                if (Story_SpeakerUsesAngelAvatar(l.speaker))
+                                Clay_String title = ClayArena_FormatString(arena, "%s", speakerName);
+                                if (angelSpeaker)
                                 {
-                                    CLAY(
-                                        CLAY_IDI("StoryMsgAvatar", (int)i),
+                                    CLAY(CLAY_IDI("StoryMsgHeader", (int)i),
                                         {
                                             .layout = {
-                                                .sizing = {CLAY_SIZING_FIXED(58), CLAY_SIZING_FIXED(58)},
+                                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                                .childGap = 12,
+                                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                                .layoutDirection = CLAY_LEFT_TO_RIGHT,
                                             },
-                                            .cornerRadius = {29, 29, 29, 29},
-                                            .image = {.imageData = &clayton->botPreviewImage},
                                         }
                                     )
                                     {
+                                        CLAY(
+                                            CLAY_IDI("StoryMsgAvatar", (int)i),
+                                            {
+                                                .layout = {
+                                                    .sizing = {CLAY_SIZING_FIXED(58), CLAY_SIZING_FIXED(58)},
+                                            },
+                                                .cornerRadius = {29, 29, 29, 29},
+                                                .image = {.imageData = &clayton->botPreviewImage},
+                                            }
+                                        )
+                                        {
+                                        }
+                                        CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
                                     }
-                                }
-
-                                CLAY(
-                                    CLAY_IDI("StoryMsgBodyWrap", (int)i),
-                                    {
-                                        .layout = {
-                                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                            .childGap = 6,
-                                            .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                                        },
-                                    }
-                                )
-                                {
-                                    Clay_String title = ClayArena_FormatString(arena, "%s", speakerName);
-                                    CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
 
                                     const int textLen = (int)strlen(l.text);
                                     const int shown = std::max(0, std::min<int>(l.typedChars, textLen));
                                     char *mem = (char *)ClayArena_Alloc(arena, (size_t)shown + 1);
                                     if (!mem)
                                     {
-                                        CLAY_TEXT(CLAY_STRING("[OVF]"), CLAY_TEXT_CONFIG(bodyCfg));
+                                        CLAY(CLAY_IDI("StoryMsgBodyWrap", (int)i),
+                                             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}})
+                                        {
+                                            CLAY_TEXT(CLAY_STRING("[OVF]"), CLAY_TEXT_CONFIG(bodyCfg));
+                                        }
                                     }
                                     else
                                     {
@@ -525,7 +529,46 @@ struct DialogBox
                                             .length = (int32_t)shown,
                                             .chars = mem,
                                         };
-                                        CLAY_TEXT(typed, CLAY_TEXT_CONFIG(bodyCfg));
+                                        CLAY(CLAY_IDI("StoryMsgBodyWrap", (int)i),
+                                             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}}})
+                                        {
+                                            CLAY_TEXT(typed, CLAY_TEXT_CONFIG(bodyCfg));
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    CLAY(
+                                        CLAY_IDI("StoryMsgBodyWrap", (int)i),
+                                        {
+                                            .layout = {
+                                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                                .childGap = 6,
+                                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
+                                            },
+                                        }
+                                    )
+                                    {
+                                        CLAY_TEXT(title, CLAY_TEXT_CONFIG(titleCfg));
+                                        const int textLen = (int)strlen(l.text);
+                                        const int shown = std::max(0, std::min<int>(l.typedChars, textLen));
+                                        char *mem = (char *)ClayArena_Alloc(arena, (size_t)shown + 1);
+                                        if (!mem)
+                                        {
+                                            CLAY_TEXT(CLAY_STRING("[OVF]"), CLAY_TEXT_CONFIG(bodyCfg));
+                                        }
+                                        else
+                                        {
+                                            if (shown > 0)
+                                                memcpy(mem, l.text, (size_t)shown);
+                                            mem[shown] = '\0';
+                                            Clay_String typed = (Clay_String){
+                                                .isStaticallyAllocated = false,
+                                                .length = (int32_t)shown,
+                                                .chars = mem,
+                                            };
+                                            CLAY_TEXT(typed, CLAY_TEXT_CONFIG(bodyCfg));
+                                        }
                                     }
                                 }
                             }

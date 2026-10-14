@@ -1,5 +1,6 @@
 #include <iostream>
 #include <SDL_syswm.h>
+#import <UIKit/UIKit.h>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #define GLM_FORCE_STD140
@@ -173,4 +174,122 @@ extern "C" int SDL_main(int argc, char* argv[]) {
     SDL_Quit();
 
     return 0;
+}
+
+using TrackerSongLoadedCallback = void (*)(const char *, const char *);
+using TrackerSongClosedCallback = void (*)(void);
+using TrackerSongSavedCallback = void (*)(int);
+static TrackerSongLoadedCallback g_songLoaded = nullptr;
+static TrackerSongClosedCallback g_songClosed = nullptr;
+static TrackerSongSavedCallback g_songSaved = nullptr;
+
+extern "C" void Tracker_NativeSetSongFileCallbacks(
+    TrackerSongLoadedCallback loaded,
+    TrackerSongClosedCallback closed,
+    TrackerSongSavedCallback saved)
+{
+    g_songLoaded = loaded;
+    g_songClosed = closed;
+    g_songSaved = saved;
+}
+
+@interface TrackerSongDocumentPickerDelegate : NSObject <UIDocumentPickerDelegate>
+@end
+
+@implementation TrackerSongDocumentPickerDelegate
+- (void)documentPickerWasCancelled:(UIDocumentPickerViewController *)controller
+{
+    (void)controller;
+    if (g_songClosed) g_songClosed();
+}
+
+- (void)documentPicker:(UIDocumentPickerViewController *)controller didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls
+{
+    (void)controller;
+    NSURL *url = urls.firstObject;
+    if (!url) {
+        if (g_songClosed) g_songClosed();
+        return;
+    }
+    BOOL accessed = [url startAccessingSecurityScopedResource];
+    NSError *error = nil;
+    NSString *contents = [NSString stringWithContentsOfURL:url encoding:NSUTF8StringEncoding error:&error];
+    if (accessed)
+        [url stopAccessingSecurityScopedResource];
+    if (!contents) {
+        if (g_songLoaded) g_songLoaded(url.lastPathComponent.UTF8String, nullptr);
+        return;
+    }
+    if (g_songLoaded) g_songLoaded(url.lastPathComponent.UTF8String, contents.UTF8String);
+}
+@end
+
+static TrackerSongDocumentPickerDelegate *g_trackerSongDocumentPickerDelegate = nil;
+
+static UIViewController *TrackerTopViewController(void)
+{
+    UIWindow *window = UIApplication.sharedApplication.keyWindow;
+    if (!window) {
+        for (UIWindow *candidate in UIApplication.sharedApplication.windows) {
+            if (candidate.isKeyWindow) { window = candidate; break; }
+        }
+    }
+    UIViewController *controller = window.rootViewController;
+    while (controller.presentedViewController)
+        controller = controller.presentedViewController;
+    return controller;
+}
+
+extern "C" void Tracker_NativeOpenSongFile(void)
+{
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIViewController *presenter = TrackerTopViewController();
+        if (!presenter) {
+            if (g_songClosed) g_songClosed();
+            return;
+        }
+        g_trackerSongDocumentPickerDelegate = [TrackerSongDocumentPickerDelegate new];
+        UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc]
+            initWithDocumentTypes:@[@"public.plain-text", @"public.source-code"]
+            inMode:UIDocumentPickerModeImport];
+        picker.delegate = g_trackerSongDocumentPickerDelegate;
+        [presenter presentViewController:picker animated:YES completion:nil];
+    });
+}
+
+extern "C" void Tracker_NativeSaveSongFile(const char *filename, const char *text)
+{
+    NSString *requestedName = filename ? [NSString stringWithUTF8String:filename] : @"SONG.h";
+    NSString *contents = text ? [NSString stringWithUTF8String:text] : @"";
+    if (!requestedName.length) requestedName = @"SONG.h";
+    if (!contents) contents = @"";
+    if (![requestedName.pathExtension.lowercaseString isEqualToString:@"h"])
+        requestedName = [requestedName stringByAppendingPathExtension:@"h"];
+    NSString *path = [NSTemporaryDirectory() stringByAppendingPathComponent:requestedName.lastPathComponent];
+    NSError *error = nil;
+    if (![contents writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:&error]) {
+        if (g_songSaved) g_songSaved(0);
+        return;
+    }
+
+    dispatch_async(dispatch_get_main_queue(), ^{
+        UIViewController *presenter = TrackerTopViewController();
+        if (!presenter) {
+            if (g_songSaved) g_songSaved(0);
+            return;
+        }
+        NSURL *fileURL = [NSURL fileURLWithPath:path];
+        UIActivityViewController *share = [[UIActivityViewController alloc] initWithActivityItems:@[fileURL] applicationActivities:nil];
+        share.completionWithItemsHandler = ^(UIActivityType activityType, BOOL completed, NSArray *returnedItems, NSError *activityError) {
+            (void)activityType; (void)returnedItems;
+            if (g_songSaved) g_songSaved(completed && activityError == nil ? 1 : 0);
+        };
+        UIPopoverPresentationController *popover = share.popoverPresentationController;
+        if (popover) {
+            popover.sourceView = presenter.view;
+            popover.sourceRect = CGRectMake(CGRectGetMidX(presenter.view.bounds), CGRectGetMidY(presenter.view.bounds), 1, 1);
+            popover.permittedArrowDirections = 0;
+        }
+        [presenter presentViewController:share animated:YES completion:nil];
+    });
 }

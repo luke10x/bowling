@@ -23,6 +23,19 @@
 #include <emscripten.h>
 #endif
 
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+extern "C" void Tracker_NativeOpenSongFile(void);
+extern "C" void Tracker_NativeSaveSongFile(const char *filename, const char *text);
+extern "C" void Tracker_NativeSongFileLoaded(const char *filename, const char *text);
+extern "C" void Tracker_NativeSongFilePickerClosed(void);
+extern "C" void Tracker_NativeSongFileSaved(int success);
+extern "C" void Tracker_NativeSetSongFileCallbacks(
+    void (*loaded)(const char *, const char *),
+    void (*closed)(void),
+    void (*saved)(int));
+#endif
+
 #if __has_include("build/generated/build_version.h")
 #include "build/generated/build_version.h"
 #else
@@ -153,10 +166,11 @@ struct RuneGuardPinPose
 struct UserContext;
 static inline int UnlockMask_BallCount(uint64_t unlockedBallMask);
 static inline bool BallInventory_HasReplacementAfterLosingSelectedBall(const UserContext *usr);
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) || defined(__APPLE__)
 // Only for emscripten as it breaks hot reload otherwise
 static UserContext *g_trackerIoUserContext = nullptr;
 
+#ifdef __EMSCRIPTEN__
 EM_JS(void, WebUpdate_InitState, (), {
     if (!window.__bowlingWebUpdate) {
         window.__bowlingWebUpdate = {
@@ -359,6 +373,7 @@ EM_JS(void, WebUpdate_Apply, (), {
         finishReload();
     });
 });
+#endif
 #endif
 
 static void Settings_InitWebUpdateState(GameSettings *settings)
@@ -16258,6 +16273,8 @@ static inline void Tracker_LoadStoredBuiltinOverrides(UserContext *usr)
     Tracker_RefreshOverridePresence(usr);
 }
 
+static inline void Tracker_ClearSongFilePickerState(UserContext *usr);
+
 static inline bool Tracker_ApplyLoadedSongText(
     UserContext *usr,
     const char *filename,
@@ -16323,6 +16340,36 @@ static inline bool Tracker_ApplyLoadedSongText(
     Tracker_ApplyRealtimeLfoToSound(usr);
     return true;
 }
+
+#if defined(__APPLE__)
+extern "C" void Tracker_NativeSongFileLoaded(const char *filename, const char *text)
+{
+    UserContext *usr = g_trackerIoUserContext;
+    if (!usr)
+        return;
+    Tracker_ClearSongFilePickerState(usr);
+    if (filename && text)
+        (void)Tracker_ApplyLoadedSongText(usr, filename, text);
+    else
+        Tracker_ReportSongLoadFailure(usr, "The selected file could not be read as UTF-8 text.");
+}
+
+extern "C" void Tracker_NativeSongFilePickerClosed(void)
+{
+    if (g_trackerIoUserContext)
+        Tracker_ClearSongFilePickerState(g_trackerIoUserContext);
+}
+
+extern "C" void Tracker_NativeSongFileSaved(int success)
+{
+    UserContext *usr = g_trackerIoUserContext;
+    if (!usr)
+        return;
+    Tracker_ClearSongFilePickerState(usr);
+    std::snprintf(usr->tracker.songLoadStatus, sizeof(usr->tracker.songLoadStatus),
+        success ? "Song exported" : "Song export canceled");
+}
+#endif
 
 static inline bool Tracker_ApplyBuiltinSongDefinition(UserContext *usr, const BuiltinSongDefinition &song)
 {
@@ -17045,8 +17092,19 @@ static inline void Tracker_SaveSongToBrowser(UserContext *usr)
     usr->trackerSongFilePickerActive = false;
     usr->trackerSongFilePickerFocusGraceFrames = 120;
 #else
+#if defined(__APPLE__)
+    usr->trackerSongFilePickerActive = true;
+    usr->trackerSongFilePickerFocusGraceFrames = 120;
+    usr->saveGreetingMuteFrames = 240;
+    usr->appFocusLost = false;
+    usr->appInactiveOverlayActive = false;
+    usr->greetingsWindowRequested = false;
+    usr->greetingsResumeMessageRequested = false;
+    Tracker_NativeSaveSongFile(filename.c_str(), text.c_str());
+#else
     (void)filename;
     (void)text;
+#endif
 #endif
 }
 
@@ -17685,6 +17743,12 @@ static inline void Tracker_OpenSongLoadDialog(UserContext *usr)
             }
         }, 60000);
     });
+#elif defined(__APPLE__)
+    usr->trackerSongFilePickerActive = true;
+    usr->trackerSongFilePickerFocusGraceFrames = 0;
+    usr->appFocusLost = false;
+    usr->appInactiveOverlayActive = false;
+    Tracker_NativeOpenSongFile();
 #endif
 }
 
@@ -18613,9 +18677,15 @@ void vtx::init(vtx::VertexContext *ctx)
     ctx->usrptr = new UserContext;
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
 
-#ifdef __EMSCRIPTEN__
+#if defined(__EMSCRIPTEN__) || defined(__APPLE__)
     // Only for emscripten as it breaks hot reload otherwise
     g_trackerIoUserContext = usr;
+#endif
+#if defined(__APPLE__)
+    Tracker_NativeSetSongFileCallbacks(
+        Tracker_NativeSongFileLoaded,
+        Tracker_NativeSongFilePickerClosed,
+        Tracker_NativeSongFileSaved);
 #endif
 
 		usr->ballRenderTex.renderTextureInit(true, "ballRenderTex");

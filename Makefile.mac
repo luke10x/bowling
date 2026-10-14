@@ -245,6 +245,7 @@ ifeq ($(strip $(HOT_RELOAD)),1)
 		-I./3rdparty/gl3w \
 		-I../angle/include \
 		main.cpp \
+		macos_song_file_dialog.mm \
 		framework/boot.cpp \
 		sidecar.cpp \
 		physics/physics.cpp \
@@ -259,6 +260,7 @@ else
 		$(CXXFLAGS) \
 		-I../angle/include \
 		main.cpp \
+		macos_song_file_dialog.mm \
 		framework/boot.cpp \
 		sidecar.cpp \
 		physics/physics.cpp \

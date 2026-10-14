@@ -1555,6 +1555,7 @@ struct UserContext
     // Set for a Shop opened from a normal campaign result. Every exit resumes
     // the campaign directly instead of returning to a retry/result modal.
     bool resultShopResumeCampaignOnExit = false;
+    bool resultShopResumeMiniGameOnExit = false;
     // The end-story shop offer is an optional detour between campaign levels.
     // Every exit path from it advances; it must never reveal a retry modal.
     bool campaignEndStoryShopAdvancePending = false;
@@ -13403,6 +13404,7 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->enemyRetargetStrength = glm::clamp(cfg.enemySkill, 0.0f, 1.0f);
     usr->pendingCampaignEndStoryId = 0;
     usr->resultShopResumeCampaignOnExit = false;
+    usr->resultShopResumeMiniGameOnExit = false;
     usr->campaignEndStoryShopAdvancePending = false;
     usr->pendingCampaignBotResultWindow = false;
     usr->pendingCampaignEndgameSummaryWindow = false;
@@ -21940,12 +21942,19 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     auto continueAfterResultShopExit = [&]()
     {
-        if (!usr->resultShopResumeCampaignOnExit)
+        if (usr->resultShopResumeCampaignOnExit)
+        {
+            usr->resultShopResumeCampaignOnExit = false;
+            // Campaign results resume through the Next/Retry result action.
+            usr->windowStack.resultNextRequested = true;
+            return true;
+        }
+        if (!usr->resultShopResumeMiniGameOnExit)
             return false;
-        usr->resultShopResumeCampaignOnExit = false;
-        // The shop replaced the result modal. The normal result action resets
-        // the next level after a win, or repeats the current level after a loss.
-        usr->windowStack.resultNextRequested = true;
+        usr->resultShopResumeMiniGameOnExit = false;
+        // Continue a minigame result through the same destination as its
+        // Continue button, without reopening the result interstitial.
+        usr->windowStack.playAgainRequested = true;
         return true;
     };
 
@@ -22070,16 +22079,18 @@ void vtx::loop(vtx::VertexContext *ctx)
     if (usr->windowStack.newGameShopRequested)
     {
         usr->windowStack.newGameShopRequested = false;
+        const bool miniGameResult = usr->clayton.newGameIsResult && MiniGame_IsActive(usr);
+        usr->resultShopResumeMiniGameOnExit = miniGameResult;
         usr->resultShopResumeCampaignOnExit =
-            Campaign_ShouldResumeAfterResultShopExit(
+            !miniGameResult && Campaign_ShouldResumeAfterResultShopExit(
                 usr->playerRoute == PlayerRoute::CAMPAIGN && !usr->campaignPostgameFreeplayActive,
                 usr->campaignEndgameAwaitingResultDismissal
             );
-        if (usr->resultShopResumeCampaignOnExit)
+        if (usr->resultShopResumeCampaignOnExit || usr->resultShopResumeMiniGameOnExit)
             usr->windowStack.windowStackCloseTopWindow();
         BallShop_Open(usr, BallShopTab_SHOP);
-        // Losses and non-campaign results retain their result window beneath
-        // the shop. Reassert its outcome label on that return path.
+        // Results that retain their modal beneath Shop need their outcome
+        // label restored on that return path.
         if (usr->clayton.newGameIsResult)
             Campaign_SetResultWindowLabels(usr, usr->clayton.newGameVictory);
     }

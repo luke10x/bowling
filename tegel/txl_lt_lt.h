@@ -138,6 +138,7 @@ TXL_PWA_UPDATE_UNSUPPORTED = "Programos atnaujinimų tikrinimas galimas tik žin
 TXL_CREDITS_AUTHOR_FMT = "Žaidimo dizainas, programavimas, menas ir garsas: %s."; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_AUTHOR_NAME = "Lapė Kalė"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_CHARACTER_BASE = "Personažo pagrindas: Very Low Poly Human iš OpenGameArt.org."; // Used in: campaign and results windows (clayton/win_stack.h)
+TXL_CREDITS_CHEST = "Skrynios modelis: CDmir, OpenGameArt.org (CC0)."; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_MIXAMO = "Personažų animacijos iš Mixamo."; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_TECH = "Sukurta naudojant SDL, OpenGL ES, Clay, GLM, Jolt Physics ir ymfm."; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_TRACKER = "Visa muzika ir garso efektai sukurti paties žaidimo integruotu trakeriu."; // Used in: campaign and results windows (clayton/win_stack.h)

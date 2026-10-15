@@ -121,6 +121,7 @@ enum TxlKey
     TXL_CREDITS_AUTHOR_FMT,
     TXL_CREDITS_AUTHOR_NAME,
     TXL_CREDITS_CHARACTER_BASE,
+    TXL_CREDITS_CHEST,
     TXL_CREDITS_MIXAMO,
     TXL_CREDITS_TECH,
     TXL_CREDITS_TRACKER,
@@ -562,6 +563,7 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "Game design, programming, art, and sound by %s.",
     "Lapė Kalė",
     "Character base: Very Low Poly Human from OpenGameArt.org.",
+    "Chest model: CDmir, OpenGameArt.org (CC0).",
     "Character animations from Mixamo.",
     "Built with SDL, OpenGL ES, Clay, GLM, Jolt Physics, and ymfm.",
     "All music and sound effects were created in this game's built-in tracker.",
@@ -1004,6 +1006,7 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Žaidimo dizainas, programavimas, menas ir garsas: %s.",
     "Lapė Kalė",
     "Personažo pagrindas: Very Low Poly Human iš OpenGameArt.org.",
+    "Skrynios modelis: CDmir, OpenGameArt.org (CC0).",
     "Personažų animacijos iš Mixamo.",
     "Sukurta naudojant SDL, OpenGL ES, Clay, GLM, Jolt Physics ir ymfm.",
     "Visa muzika ir garso efektai sukurti paties žaidimo integruotu trakeriu.",
@@ -1326,7 +1329,7 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Ezekielis",
 };
 
-static constexpr const char *g_txl_chars_lt_lt = "MENIUČytai įprkąKlbmnjAPJOSLYGRDĖTĄŠĮVŽegodsužųvB!ę?š.ėĘ,:%čZfzcū/0()–->wHxCh123Ų45Ū6789F\n$+—„“;\"";
+static constexpr const char *g_txl_chars_lt_lt = "MENIUČytai įprkąKlbmnjAPJOSLYGRDĖTĄŠĮVŽegodsužųvB!ę?š.ėĘ,:%čZfzcū/0()–->wHCxh123Ų45Ū6789F\n$+—„“;\"";
 
 static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "メニュー",
@@ -1446,6 +1449,7 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "ゲームデザイン、プログラム、アート、サウンド: %s。",
     "Lape Kale",
     "キャラクター基礎モデル:\nOpenGameArt.org の\nVery Low Poly Human。",
+    "宝箱モデル: CDmir、\nOpenGameArt.org（CC0）。",
     "キャラクターアニメーション: Mixamo。",
     "SDL、OpenGL ES、Clay、GLM、\nJolt Physics、ymfm を使用。",
     "音楽と効果音はすべて、\nゲーム内蔵のトラッカーで制作しました。",
@@ -1768,7 +1772,7 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "エゼキエル",
 };
 
-static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語キャンペレベルをやり直す勝利敗北中断スコアクリ時間戻るもう一度プイなし練習デバ共有ゲム設定ラッカジミ選択英国日本サウド曲オボショハフタナエネギが足ません。ェ集めてださいグ続けか？このよそ「ィ」押画面に対戦相手切替え現在使用所持今ぐ購入: %sであは空ロ合格セ品質変更.モ緊急停止SDLァ音楽量状態マ情報最大ダ減衰滑再d/資金不れ済みたっ良！ポ近全0f上回（1）ヤ-初記録試数範囲～期化と、\n解除含む消去新確認PWAブ読込ビ公開>接後き適版ザapeKl基礎OnGmrtogVywHuMixECJhc効果べ内蔵制作テ投げ皆感謝転(k)軽重ピ番ろ引放右移動左残進況前取目標ノ点2ゼ登場風力発電3砂漠警告4ガ氷5硝子郊外6犬78木材ゾ森林9謁見洞窟ちば工白墓地灰色街車輪廃墟牛パ荒火炎ズ極河吹雪星ず雲宇宙虚ホUFツ雷巨人根世界樹影深淵ヌ路特異潮ケヴ負荷策声個必要爆散滅生存凍結備配置起宝箱能稲妻強失危険防衛敵攻撃球打破壊得意妨害跳ね速追加口酬物群衆遊び終了差計獲次挑補充始完$+途：守護者到達出天該当値削決迷魂門来符文尽百道尋つ運わぬ修受届おご拒狙導求冴姿ら先ぶ触卒業端反応噛ど方向的部倒塗半分三二ほ響ぼ央保離線側事苦立眼下眠望戸誇高才救罪偽奪揺軌穏覆跡乾野渇ふぎ塞油乳香潤清焼真裂隙傷横改避板覚降光刃雨痛返砕蓄鳴与代価宿激逃熱耐寒約束落身崩万支留胎逸冷割町ひ窓ゴ歩別領務域平和教知片裁待厳携会呼彼商訪ぞ性店誰張己正収穫晶隠越秘盗黄燃吸満惜走抜陰鉱山々枝予成伐緑命阻役末女底闇迎疫病胸ゆ刻暗座ソ輝慈悲祈じ掘明渡閉熟機関養炉称何秤載迫壁法災翼貸煙昇塔答据古債帰閃悪死静魔私?ė";
+static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語キャンペレベルをやり直す勝利敗北中断スコアクリ時間戻るもう一度プイなし練習デバ共有ゲム設定ラッカジミ選択英国日本サウド曲オボショハフタナエネギが足ません。ェ集めてださいグ続けか？このよそ「ィ」押画面に対戦相手切替え現在使用所持今ぐ購入: %sであは空ロ合格セ品質変更.モ緊急停止SDLァ音楽量状態マ情報最大ダ減衰滑再d/資金不れ済みたっ良！ポ近全0f上回（1）ヤ-初記録試数範囲～期化と、\n解除含む消去新確認PWAブ読込ビ公開>接後き適版ザapeKl基礎OnGmrtogVywHu宝箱CiMxEJhc効果べ内蔵制作テ投げ皆感謝転(k)軽重ピ番ろ引放右移動左残進況前取目標ノ点2ゼ登場風力発電3砂漠警告4ガ氷5硝子郊外6犬78木材ゾ森林9謁見洞窟ちば工白墓地灰色街車輪廃墟牛パ荒火炎ズ極河吹雪星ず雲宇宙虚ホUFツ雷巨人根世界樹影深淵ヌ路特異潮ケヴ負荷策声個必要爆散滅生存凍結備配置起能稲妻強失危険防衛敵攻撃球打破壊得意妨害跳ね速追加口酬物群衆遊び終了差計獲次挑補充始完$+途：守護者到達出天該当値削決迷魂門来符文尽百道尋つ運わぬ修受届おご拒狙導求冴姿ら先ぶ触卒業端反応噛ど方向的部倒塗半分三二ほ響ぼ央保離線側事苦立眼下眠望戸誇高才救罪偽奪揺軌穏覆跡乾野渇ふぎ塞油乳香潤清焼真裂隙傷横改避板覚降光刃雨痛返砕蓄鳴与代価宿激逃熱耐寒約束落身崩万支留胎逸冷割町ひ窓ゴ歩別領務域平和教知片裁待厳携会呼彼商訪ぞ性店誰張己正収穫晶隠越秘盗黄燃吸満惜走抜陰鉱山々枝予成伐緑命阻役末女底闇迎疫病胸ゆ刻暗座ソ輝慈悲祈じ掘明渡閉熟機関養炉称何秤載迫壁法災翼貸煙昇塔答据古債帰閃悪死静魔私?ė";
 
 static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "菜单",
@@ -1888,6 +1892,7 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "游戏设计、程序、美术和声音：%s。",
     "Lape Kale",
     "角色基础模型：\nOpenGameArt.org 的\nVery Low Poly Human。",
+    "宝箱模型：CDmir，\nOpenGameArt.org（CC0）。",
     "角色动画来自 Mixamo。",
     "使用 SDL、OpenGL ES、Clay、GLM、\nJolt Physics 和 ymfm 构建。",
     "所有音乐和音效均由\n游戏内置的追踪器制作。",
@@ -2210,5 +2215,5 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "以西结",
 };
 
-static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言战役关卡重开胜利失败退出最高分通时间返回玩始无练习设备共享游戏置音轨编辑制名小选择English中文立陶宛日声歌曲油道球库商店自由赛再试一次奖励能量不足。拾取宝石你想继续打保龄吗？欢迎来到这款点击“准”以聚焦画面天使对手切换当前用存即购买已：%个没有形象为空未解锁过后正在频模式.合成器闭急停SDL 缓冲乐状态图信息大带衰减滑度推力新上d/余额暂刚的数进入错局！超了近期0f排行榜（）家还，第吧尝范围-恢复厂会清除包括记录、和符\n应检查更PWA加载网站安装构建发布…是可>离线请连接络法服务只页支持计程序美术apeK角色基础型OGmrtoVywHu动MxCJc所效均内追踪特别感谢每位测并多投人课瞄质给旋与全路1公斤轻转咬普稀史诗传说目标把尽向拉现放右移左剩先耗掉里碑达2西结风电场3沙漠警告4玻璃冰5霓虹郊区6狗7金字塔8木材地森林9水晶觐见洞窟喙煤气工白墓园灰城市之轮废墟牛烬荒原强烈焰滚火钩炼狱怒凤凰升霜寒意极漂川暴雪王星尘云宇宙虚黑UF氙光藤蔓雷橡泰坦根世界树暗影深渊归零者子奇潮汐礁海妖维神谕性偏低调至弯拖少需要爆炸蒸扛闪瓶冻巡逻部署激活骷髅命住补块砖混凝土箱获得枚币但险防守敌方攻让变狠破障三阻挡刻弹起它快栏添口故事刺师群控确定否下步货将完$+途卫生首领级门总输码启氮架看稍删认碍迷魂今研及百寻细莫侥幸欺心愿堂修骄误汝且稳如闯求曾吾身颇精显凡技艺那段终默然注视久亦此消本被讲都己改几颗而毕业也必须很好或端算随恭喜反像样参响屏幕做就朝某倒才条约半二长覆盖着满明些馆窗我们何往任跟走从袋另侧亮吃经乃落藏于其若引磨傲骨掷收眼底资助拯救罪妄早占据锋芒循既漫温旧痕渴灼遍壅塞负乳香涂抹涤烧直撞便两旁隙留伤弧免困却干燥润待受苦碎雨般痛予片速机眠圆环施唤醒舍审令迸鸣损创称价裂毁炽焚断避霆热浪飞脚许诺夺万物依凭灵境孕育处皆难谨疏忽仍预座倾扇越蛾摩彼岸掌疆职责伯绝非太平碰篇钮裁教导等严酷召容迟他各同秉按赴艰谁孽竟理化尚踏沉积苏窃黄燃抽份板骤穿辛携阴矿井拥斩枝叶逐真伐青绿居拦撒弗末护索染瘟疫渐凋净写罗耀因怜悯祈交封熟养炉又盗私秤笼罩外众盈送知降果翼浓烟颓矜答判债恶诸唯独亡历寂静遂拒魔?ė";
+static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言战役关卡重开胜利失败退出最高分通时间返回玩始无练习设备共享游戏置音轨编辑制名小选择English中文立陶宛日声歌曲油道球库商店自由赛再试一次奖励能量不足。拾取宝石你想继续打保龄吗？欢迎来到这款点击“准”以聚焦画面天使对手切换当前用存即购买已：%个没有形象为空未解锁过后正在频模式.合成器闭急停SDL 缓冲乐状态图信息大带衰减滑度推力新上d/余额暂刚的数进入错局！超了近期0f排行榜（）家还，第吧尝范围-恢复厂会清除包括记录、和符\n应检查更PWA加载网站安装构建发布…是可>离线请连接络法服务只页支持计程序美术apeK角色基础型OGmrtoVywHu箱C动MxJc所效均内追踪特别感谢每位测并多投人课瞄质给旋与全路1公斤轻转咬普稀史诗传说目标把尽向拉现放右移左剩先耗掉里碑达2西结风电场3沙漠警告4玻璃冰5霓虹郊区6狗7金字塔8木材地森林9水晶觐见洞窟喙煤气工白墓园灰城市之轮废墟牛烬荒原强烈焰滚火钩炼狱怒凤凰升霜寒意极漂川暴雪王星尘云宇宙虚黑UF氙光藤蔓雷橡泰坦根世界树暗影深渊归零者子奇潮汐礁海妖维神谕性偏低调至弯拖少需要爆炸蒸扛闪瓶冻巡逻部署激活骷髅命住补块砖混凝土获得枚币但险防守敌方攻让变狠破障三阻挡刻弹起它快栏添口故事刺师群控确定否下步货将完$+途卫生首领级门总输码启氮架看稍删认碍迷魂今研及百寻细莫侥幸欺心愿堂修骄误汝且稳如闯求曾吾身颇精显凡技艺那段终默然注视久亦此消本被讲都己改几颗而毕业也必须很好或端算随恭喜反像样参响屏幕做就朝某倒才条约半二长覆盖着满明些馆窗我们何往任跟走从袋另侧亮吃经乃落藏于其若引磨傲骨掷收眼底资助拯救罪妄早占据锋芒循既漫温旧痕渴灼遍壅塞负乳香涂抹涤烧直撞便两旁隙留伤弧免困却干燥润待受苦碎雨般痛予片速机眠圆环施唤醒舍审令迸鸣损创称价裂毁炽焚断避霆热浪飞脚许诺夺万物依凭灵境孕育处皆难谨疏忽仍预座倾扇越蛾摩彼岸掌疆职责伯绝非太平碰篇钮裁教导等严酷召容迟他各同秉按赴艰谁孽竟理化尚踏沉积苏窃黄燃抽份板骤穿辛携阴矿井拥斩枝叶逐真伐青绿居拦撒弗末护索染瘟疫渐凋净写罗耀因怜悯祈交封熟养炉又盗私秤笼罩外众盈送知降果翼浓烟颓矜答判债恶诸唯独亡历寂静遂拒魔?ė";
 

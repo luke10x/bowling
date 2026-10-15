@@ -137,6 +137,7 @@ TXL_PWA_UPDATE_UNSUPPORTED = "PWA update checks are only available in the web ap
 TXL_CREDITS_AUTHOR_FMT = "Game design, programming, art, and sound by %s."; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_AUTHOR_NAME = "Lapė Kalė"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_CHARACTER_BASE = "Character base: Very Low Poly Human from OpenGameArt.org."; // Used in: campaign and results windows (clayton/win_stack.h)
+TXL_CREDITS_CHEST = "Chest model: CDmir, OpenGameArt.org (CC0)."; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_MIXAMO = "Character animations from Mixamo."; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_TECH = "Built with SDL, OpenGL ES, Clay, GLM, Jolt Physics, and ymfm."; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_TRACKER = "All music and sound effects were created in this game's built-in tracker."; // Used in: campaign and results windows (clayton/win_stack.h)

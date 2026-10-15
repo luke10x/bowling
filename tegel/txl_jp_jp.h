@@ -182,6 +182,7 @@ TXL_PWA_UPDATE_UNSUPPORTED = "PWA 更新確認はウェブ版でのみ利用で�
 TXL_CREDITS_AUTHOR_FMT = "ゲームデザイン、プログラム、アート、サウンド: %s。"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_AUTHOR_NAME = "Lape Kale"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_CHARACTER_BASE = "キャラクター基礎モデル:\nOpenGameArt.org の\nVery Low Poly Human。"; // Used in: campaign and results windows (clayton/win_stack.h)
+TXL_CREDITS_CHEST = "宝箱モデル: CDmir、\nOpenGameArt.org（CC0）。"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_MIXAMO = "キャラクターアニメーション: Mixamo。"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_TECH = "SDL、OpenGL ES、Clay、GLM、\nJolt Physics、ymfm を使用。"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_TRACKER = "音楽と効果音はすべて、\nゲーム内蔵のトラッカーで制作しました。"; // Used in: campaign and results windows (clayton/win_stack.h)

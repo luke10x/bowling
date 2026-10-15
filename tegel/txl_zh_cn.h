@@ -158,6 +158,7 @@ TXL_PWA_UPDATE_UNSUPPORTED = "只有网页应用支持 PWA 更新检查。"; // 
 TXL_CREDITS_AUTHOR_FMT = "游戏设计、程序、美术和声音：%s。"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_AUTHOR_NAME = "Lape Kale"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_CHARACTER_BASE = "角色基础模型：\nOpenGameArt.org 的\nVery Low Poly Human。"; // Used in: campaign and results windows (clayton/win_stack.h)
+TXL_CREDITS_CHEST = "宝箱模型：CDmir，\nOpenGameArt.org（CC0）。"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_MIXAMO = "角色动画来自 Mixamo。"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_TECH = "使用 SDL、OpenGL ES、Clay、GLM、\nJolt Physics 和 ymfm 构建。"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_TRACKER = "所有音乐和音效均由\n游戏内置的追踪器制作。"; // Used in: campaign and results windows (clayton/win_stack.h)

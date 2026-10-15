@@ -75,7 +75,6 @@ bool handle_resize_sdl(vtx::VertexContext *ctx, SDL_Event event)
             float parentHeight = get_canvas_parent_height();
             newWidth = (int)parentWidth;
             newHeight = (int)parentHeight;
-            std::cerr << "Emscriptenn resizing to screen dimensions " << newWidth << "x" << newHeight << std::endl;
 
             // Only need this to be done in emscripten,
             // because in native it already calls it when window is manipulated

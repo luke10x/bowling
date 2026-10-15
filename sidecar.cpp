@@ -16,7 +16,6 @@ static LoadedImageInternal g_imageSlot; // one slot (can be expanded later)
 
 const LoadedImage *loadImage(const char *path, bool flip)
 {
-    std::cerr << "Start of in acl " << path << std::endl;
     if (!path)
         return nullptr;
 
@@ -26,7 +25,6 @@ const LoadedImage *loadImage(const char *path, bool flip)
     int h = 0;
     int c = 0;
 
-    SDL_Log("loads now %s\n", path);
     // unsigned char* data = stbi_load(path, &w, &h, &c, 0);
     //SDL_RWops *rw = SDL_RWFromFile(path, "rb");
     SDL_RWops *rw = SDL_RWFromFile(path, "rb");

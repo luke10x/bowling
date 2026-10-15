@@ -150,6 +150,9 @@
                 line.className = 'log-line ' + type;
                 line.textContent = message;
                 logsContainer.appendChild(line);
+                // Keep long sessions from growing the DOM without a limit.
+                while (logsContainer.childElementCount > 300)
+                    logsContainer.removeChild(logsContainer.firstElementChild);
                 // Auto-scroll to bottom
                 logsContainer.scrollTop = logsContainer.scrollHeight;
             }
@@ -175,16 +178,7 @@
                 addLog(errorMsg, 'log-stderr');
             }
         </script>
-        <script>
-            function setBoxSize() {
-                console.log('resizing')
-                const windowWidth = window.innerWidth;
-                const windowHeight = window.innerHeight;
-                console.log({ratio: windowWidth / windowHeight});
-            }
-            setBoxSize();
-            window.addEventListener('resize', setBoxSize);
-        </script>
+
 
         <script>
             (function () {

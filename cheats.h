@@ -70,7 +70,6 @@ static inline void Cheats_ApplyEndOfRound(UserContext *usr)
     usr->turnOwner = UserContext::TurnOwner::PLAYER;
     usr->enemyAutoTimer = 0.0f;
     usr->enemyLaunched = false;
-    usr->enemyDebugLogged = false;
     usr->enemyTurnSetup = false;
     usr->wereDead = 0;
     UI_ResetBannersForNewRoll(usr, "SECRET_END");
@@ -87,7 +86,6 @@ static inline bool Cheats_ApplyCode(UserContext *usr, const char *code, int32_t 
     if (!usr)
         return false;
 
-    std::cerr << "keypad news detect" << codeLen << std::endl;
 
     bool activated = false;
 
@@ -96,14 +94,12 @@ static inline bool Cheats_ApplyCode(UserContext *usr, const char *code, int32_t 
     {
         setupStubScoreboardFinal(&usr->board);
         activated = true;
-        std::cerr << "seted up board stub" << std::endl;
     }
 
     if (Cheats_TextMatches3CaseInsensitive(code, codeLen, 'E', 'N', 'D'))
     {
         Cheats_ApplyEndOfRound(usr);
         activated = true;
-        std::cerr << "Secret cheat END applied: both scoreboards ready for frame 10" << std::endl;
     }
 
     if (Cheats_TextMatchesCaseInsensitive(code, codeLen, "CHEST"))
@@ -113,7 +109,6 @@ static inline bool Cheats_ApplyCode(UserContext *usr, const char *code, int32_t 
         usr->chestSpawnedThisThrow = false;
         usr->chestSpawnPlanned = false;
         activated = true;
-        std::cerr << "Secret cheat CHEST applied: chest every throw" << std::endl;
     }
 
     if (Cheats_TextMatchesCaseInsensitive(code, codeLen, "RUNES"))
@@ -125,21 +120,18 @@ static inline bool Cheats_ApplyCode(UserContext *usr, const char *code, int32_t 
             RuneFab_RebuildSlots(usr);
         Progress_SaveUnlocksAndBank(usr);
         activated = true;
-        std::cerr << "Secret cheat RUNES applied: reset to one of each rune" << std::endl;
     }
 
     if (Cheats_TextMatchesCaseInsensitive(code, codeLen, "GUGUCAS"))
     {
         usr->cheatImguiUnlocked = true;
         activated = true;
-        std::cerr << "Secret cheat GUGUCAS applied: imgui enabled" << std::endl;
     }
 
     if (Cheats_TextMatchesCaseInsensitive(code, codeLen, "GAMES"))
     {
         usr->cheatMinigamesUnlocked = true;
         activated = true;
-        std::cerr << "Secret cheat GAMES applied: minigames unlocked" << std::endl;
     }
 
     // School cheat codes: SC1..SC5 unlock/complete lessons.
@@ -155,7 +147,6 @@ static inline bool Cheats_ApplyCode(UserContext *usr, const char *code, int32_t 
             usr->school.lessonDone[i] = (i < n);
         usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, glm::min(n + 1, 5));
         activated = true;
-        std::cerr << "School cheat: SC" << n << " applied" << std::endl;
     }
 
     bool isLevelJump = false;
@@ -182,7 +173,6 @@ static inline bool Cheats_ApplyCode(UserContext *usr, const char *code, int32_t 
         Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
         Run_ResetBoardsAndMode(usr, usr->gameMode);
         activated = true;
-        std::cerr << "Campaign jump: L" << jumpLevel << " applied" << std::endl;
     }
 
     return activated;

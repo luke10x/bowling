@@ -168,6 +168,7 @@ LDLIBS += -s SAFE_HEAP=1
 endif
 # LDLIBS += -s USE_PTHREADS=1
 LDLIBS += --preload-file $(PWD)/assets/files/everything_tex.png@assets/files/everything_tex.png
+LDLIBS += --pre-js $(PWD)/wasm/audio_safety.js
 LDLIBS += --shell-file $(PWD)/wasm/shell_itch_io.html
 
 LDLIBS += $(JOLT_LIB)

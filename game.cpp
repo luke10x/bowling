@@ -1076,12 +1076,8 @@ struct UserContext
 
     float enemyAutoTimer = 0.0f;
     bool enemyLaunched = false;
-    bool enemyDebugLogged = false;
     bool enemyFallbackBecausePlayerRuneDestroyed = false;
     bool enemyForceFallbackUntilPlayerTurn = false;
-    int enemyThrowLogId = 0;
-    glm::vec3 enemyThrowLastLaunchMove = glm::vec3(0.0f);
-    float enemyThrowLastLaunchSpinApplied = 0.0f;
     // Tracks whether the current enemy turn has been set up via Enemy_EnterTurn.
     bool enemyTurnSetup = false;
     float enemyRetargetStrength = 0.85f;
@@ -1413,7 +1409,6 @@ struct UserContext
 	float swingStallTime = 0.0f;
 	// Forgiveness tracking for THROW (cancels that should not count as a roll).
 	bool throwEverAboveLane = false;
-	bool debugForgiveness = false;
 	float swingingTime;
 	float highestPoint;
 
@@ -1750,10 +1745,6 @@ static inline void PlaceConfiguredBlock(UserContext *usr, const FracturedBlockSe
     usr->activeBlockSpawnFlashTime = 0.0f;
     usr->activeBlockSpawnBlinkDuration = 0.08f;
     usr->activeBlockHitFadeTime = -1.0f;
-    std::cerr << "[fractured-block] placed config=" << configs[size_t(settings.variantIndex)].name
-              << " fragments=" << fragments.size()
-              << " thickness=" << settings.thickness
-              << " breakSpeed=" << configs[size_t(settings.variantIndex)].breakSpeed << "\n";
 }
 
 static inline void PlaceCenteredConfiguredBlock(UserContext *usr, int configIndex)
@@ -6225,8 +6216,6 @@ static inline bool Angel_ComputeRightHandAttachPosWorld(const UserContext *usr, 
     return true;
 }
 
-static inline bool Enemy_BallPlacementOnLaneForLog(const UserContext *usr, const glm::vec3 &p);
-
 static inline void Enemy_SeedRenderedBallPosFromHand(UserContext *usr)
 {
     if (!usr)
@@ -6391,9 +6380,6 @@ static inline void Bot_MaybeAutofixAvatarScales(UserContext *usr)
     {
         usr->cherubModelScale = idealCherubScale;
         usr->botScaleAutofixedOnce = true;
-        std::cerr << "[bot-avatar] autofix: angelHeight=" << usr->angelMeshHeightUnits
-                  << " cherubHeight=" << usr->cherubMeshHeightUnits
-                  << " => cherubModelScale=" << usr->cherubModelScale << "\n";
     }
 }
 
@@ -6636,21 +6622,6 @@ static void Gem_InitIfNeeded(UserContext *usr)
     }
 }
 
-static inline const char *PhaseName(UserContext::Phase p)
-{
-    switch (p)
-    {
-    case UserContext::Phase::IDLE: return "IDLE";
-    case UserContext::Phase::AIM: return "AIM";
-    case UserContext::Phase::SWING: return "SWING";
-    case UserContext::Phase::THROW: return "THROW";
-    case UserContext::Phase::RESULT: return "RESULT";
-    case UserContext::Phase::FINAL_RESULT: return "FINAL_RESULT";
-    case UserContext::Phase::MENU: return "MENU";
-    }
-    return "?";
-}
-
 static inline void BallRollingSfx_Stop(UserContext *usr);
 static inline void BallRollingSfx_Start(UserContext *usr);
 static inline bool BallRollingSfx_ShouldStopForMotion(glm::vec3 ballPos, glm::vec3 velocity);
@@ -6661,25 +6632,12 @@ static inline void RuneFootball_Clear(UserContext *usr);
 static inline float RuneFootball_BoostedRestitution(const UserContext *usr);
 static inline float BallStats_LightnessBuff(float massKg);
 
-static inline void LogToIdle(UserContext *usr, const char *reason)
+static inline void ResetEffectsForIdle(UserContext *usr)
 {
     BallRollingSfx_Stop(usr);
     NosSfx_Stop(usr);
     NosEmptySfx_Stop(usr);
     RuneFootball_Clear(usr);
-    const glm::vec3 ball = usr->carriedBall;
-    const glm::vec3 pivot = usr->pivotPoint;
-    float releasePlaneZ = pivot.z + usr->scene.releaseOffsetZ;
-    glm::vec3 idlePos = Scene_IdleBallPos(usr->scene);
-    std::cerr << "[IDLE-RESET] reason=" << reason << " from=" << PhaseName(usr->phase)
-              << " ball=(" << ball.x << "," << ball.y << "," << ball.z << ")"
-              << " pivot=(" << pivot.x << "," << pivot.y << "," << pivot.z << ")"
-              << " releasePlaneZ=" << releasePlaneZ
-              << " idlePos=(" << idlePos.x << "," << idlePos.y << "," << idlePos.z << ")"
-              << " aimingTime=" << usr->aimingTime
-              << " swingTime=" << usr->swingingTime
-              << " stallTime=" << usr->swingStallTime
-              << std::endl;
 }
 
 static inline void BallRollingSfx_Stop(UserContext *usr)
@@ -6979,7 +6937,7 @@ static inline void UI_ResetToIdleAndAbsolute(UserContext *usr, float dt, const c
 {
     if (!usr)
         return;
-    LogToIdle(usr, reason);
+    ResetEffectsForIdle(usr);
     usr->bufferedRequestThrow = false;
     usr->phy.set_ball_free();
     glm::vec3 idlePos = Scene_IdleBallPos(usr->scene);
@@ -7123,43 +7081,6 @@ static inline glm::vec3 Enemy_RetargetCopiedThrowToStandingPins(UserContext *usr
 
 static inline int Enemy_PlayerThrowExampleMinScore(const UserContext *usr);
 
-static inline const char *Enemy_LogOpponentName(CampaignOpponent opponent)
-{
-    switch (opponent)
-    {
-        case CampaignOpponent::MALACH:
-            return "Ezekiel";
-        case CampaignOpponent::DOG:
-            return "Cherubel";
-        case CampaignOpponent::BEAK:
-            return "Seraphel";
-        case CampaignOpponent::COW:
-            return "Thrones";
-        default:
-            return "Solo";
-    }
-}
-
-static inline float Enemy_LogCampaignLevelSkill(const UserContext *usr)
-{
-    if (!usr)
-        return 0.0f;
-    const int idx = glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount) - 1;
-    return kCampaignLevels[idx].enemySkill;
-}
-
-static inline bool Enemy_BallPlacementOnLaneForLog(const UserContext *usr, const glm::vec3 &p)
-{
-    if (!usr)
-        return false;
-    constexpr float kLaneHalfWidthM = (41.857f * 0.0254f) * 0.5f;
-    return std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.z) &&
-           std::abs(p.x) <= kLaneHalfWidthM + 0.08f &&
-           p.z >= glm::min(usr->enemyLaneMinZ, usr->enemyLaneMaxZ) - 0.10f &&
-           p.z <= glm::max(usr->enemyLaneMinZ, usr->enemyLaneMaxZ) + 0.10f &&
-           p.y >= -0.05f && p.y <= 1.35f;
-}
-
 static inline void RuneSkull_ApplyEnemyBackspin(UserContext *usr)
 {
     if (!usr || !usr->phy.is_ball_physics_active())
@@ -7191,63 +7112,6 @@ static inline void RuneSkull_ApplyEnemyBackspin(UserContext *usr)
     usr->phy.set_ball_swing_movement(velocity);
     usr->skullEnemyZeroFrictionUntil = usr->gameplayTime + 1.0f;
     usr->phy.set_ball_friction(0.0f);
-}
-
-static inline void Enemy_LogThrowLaunch(
-    UserContext *usr,
-    const char *source,
-    uint32_t seed,
-    const glm::vec3 &move,
-    float spin,
-    const glm::vec3 &target,
-    bool haveTarget)
-{
-    if (!usr)
-        return;
-
-    const glm::vec3 idle = Enemy_IdleBallPos(usr);
-    const glm::vec3 physicsPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
-    const glm::vec3 renderPos = usr->enemyBallRenderPosValid ? usr->enemyBallRenderPos : idle;
-    glm::vec3 handPos = idle;
-    const bool haveHand = Angel_ComputeRightHandAttachPosWorld(usr, handPos);
-    const bool physicsOnLane = Enemy_BallPlacementOnLaneForLog(usr, physicsPos);
-    const bool renderOnLane = Enemy_BallPlacementOnLaneForLog(usr, renderPos);
-    const bool handOnLane = haveHand && Enemy_BallPlacementOnLaneForLog(usr, handPos);
-
-    std::cerr
-        << "[enemy_throw_log]"
-        << " event=launch"
-        << " id=" << usr->enemyThrowLogId
-        << " source=" << (source ? source : "unknown")
-        << " seed=" << seed
-        << " followsPlayerRuneDestroy=" << (usr->enemyFallbackBecausePlayerRuneDestroyed ? 1 : 0)
-        << " forceFallback=" << (usr->enemyForceFallbackUntilPlayerTurn ? 1 : 0)
-        << " level=" << usr->campaignLevelIndex
-        << " postgameFreeplay=" << (usr->campaignPostgameFreeplayActive ? 1 : 0)
-        << " overrideActive=" << (usr->campaignOverrideActive ? 1 : 0)
-        << " opponent=" << Enemy_LogOpponentName(usr->campaignOverrideActive ? usr->campaignOverrideOpponent
-                                                                              : kCampaignLevels[glm::clamp(usr->campaignLevelIndex, 1, kCampaignLevelCount) - 1].opponent)
-        << " enemyScore=" << usr->enemyBoard.totalScore
-        << " playerScore=" << usr->board.totalScore
-        << " runtimeSkill=" << usr->enemyRetargetStrength
-        << " levelSkill=" << Enemy_LogCampaignLevelSkill(usr)
-        << " overrideSkill=" << usr->campaignOverrideEnemySkill
-        << " exampleCount=" << usr->playerThrowExampleCatalog.count
-        << " minExampleScore=" << Enemy_PlayerThrowExampleMinScore(usr)
-        << " idle=(" << idle.x << "," << idle.y << "," << idle.z << ")"
-        << " physicsPos=(" << physicsPos.x << "," << physicsPos.y << "," << physicsPos.z << ")"
-        << " physicsOnLane=" << (physicsOnLane ? 1 : 0)
-        << " renderPos=(" << renderPos.x << "," << renderPos.y << "," << renderPos.z << ")"
-        << " renderOnLane=" << (renderOnLane ? 1 : 0)
-        << " haveHand=" << (haveHand ? 1 : 0)
-        << " handPos=(" << handPos.x << "," << handPos.y << "," << handPos.z << ")"
-        << " handOnLane=" << (handOnLane ? 1 : 0)
-        << " haveTarget=" << (haveTarget ? 1 : 0)
-        << " target=(" << target.x << "," << target.y << "," << target.z << ")"
-        << " move=(" << move.x << "," << move.y << "," << move.z << ")"
-        << " speed=" << glm::length(move)
-        << " spinApplied=" << (-spin)
-        << "\n";
 }
 
 static inline bool Enemy_ComputeAimedFallbackThrow(UserContext *usr, glm::vec3 &outMovement, float &outSpin)
@@ -7594,7 +7458,6 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     usr->destroyedBallAwardSourceValid = false;
     usr->enemyAutoTimer = 0.0f;
     usr->enemyLaunched = false;
-    usr->enemyDebugLogged = false;
     usr->enemyTurnSetup = true;
     usr->enemyBallRenderPosValid = false;
     usr->enemyBallRenderSecondsSinceLaunch = 0.0f;
@@ -7657,26 +7520,7 @@ static inline void Enemy_EnterTurn(UserContext *usr, const glm::vec3 initialPins
     usr->enjoy.resetJoystick();
 	    usr->phy.set_ball_free();
 	    usr->phy.set_manual_ball_position(pos, glm::quat(1.0f, 0, 0, 0), 0.0f);
-    {
-        const glm::vec3 physicsPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
-        const glm::vec3 renderPos = usr->enemyBallRenderPosValid ? usr->enemyBallRenderPos : pos;
-        glm::vec3 handPos = pos;
-        const bool haveHand = Angel_ComputeRightHandAttachPosWorld(usr, handPos);
-        std::cerr
-            << "[enemy_throw_log]"
-            << " event=enter_turn"
-            << " followsPlayerRuneDestroy=" << (usr->enemyFallbackBecausePlayerRuneDestroyed ? 1 : 0)
-            << " forceFallback=" << (usr->enemyForceFallbackUntilPlayerTurn ? 1 : 0)
-            << " idle=(" << pos.x << "," << pos.y << "," << pos.z << ")"
-            << " physicsPos=(" << physicsPos.x << "," << physicsPos.y << "," << physicsPos.z << ")"
-            << " physicsOnLane=" << (Enemy_BallPlacementOnLaneForLog(usr, physicsPos) ? 1 : 0)
-            << " renderPos=(" << renderPos.x << "," << renderPos.y << "," << renderPos.z << ")"
-            << " renderOnLane=" << (Enemy_BallPlacementOnLaneForLog(usr, renderPos) ? 1 : 0)
-            << " haveHand=" << (haveHand ? 1 : 0)
-            << " handPos=(" << handPos.x << "," << handPos.y << "," << handPos.z << ")"
-            << " handOnLane=" << ((haveHand && Enemy_BallPlacementOnLaneForLog(usr, handPos)) ? 1 : 0)
-            << "\n";
-    }
+
 }
 
 static inline void Player_EnterTurn(UserContext *usr)
@@ -7860,11 +7704,6 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
     if (!usr->enemyLaunched && !shouldLaunch)
     {
         usr->enemyAutoTimer += dt;
-        if (!usr->enemyDebugLogged && usr->enemyAutoTimer >= 0.25f)
-        {
-            usr->enemyDebugLogged = true;
-            std::cerr << "[enemy] armed, will launch at t>=1.0s pos=" << Enemy_IdleBallPos(usr).z << "\n";
-        }
         if (usr->enemyAutoTimer >= 1.0f)
             shouldLaunch = true;
     }
@@ -7878,7 +7717,6 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
             !skipCatalogAfterRuneDestroy && PlayerThrowExamples_SelectForEnemy(usr, sampledMovement, sampledSpin);
         glm::vec3 move = glm::vec3(0.0f, 0.0f, -8.0f);
         float spin = 0.0f;
-        const char *throwSource = haveExample ? "catalog" : "proven_fallback";
         uint32_t throwSeed = 0u;
         if (haveExample)
         {
@@ -7898,7 +7736,6 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
                 move = Enemy_RetargetCopiedThrowToStandingPins(usr, move);
             else
             {
-                throwSource = "aimed_fallback";
                 (void)Enemy_ComputeAimedFallbackThrow(usr, move, spin);
             }
         }
@@ -7907,7 +7744,6 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
         // stale or weird copied throws already in memory cannot reach the launch path.
         if (!CampaignEnemyThrowMovementUsableForLane(move, -1.0f))
         {
-            throwSource = "sanitized_fallback";
             throwSeed = (throwSeed != 0u) ? throwSeed : uint32_t(SDL_GetTicks());
             if (!CampaignEnemyAiSelectProvenFallbackThrow(usr->enemyRetargetStrength, throwSeed, move, spin))
                 (void)Enemy_ComputeAimedFallbackThrow(usr, move, spin);
@@ -7920,14 +7756,12 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
             const float speed = 8.0f + 1.5f * skill;
             move = glm::vec3(0.0f, 1.1f, -speed);
             spin = 0.0f;
-            throwSource = "emergency_lane_fallback";
         }
         if (usr->enemyBoltJinxThisThrow)
         {
             const float side = ((usr->totalFrames & 1) == 0) ? 1.0f : -1.0f;
             move = glm::vec3(side * 1.85f, 0.95f, -6.1f);
             spin = side * 3.4f;
-            throwSource = "bolt_jinx";
             usr->enemyBoltJinxThisThrow = false;
             usr->enemyAiUseNosThisThrow = false;
             usr->enemyAiNosCommittedThisThrow = false;
@@ -7936,7 +7770,6 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
         {
             usr->enemyAiUseNosThisThrow = false;
             usr->enemyAiNosCommittedThisThrow = false;
-            throwSource = "skull_backspin";
         }
 
         const glm::vec3 launchPos = Enemy_LaunchBallPosOnLane(usr);
@@ -7957,14 +7790,7 @@ static inline bool Enemy_TickAutoThrow(UserContext *usr, float dt)
         }
 
         usr->enemyLaunched = true;
-        usr->enemyThrowLogId += 1;
-        usr->enemyThrowLastLaunchMove = move;
-        usr->enemyThrowLastLaunchSpinApplied = -spin;
-        {
-            glm::vec3 target(0.0f);
-            const bool haveTarget = Enemy_StandingPinsTarget(usr, target);
-            Enemy_LogThrowLaunch(usr, throwSource, throwSeed, move, spin, target, haveTarget);
-        }
+
         usr->enemyAiPrevAimErrorRad = 0.0f;
         usr->enemyAiPrevAimErrorValid = false;
         usr->enemyAiSpinRetargetAccumulator = 0.0f;
@@ -13246,7 +13072,6 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
     usr->turnOwner = UserContext::TurnOwner::PLAYER;
     usr->enemyAutoTimer = 0.0f;
     usr->enemyLaunched = false;
-    usr->enemyDebugLogged = false;
     usr->enemyTurnSetup = false;
     usr->miniGameBankAtStart = usr->carousel.bank;
     usr->resultRunBankAtStart = (int)std::lround(usr->carousel.bank);
@@ -13463,7 +13288,6 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
         usr->turnOwner = UserContext::TurnOwner::PLAYER;
         usr->enemyAutoTimer = 0.0f;
         usr->enemyLaunched = false;
-        usr->enemyDebugLogged = false;
         usr->enemyTurnSetup = false;
         usr->enemyAiBlockDeployAfterFrac = 0.0f;
         Bot_RestorePresentationForMainGame(usr, /*resetCameraToPlayerIdle=*/false);
@@ -13616,7 +13440,6 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
     usr->turnOwner = UserContext::TurnOwner::PLAYER;
     usr->enemyAutoTimer = 0.0f;
     usr->enemyLaunched = false;
-    usr->enemyDebugLogged = false;
     usr->enemyTurnSetup = false;
     usr->enemyDestroyedBallMaskThisRun = 0ull;
     usr->enemyNeedsReplacementBall = false;
@@ -18238,6 +18061,7 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
         return;
 #ifdef __EMSCRIPTEN__
     int audioLifecycleState = EM_ASM_INT({
+        Module['xfmAudioSafety'].pulse();
         if (!Module.xfmAudioLifecycleInstalled) {
             Module.xfmAudioLifecycleInstalled = true;
             Module.xfmAudioLifecycleState = document.hidden ? 1 : 0;
@@ -18734,7 +18558,6 @@ void vtx::init(vtx::VertexContext *ctx)
     // in front of those farther away. This prevents objects from rendering
     // incorrectly based on draw order.
 
-    printShaderVersions();
     checkOpenGLError("INIT_GAME_TAG_V2");
 
 	    usr->aurora.initAurora();
@@ -19313,15 +19136,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (winW > 0 && winH > 0 &&
             (ctx->screenWidth != winW || ctx->screenHeight != winH || std::abs(ctx->pixelRatio - nextPixelRatio) > 0.01f))
         {
-            SDL_Log(
-                "IOS_SIZE_SYNC frame=%llu window=%dx%d drawable=%dx%d pixelRatio=%.2f",
-                (unsigned long long)usr->totalFrames,
-                winW,
-                winH,
-                drawW,
-                drawH,
-                nextPixelRatio
-            );
             ctx->screenWidth = winW;
             ctx->screenHeight = winH;
             ctx->pixelRatio = nextPixelRatio;
@@ -19333,9 +19147,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     if (usr->totalFrames == 1)
     {
         Tracker_SyncBuiltinSongPlaybackPatternsToSound(usr);
-#if defined(TARGET_OS_IOS) && TARGET_OS_IOS
-        SDL_Log("IOS_DEFER_SOUND_INIT_UNTIL_AFTER_FIRST_SWAP");
-#else
+#if !defined(TARGET_OS_IOS) || !TARGET_OS_IOS
         usr->sound.initSoundSystem(nullptr);
 #endif
         initSoundSettings(&usr->clayton, &usr->sound.settings, &usr->sound);
@@ -19346,7 +19158,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->greetingsWindowRequested = true;
 
         shouldHandleResize = true;
-        std::cerr << "resize will be forced because it is first ever run" << std::endl;
     }
     Sound_HandleBrowserLifecycle(usr);
     usr->sound.oscilloscopeCaptureEnabled.store(
@@ -20670,10 +20481,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                                                        &usr->angelModelScale;
             const float mul = (e.key.keysym.sym == SDLK_F8) ? 1.10f : (1.0f / 1.10f);
             *scale = glm::clamp((*scale) * mul, 0.001f, 0.2f);
-            std::cerr << "[bot-avatar] " << ((usr->botAvatar == BotAvatar::CHERUB) ? "cherub" :
-                                             (usr->botAvatar == BotAvatar::SERAPH) ? "seraph" :
-                                             (usr->botAvatar == BotAvatar::THRONE) ? "throne" : "angel")
-                      << " scale=" << *scale << "\n";
         }
         if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_F10)
         {
@@ -20682,7 +20489,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_BACKQUOTE)
         {
             usr->chestMode = !usr->chestMode;
-            std::cerr << "[chest] mode=" << (usr->chestMode ? "on" : "off") << "\n";
         }
         if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_b)
         {
@@ -20702,7 +20508,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (e.key.keysym.sym == SDLK_SPACE)
             {
                 PhysicsResetForMode(usr, /*reviveAll=*/true);
-                LogToIdle(usr, "SPACE_RESET");
+                ResetEffectsForIdle(usr);
                 usr->phase = UserContext::Phase::IDLE;
                 usr->wereDead = 0;
                 ResetAllElectroBalls(usr);
@@ -21189,7 +20995,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (isTap)
                 {
                     // Treat as "cancel": don't consume the ball / don't penalize.
-                    LogToIdle(usr, "AIM_TAP_CANCEL");
+                    ResetEffectsForIdle(usr);
                     usr->phase = UserContext::Phase::IDLE;
                     usr->bufferedRequestThrow = false;
                     usr->aimingTime = 0.0f;
@@ -21436,7 +21242,6 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                            usr->turnOwner = UserContext::TurnOwner::PLAYER;
 	                            usr->enemyAutoTimer = 0.0f;
 	                            usr->enemyLaunched = false;
-	                            usr->enemyDebugLogged = false;
 	                            usr->enemyTurnSetup = false;
 	                            resetScoreboard(&usr->enemyBoard);
 	                            resetScoreboard(&usr->board);
@@ -21709,6 +21514,18 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     if (shouldHandleResize)
     {
+        static int loggedWidth = -1;
+        static int loggedHeight = -1;
+        static float loggedPixelRatio = -1.0f;
+        if (loggedWidth != ctx->screenWidth || loggedHeight != ctx->screenHeight ||
+            std::abs(loggedPixelRatio - ctx->pixelRatio) > 0.01f)
+        {
+            printf("[Display] Resize: %dx%d (pixel ratio %.2f)\n",
+                ctx->screenWidth, ctx->screenHeight, ctx->pixelRatio);
+            loggedWidth = ctx->screenWidth;
+            loggedHeight = ctx->screenHeight;
+            loggedPixelRatio = ctx->pixelRatio;
+        }
         // Recalculate perspective
         float fov = glm::radians(60.0f); // Field of view in radians
         float aspectRatio = (float)ctx->screenWidth / (float)ctx->screenHeight;
@@ -21896,7 +21713,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->turnOwner = UserContext::TurnOwner::PLAYER;
                     usr->enemyAutoTimer = 0.0f;
                     usr->enemyLaunched = false;
-                    usr->enemyDebugLogged = false;
                     usr->enemyTurnSetup = false;
                     resetScoreboard(&usr->enemyBoard);
                     Bot_RestorePresentationForMainGame(usr, /*resetCameraToPlayerIdle=*/true);
@@ -22204,7 +22020,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             // choice or a reset clears the celebration through its own flow.
             return;
         }
-        LogToIdle(usr, "PLAY_AGAIN");
+        ResetEffectsForIdle(usr);
         usr->campaignEndStoryShopAdvancePending = false;
         usr->phase = UserContext::Phase::IDLE;
         usr->clayton.shouldShowHiScore = false;
@@ -22216,7 +22032,6 @@ void vtx::loop(vtx::VertexContext *ctx)
 	        usr->wereDead = 0;
 	        PhysicsResetForMode(usr, /*reviveAll=*/true);
             ResetAllElectroBalls(usr);
-	        std::cerr << textScoreboard(usr->board) << std::endl;
 	        resetScoreboard(&usr->board);
             if (usr->enemyBoardInit)
                 resetScoreboard(&usr->enemyBoard);
@@ -22333,14 +22148,6 @@ void vtx::loop(vtx::VertexContext *ctx)
             // User request: stall > 1s => return to AIM (not IDLE).
             if (usr->swingingTime > 0.50f && usr->swingStallTime > (lowFpsAimSwingFrame ? 1.35f : 1.0f))
             {
-                if (usr->debugForgiveness)
-                {
-                    std::cerr << "Swing stalled -> forgive to AIM" << std::endl;
-                    std::cerr << "  moved=" << moved << " speed=" << speed << " stallSpeed=" << kStallSpeed
-                              << " swingTime=" << usr->swingingTime << " stallTime=" << usr->swingStallTime
-                              << " muchUp=" << muchUp << " muchFwd=" << muchFwd << " wantsPhysics=" << wantsPhysics
-                              << " userTriesToThrow=" << userTriesToThrow << std::endl;
-                }
 
                 usr->bufferedRequestThrow = false;
                 usr->phy.set_ball_free();
@@ -22461,7 +22268,6 @@ swing_checks_done:
 	            if (phaseTrans == UserContext::PhaseTrans::TRANS_IDLE_TO_AIM)
 	            {
 	                usr->phase = UserContext::Phase::AIM;
-	                std::cerr << "IDLE -> AIM" << std::endl;
 	
 	                usr->pivotPoint = Scene_PivotPoint(usr->scene);
 	                usr->phy.change_pivot_point(usr->pivotPoint);
@@ -22501,7 +22307,6 @@ swing_checks_done:
             if (phaseTrans == UserContext::PhaseTrans::TRANS_AIM_TO_SWING)
             {
                 usr->phase = UserContext::Phase::SWING;
-                std::cerr << "AIM -> SWING " << std::endl;
 
                 if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 1)
                 {
@@ -22521,7 +22326,6 @@ swing_checks_done:
 		            if (phaseTrans == UserContext::PhaseTrans::TRANS_AIM_TO_THROW)
 		            {
 		                usr->phase = UserContext::Phase::THROW;
-		                std::cerr << "AIM -> THROW" << std::endl;
 		                usr->schoolOilReoilDueAtThrowStart =
 		                    usr->gameMode == UserContext::GameMode::SCHOOL &&
 		                    usr->school.selectedLesson == 4 &&
@@ -22577,7 +22381,6 @@ swing_checks_done:
                     if (usr->aimingTime < kAssistMaxAimingSeconds &&
                         forwardIntent > kAssistMinForwardIntent && looksLikeKidsThrow)
                     {
-                        std::cerr << "Kids throw detected (no downward screen movement)" << std::endl;
                         glm::vec3 vel = usr->phy.get_ball_swing_movement();
 
                         // Base assist speed in m/s; keep it modest since we also add
@@ -22615,7 +22418,6 @@ swing_checks_done:
             if (phaseTrans == UserContext::PhaseTrans::TRANS_SWING_TO_AIM)
             {
                 usr->phase = UserContext::Phase::AIM;
-                std::cerr << "SWING -> AIM" << std::endl;
 
                 usr->aimingTime = 0.0f;
                 usr->swingingTime = 0.0f;
@@ -22623,7 +22425,6 @@ swing_checks_done:
             }
             if (phaseTrans == UserContext::PhaseTrans::TRANS_SWING_TO_THROW)
             {
-		                std::cerr << "SWING -> THROW" << std::endl;
 		
 		                usr->phase = UserContext::Phase::THROW;
 		                usr->schoolOilReoilDueAtThrowStart =
@@ -23095,14 +22896,12 @@ swing_checks_done:
 
 		            auto ForgiveToIdleNoScore = [&](const char *reason)
 		            {
-		                if (usr->debugForgiveness)
-		                    std::cerr << "[forgive] " << reason << " -> IDLE" << std::endl;
                         if (!IsEnemyTurn(usr))
                         {
                             PlayerThrowExamples_DiscardPending(usr);
                             usr->playerThrowExampleCatalog.currentDestroyedByRune = false;
                         }
-		                LogToIdle(usr, reason);
+		                ResetEffectsForIdle(usr);
 		                usr->bufferedRequestThrow = false;
 		                usr->phy.set_ball_free();
 		                const glm::vec3 IDLE_BALL_POS = Scene_IdleBallPos(usr->scene);
@@ -23138,8 +22937,6 @@ swing_checks_done:
 		                float totalThrowTime = usr->throwingTime + usr->settlingTime;
 		                if (std::isfinite(v.z) && v.z < -0.20f && totalThrowTime < 1.0f)
 		                {
-		                    if (usr->debugForgiveness)
-		                        std::cerr << "  vz=" << v.z << " t=" << totalThrowTime << std::endl;
 		                    ForgiveToIdleNoScore("THROW_BACKWARDS_CANCEL");
 		                }
 		            }
@@ -23349,31 +23146,6 @@ swing_checks_done:
                                         }
                                         else
                                             Campaign_RecordAttemptForCurrentLevel(usr);
-                                    }
-                                    if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
-                                    {
-                                        const glm::vec3 completePos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
-                                        const glm::vec3 completeVel = usr->phy.get_ball_swing_movement();
-                                        std::cerr
-                                            << "[enemy_throw_log]"
-                                            << " event=complete"
-                                            << " id=" << usr->enemyThrowLogId
-                                            << " knocked=" << knockedThisRoll
-                                            << " state=" << state
-                                            << " timedOut=" << (timedOutThrow ? 1 : 0)
-                                            << " frameCompleted=" << (frameCompleted ? 1 : 0)
-                                            << " postgameFreeplay=" << (usr->campaignPostgameFreeplayActive ? 1 : 0)
-                                            << " overrideActive=" << (usr->campaignOverrideActive ? 1 : 0)
-                                            << " runtimeSkill=" << usr->enemyRetargetStrength
-                                            << " levelSkill=" << Enemy_LogCampaignLevelSkill(usr)
-                                            << " overrideSkill=" << usr->campaignOverrideEnemySkill
-                                            << " pos=(" << completePos.x << "," << completePos.y << "," << completePos.z << ")"
-                                            << " vel=(" << completeVel.x << "," << completeVel.y << "," << completeVel.z << ")"
-                                            << " launchMove=(" << usr->enemyThrowLastLaunchMove.x << ","
-                                            << usr->enemyThrowLastLaunchMove.y << ","
-                                            << usr->enemyThrowLastLaunchMove.z << ")"
-                                            << " launchSpinApplied=" << usr->enemyThrowLastLaunchSpinApplied
-                                            << "\n";
                                     }
                                 }
 			                    else
@@ -23704,12 +23476,7 @@ swing_checks_done:
 		                                usr->sound.playSfxStrike();
 		                                usr->strikeSpareSfxPlayedKind = 1;
 		                            }
-		                            if (usr->strikeSpareEarlyDeclared)
-		                            {
-		                                float earlierBy = usr->gameplayTime - usr->strikeSpareEarlyDeclaredAt;
-		                                std::cerr << "[celebrate] FINAL=STRIKE earlyKind=" << usr->strikeSpareEarlyKind
-		                                          << " earlierBy=" << earlierBy << "s\n";
-		                            }
+
 		                        }
 		                        else if (newSpareCount > 0)
 		                        {
@@ -23731,12 +23498,7 @@ swing_checks_done:
 		                                usr->sound.playSfxSpare();
 		                                usr->strikeSpareSfxPlayedKind = 2;
 		                            }
-		                            if (usr->strikeSpareEarlyDeclared)
-		                            {
-		                                float earlierBy = usr->gameplayTime - usr->strikeSpareEarlyDeclaredAt;
-		                                std::cerr << "[celebrate] FINAL=SPARE earlyKind=" << usr->strikeSpareEarlyKind
-		                                          << " earlierBy=" << earlierBy << "s\n";
-		                            }
+
 		                        }
 		                    }
 
@@ -23801,7 +23563,6 @@ swing_checks_done:
                                 Enemy_ReplaceLostBallIfNeeded(usr);
                                 usr->enemyAutoTimer = 0.0f;
                                 usr->enemyLaunched = false;
-                                usr->enemyDebugLogged = false;
                                 usr->enemyBallRenderSecondsSinceLaunch = 0.0f;
                                 usr->enemyBallRenderPosValid = false;
                                 Bot_InitIfNeeded(usr);
@@ -23947,25 +23708,10 @@ swing_checks_done:
                                             usr->windowStack.windowStackPushNewGameWindow();
                                         if (usr->playerRoute == PlayerRoute::FREESTYLE)
                                         {
-                                            bool madeIt = LocalHi_SubmitScore(
+                                            LocalHi_SubmitScore(
                                                 &usr->localHi, usr->username, usr->username_len, usr->board.totalScore
                                             );
-                                            if (madeIt)
-                                            {
-                                                printf(
-                                                    "🎉 New record %d! Rank #%d\n",
-                                                    usr->localHi.lastSubmittedScore,
-                                                    usr->localHi.lastSubmittedRank
-                                                );
-                                            }
-                                            else
-                                            {
-                                                printf(
-                                                    "You scored %d (%.1fth percentile)\n",
-                                                    usr->localHi.lastSubmittedScore,
-                                                    usr->localHi.lastSubmittedPercentile
-                                                );
-                                            }
+
                                         }
 
                                         if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
@@ -24152,12 +23898,11 @@ swing_checks_done:
                                     // immediately re-arm the auto-throw for the next roll instead of going IDLE.
                                     if (usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr))
                                     {
-                                        LogToIdle(usr, "ENEMY_ROLL_DONE_REARM");
+                                        ResetEffectsForIdle(usr);
                                         UI_ResetBannersForNewRoll(usr, "ENEMY_REARM_ROLL", /*preserveActiveResultFlashes=*/true);
                                         CampaignBlockCards_ResetThrow(usr->playerBlockCards);
                                         usr->enemyAutoTimer = 0.0f;
                                         usr->enemyLaunched = false;
-                                        usr->enemyDebugLogged = false;
                                         usr->enemyAiNosDecisionMadeThisThrow = false;
                                         usr->enemyAiUseNosThisThrow = false;
                                         usr->enemyAiNosCommittedThisThrow = false;
@@ -24183,7 +23928,7 @@ swing_checks_done:
                                     }
                                     else
                                     {
-			                            LogToIdle(usr, "THROW_DONE_TO_IDLE");
+			                            ResetEffectsForIdle(usr);
 			                            usr->phase = UserContext::Phase::IDLE;
 			                            usr->enjoy.resetJoystick();
 			                            usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
@@ -24814,8 +24559,6 @@ swing_checks_done:
                 usr->strikeSpareEarlyDeclared = true;
                 usr->strikeSpareEarlyKind = usr->strikeSpareKind;
                 usr->strikeSpareEarlyDeclaredAt = usr->gameplayTime;
-                std::cerr << "[celebrate] EARLY=" << (usr->strikeSpareKind == 1 ? "STRIKE" : "SPARE")
-                          << " t=" << usr->gameplayTime << "s\n";
                 if (usr->strikeSpareKind == 1 && usr->strikeSpareSfxPlayedKind != 1)
                 {
                     usr->sound.playSfxStrike();
@@ -25381,7 +25124,6 @@ swing_checks_done:
         float dirLen = glm::length(dirXZ);
         if (dirLen < 0.0001f)
         {
-            std::cerr << "dirlen " << dirLen << std::endl;
             line.enabled.x = 0;
             goto END_LINE;
         }
@@ -29972,7 +29714,6 @@ if (usr->shouldShowImgui)
 		        ImGui::Separator();
 		        {
 		            bool changed = false;
-		            ImGui::Checkbox("Debug Forgiveness", &usr->debugForgiveness);
 		            changed |= ImGui::SliderFloat("Pivot Y", &usr->scene.pivotY, 0.6f, 2.0f, "%.2f");
 		            changed |= ImGui::SliderFloat("Pivot Z", &usr->scene.pivotZ, -22.0f, -16.0f, "%.2f");
 	            changed |= ImGui::SliderFloat("Release Offset MaxFrac", &usr->scene.releaseOffsetFracMax, 0.0f, 0.50f, "%.2f");
@@ -30195,19 +29936,13 @@ if (usr->shouldShowImgui)
 
 usr->fpsCounter.endFrame();
 
-if (usr->totalFrames <= 3)
-    SDL_Log("IOS_FRAME_%llu_BEFORE_SWAP", (unsigned long long)usr->totalFrames);
 SDL_GL_SwapWindow(ctx->sdlWindow);
-if (usr->totalFrames <= 3)
-    SDL_Log("IOS_FRAME_%llu_AFTER_SWAP", (unsigned long long)usr->totalFrames);
 
 #if defined(TARGET_OS_IOS) && TARGET_OS_IOS
 if (!usr->iosDeferredSoundInitDone)
 {
     usr->iosDeferredSoundInitDone = true;
-    SDL_Log("IOS_DEFERRED_SOUND_INIT_START");
     usr->sound.initSoundSystem(nullptr);
-    SDL_Log("IOS_DEFERRED_SOUND_INIT_DONE");
 }
 #endif
 }

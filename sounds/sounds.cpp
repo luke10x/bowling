@@ -1,4 +1,7 @@
 #include <SDL.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
 
 #include "./../../eggsfm/xfm_api.h"
 
@@ -980,7 +983,6 @@ bool GameSoundSystem::updateRestart()
     switch (restartState) {
         case RestartState::RESTART_PAUSE_AUDIO:
             // Step 1: Pause audio device
-            printf("[SoundRestart] Step 1/5: Pausing audio device...\n");
             if (audioDev) {
                 SDL_PauseAudioDevice(audioDev, 1);
             }
@@ -993,7 +995,6 @@ bool GameSoundSystem::updateRestart()
             // Step 2: Wait for pending callbacks to finish
             restartWaitFrames--;
             if (restartWaitFrames <= 0) {
-                printf("[SoundRestart] Step 2/5: Callbacks finished, destroying modules...\n");
                 restartState = RestartState::RESTART_DESTROY_MODULES;
                 restartProgress = 0.4f;
             }
@@ -1003,7 +1004,6 @@ bool GameSoundSystem::updateRestart()
             // Step 3: Destroy old modules (callback now returns early)
             shutdown();
             shutdownCompleteTime = SDL_GetTicks64();  // Start grace period
-            printf("[SoundRestart] Step 3/5: Modules destroyed, grace period started (%dms)\n", GRACE_PERIOD_MS);
             restartState = RestartState::RESTART_WAIT_MORE;
             restartWaitFrames = restartTargetFrames;
             restartProgress = 0.6f;
@@ -1015,7 +1015,6 @@ bool GameSoundSystem::updateRestart()
             {
                 uint32_t elapsed = SDL_GetTicks64() - shutdownCompleteTime;
                 if (restartWaitFrames <= 0 && elapsed >= GRACE_PERIOD_MS) {
-                    printf("[SoundRestart] Step 4/5: Grace period complete (%dms), re-initializing...\n", elapsed);
                     restartState = RestartState::RESTART_INIT_NEW;
                     restartProgress = 0.8f;
                 } else if (elapsed < GRACE_PERIOD_MS) {
@@ -1030,7 +1029,6 @@ bool GameSoundSystem::updateRestart()
         case RestartState::RESTART_INIT_NEW:
             // Step 5: Initialize new system
             {
-                printf("[SoundRestart] Step 5/5: Loading synth %d Hz...\n", sampleRate);
                 bool result = initSoundSystem(restartSongPattern.c_str());
                 restartState = result ? RestartState::RESTART_COMPLETE : RestartState::RESTART_IDLE;
                 restartProgress = result ? 1.0f : 0.0f;
@@ -1044,7 +1042,6 @@ bool GameSoundSystem::updateRestart()
 
         case RestartState::RESTART_COMPLETE:
             // Step 6: Done
-            printf("[SoundRestart] Complete - resuming audio\n");
             restartState = RestartState::RESTART_IDLE;
             restartProgress = 0.0f;
             break;
@@ -1064,21 +1061,16 @@ void GameSoundSystem::startRestart(const char* songPattern)
         if (restartState != RestartState::RESTART_IDLE && 
             restartState != RestartState::RESTART_COMPLETE) {
             restartSongPattern = songPattern ? songPattern : getSongPlaybackPattern(currentSongIndex);
-            printf("[SoundRestart] Restart already in progress (state=%d), updated pending pattern\n", (int)restartState);
         } else {
-            uint32_t elapsed = SDL_GetTicks64() - shutdownCompleteTime;
             restartSongPattern = songPattern ? songPattern : getSongPlaybackPattern(currentSongIndex);
             restartState = RestartState::RESTART_WAIT_MORE;
             restartWaitFrames = 1;
             restartProgress = 0.6f;
-            printf("[SoundRestart] Grace period not elapsed (%dms < %dms), queued restart\n", 
-                    elapsed, GRACE_PERIOD_MS);
         }
         return;
     }
     restartSongPattern = songPattern ? songPattern : getSongPlaybackPattern(currentSongIndex);
     restartState = RestartState::RESTART_PAUSE_AUDIO;
-    printf("[SoundRestart] Starting async restart (target frames per wait=%d)\n", restartTargetFrames);
 }
 
     // ------------------------------------------------------------------------
@@ -1087,10 +1079,9 @@ void GameSoundSystem::startRestart(const char* songPattern)
 
 static void my_audio_callback(void* userdata, Uint8* stream, int len)
 {
-    if (userdata == nullptr) {
-        // To awoid bad memory errors in emscripten
-        return;
-    }
+    // Always clear the destination, including during teardown.
+    std::memset(stream, 0, len);
+    if (userdata == nullptr) return;
     GameSoundSystem* self = (GameSoundSystem*)userdata;
 
     // Emscripten: callback runs async, must check ALL state flags FIRST
@@ -1210,6 +1201,9 @@ bool GameSoundSystem::reopenAudioDevice()
     if (audioDev)
     {
         audioShutdownInProgress.store(false);
+#ifdef __EMSCRIPTEN__
+        EM_ASM({ Module['xfmAudioSafety'].attach(); });
+#endif
         SDL_PauseAudioDevice(audioDev, 0);
         return true;
     }
@@ -1235,8 +1229,10 @@ bool GameSoundSystem::reopenAudioDevice()
     obtainedBufferSize = obtained.samples > 0 ? obtained.samples : desired.samples;
     sampleRate = obtainedSampleRate;
     audioShutdownInProgress.store(false);
+#ifdef __EMSCRIPTEN__
+    EM_ASM({ Module['xfmAudioSafety'].attach(); });
+#endif
     SDL_PauseAudioDevice(audioDev, 0);
-    printf("[SoundBrowser] Audio device reopened: %d Hz, %d samples\n", obtained.freq, obtainedBufferSize);
     return true;
 }
 
@@ -1266,7 +1262,6 @@ void GameSoundSystem::suspendForBrowser()
         SDL_UnlockAudioDevice(audioDev);
         SDL_CloseAudioDevice(audioDev);
         audioDev = 0;
-        printf("[SoundBrowser] Audio device closed for browser suspend\n");
     }
 }
 
@@ -1288,7 +1283,6 @@ void GameSoundSystem::resumeFromBrowser(const char* songPattern)
     audioShutdownInProgress.store(false);
     if (!musicModule && !sfxModule)
     {
-        printf("[SoundBrowser] Modules missing on resume; reinitializing sound system\n");
         if (!initSoundSystem(songPattern ? songPattern : getSongPlaybackPattern(currentSongIndex)))
             audioShutdownInProgress.store(true);
         browserAudioSuspended = false;
@@ -1412,7 +1406,6 @@ void GameSoundSystem::stopMusic()
 bool GameSoundSystem::initSoundSystem(const char* songPattern)
 {
     if (audioDisabled) {
-        printf("[SoundInit] Audio disabled; skipping audio initialization\n");
         return true;
     }
 
@@ -1422,8 +1415,10 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
 
     if (audioDev && hasSynthModules)
     {
-        printf("[SoundInit] Audio already initialized; reusing current device\n");
         audioShutdownInProgress.store(false);
+#ifdef __EMSCRIPTEN__
+        EM_ASM({ Module['xfmAudioSafety'].attach(); });
+#endif
         SDL_PauseAudioDevice(audioDev, 0);
         if (musicModule)
         {
@@ -1438,11 +1433,9 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
 
     if (audioDev || hasSynthModules)
     {
-        printf("[SoundInit] Existing audio state detected before init; shutting it down first\n");
         shutdown();
     }
 
-    printf("[SoundInit] Initializing synth at %d Hz...\n", sampleRate);
     
     SDL_AudioSpec desired{};
     // Use the sampleRate setting for both modes to ensure consistency
@@ -1471,9 +1464,6 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
     }
 
     obtainedBufferSize = obtained.samples > 0 ? obtained.samples : desired.samples;
-    printf("Audio: %d Hz, %d samples (%.1f ms latency)\n",
-            obtained.freq, obtainedBufferSize,
-            obtainedBufferSize * 1000.0 / obtained.freq);
     
     // Store the obtained sample rate for later use
     obtainedSampleRate = obtained.freq;
@@ -1484,7 +1474,6 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
     BallRolling_ResetAutomationCache(this);
     ballRollingBasePatchValid = false;
 
-    printf("[SoundInit] Creating synth modules at %d Hz...\n", obtained.freq);
     musicModule = xfm_module_create(obtained.freq, obtainedBufferSize, XFM_CHIP_YM3438);
     sfxModule   = xfm_module_create(obtained.freq, obtainedBufferSize, XFM_CHIP_YM3438);
     if (!musicModule || !sfxModule)
@@ -1492,18 +1481,12 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
         printf("xfm_module_create failed\n");
         return false;
     }
-    printf("[SoundInit] Synth modules created: music=%p, sfx=%p\n", (void*)musicModule, (void*)sfxModule);
-    fflush(stdout);
 
     // --------------------------------------------------------------------
     // Load patches (use XFM_CHIP_YM3438 to match module creation)
     // --------------------------------------------------------------------
 
-    printf("[SoundInit] Applying SFX instrument bank...\n");
-    fflush(stdout);
     BuiltinSfx_ApplyInstrumentBank(sfxModule);
-    printf("[SoundInit] SFX instrument bank applied\n");
-    fflush(stdout);
     const int rollingInstrument = BuiltinSfx_GlobalInstrumentForLocal(SFX_BALL_ROLLING, 0);
     if (rollingInstrument >= 0 && rollingInstrument < 256 && sfxModule->patch_present[rollingInstrument])
     {
@@ -1527,19 +1510,13 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
         const bool songLfoEnabled = getSongLfoEnabled(currentSongIndex);
         const int songLfoFrequency = getSongLfoFrequency(currentSongIndex);
 
-    printf("Declaring song...\n");
-    fflush(stdout);
     soundApplySongInstrumentBankToMusicModule(this, currentSongIndex);
-    printf("[SoundInit] Song instrument bank applied\n");
-    fflush(stdout);
     xfm_module_set_lfo(musicModule, songLfoEnabled, songLfoFrequency);
     xfm_module_set_tuning(
         musicModule,
         (xfm_tuning_mode)getSongTuningMode(currentSongIndex),
         getSongScaleRoot(currentSongIndex));
     xfm_song_declare(musicModule, currentSongIndex, effectiveSongPattern, songTickRate, songTicksPerStep);
-    printf("[SoundInit] Song declared\n");
-    fflush(stdout);
     musicLoopStartRow = 0;
     musicLoopEndRow = xfm_song_get_total_rows(musicModule, currentSongIndex) - 1;
 
@@ -1568,18 +1545,17 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
 
     xfm_module_set_volume(musicModule, musicVolume);
     xfm_module_set_volume(sfxModule, sfxVolume);
-    printf("[SoundInit] Synth volumes set: music=%.2f, sfx=%.2f\n", musicVolume, sfxVolume);
 
-    printf("Playing song...\n");
     xfm_song_play(musicModule, currentSongIndex, true);
     xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
-    printf("Music should be playing!\n");
 
     // Emscripten: Clear shutdown flag BEFORE unpausing device so callback sees ready state
     audioShutdownInProgress.store(false);
 
+#ifdef __EMSCRIPTEN__
+    EM_ASM({ Module['xfmAudioSafety'].attach(); });
+#endif
     SDL_PauseAudioDevice(audioDev, 0);
-    printf("DEBUG: musicModule=%p\n", (void*)musicModule);
 
     return true;
 }
@@ -1590,7 +1566,10 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
 
 void GameSoundSystem::shutdown()
 {
-    printf("[SoundShutdown] Shutting down audio...\n");
+#ifdef __EMSCRIPTEN__
+    // Disconnect Web Audio before touching synth state or entering SDL cleanup.
+    EM_ASM({ Module['xfmAudioSafety'].stop(); });
+#endif
 
     if (audioDev && (musicModule || fadingMusicModule || sfxModule))
     {
@@ -1609,21 +1588,18 @@ void GameSoundSystem::shutdown()
     if (audioDev) {
         SDL_CloseAudioDevice(audioDev);
         audioDev = 0;
-        printf("[SoundShutdown] Audio device closed\n");
     }
     obtainedBufferSize = 0;
 
     // Destroy synth modules
     if (musicModule)
     {
-        printf("[SoundShutdown] Destroying musicModule %p\n", (void*)musicModule);
         xfm_module_destroy(musicModule);
         musicModule = nullptr;
     }
 
     if (fadingMusicModule)
     {
-        printf("[SoundShutdown] Destroying fadingMusicModule %p\n", (void*)fadingMusicModule);
         xfm_module_destroy(fadingMusicModule);
         fadingMusicModule = nullptr;
     }
@@ -1632,12 +1608,10 @@ void GameSoundSystem::shutdown()
 
     if (sfxModule)
     {
-        printf("[SoundShutdown] Destroying sfxModule %p\n", (void*)sfxModule);
         xfm_module_destroy(sfxModule);
         sfxModule = nullptr;
     }
 
-    printf("[SoundShutdown] Complete\n");
 }
 
 
@@ -1651,7 +1625,9 @@ bool GameSoundSystem::restartSoundSystem()
 
 void GameSoundSystem::midiPanic()
 {
-    printf("[SoundPanic] MIDI panic requested\n");
+#ifdef __EMSCRIPTEN__
+    EM_ASM({ Module['xfmAudioSafety'].stop(); });
+#endif
 
     restartState = RestartState::RESTART_IDLE;
     restartProgress = 0.0f;
@@ -1806,7 +1782,6 @@ static bool soundPlayPreparedSong(GameSoundSystem *self, int songIndex)
         xfm_module_set_volume(self->musicModule, self->musicVolume);
         xfm_song_play(self->musicModule, songIndex, true);
         self->clearMusicLoopRange();
-        printf("Playing song %d\n", songIndex);
     }
     std::snprintf(self->settings.currentSongName, sizeof(self->settings.currentSongName), "%s", self->getSongName(songIndex));
     return true;
@@ -1876,7 +1851,6 @@ void GameSoundSystem::nextSongForLevelTransition()
     SDL_UnlockAudioDevice(audioDev);
 
     std::snprintf(settings.currentSongName, sizeof(settings.currentSongName), "%s", getSongName(currentSongIndex));
-    printf("Level transition song %d -> %d (old song fades for 1s)\n", oldSongIndex, currentSongIndex);
 }
 
     // ------------------------------------------------------------------------
@@ -1929,7 +1903,6 @@ xfm_voice_id GameSoundSystem::playSfx(int id, int priority)
     if (!audioDev && !reopenAudioDevice()) return FM_VOICE_INVALID;
 
     if (!sfxModule) {
-        printf("[SFX] WARNING: sfxModule is null, cannot play SFX %d\n", id);
         return FM_VOICE_INVALID;
     }
     SDL_LockAudioDevice(audioDev);

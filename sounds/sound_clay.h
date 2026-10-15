@@ -24,12 +24,6 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
         soundSettingsState->quality = SoundSettings::QUALITY_HIFI;
     }
 
-    printf(
-        "[SoundSettings] Initialized: musicVol=%.2f, sfxVol=%.2f, quality=%d\n",
-        soundSettingsState->musicVolume,
-        soundSettingsState->sfxVolume,
-        (int)soundSettingsState->quality
-    );
 
     // Volume labels
     strcpy(soundSettingsState->musicVolLabels[0], "0%");
@@ -40,9 +34,6 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
 
     memcpy(soundSettingsState->sfxVolLabels, soundSettingsState->musicVolLabels, sizeof(soundSettingsState->sfxVolLabels));
 
-    // Quality labels
-    strcpy(soundSettingsState->qualityLabels[0], "Synth");
-    strcpy(soundSettingsState->qualityLabels[1], "Off");
     strcpy(soundSettingsState->bufferLabels[0], "512");
     strcpy(soundSettingsState->bufferLabels[1], "1024");
     strcpy(soundSettingsState->bufferLabels[2], "2048");
@@ -173,11 +164,72 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                 }
             }
 
-            // Quality Section OR Restart Progress (mutually exclusive)
+            CLAY(
+                CLAY_ID("QualitySection"),
+                CLAY_THEME_SECTION
+            )
+            {
+                CLAY_TEXT(clayton->txl(TXL_AUDIO_MODE), CLAY_TEXT_CONFIG(labelFontCfg));
+
+                // Quality buttons row
+                CLAY(
+                    CLAY_ID("QualityRow"),
+                    {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .childGap = 8,
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                        },
+                    }
+                )
+                {
+                    for (int i = 0; i < 2; i++)
+                    {
+                        Clay_Color btnColor = (self->quality == i)
+                            ? Clay_Color{100, 200, 100, 255}
+                            : Clay_Color{80, 80, 120, 255};
+
+                        CLAY(
+                            clayton->qualityClicks[i].clayId,
+                            {
+                                .layout =
+                                    {
+                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
+                                        .childAlignment =
+                                            {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                    },
+                                .backgroundColor = ClayTheme_HoverColor(btnColor, 18.0f),
+                                .cornerRadius = {8, 8, 8, 8},
+                            }
+                        )
+                        {
+                            Clay_String label = clayton->txl(i == 0 ? TXL_AUDIO_SYNTH : TXL_AUDIO_OFF);
+                            CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonFontCfg));
+                        }
+                    }
+                    CLAY(
+                        clayton->midiPanicClick.clayId,
+                        {
+                            .layout =
+                                {
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
+                                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                },
+                            .backgroundColor = ClayTheme_HoverColor((Clay_Color){180, 70, 60, 255}, 18.0f),
+                            .cornerRadius = {8, 8, 8, 8},
+                        }
+                    )
+                    {
+                        CLAY_TEXT(clayton->txl(TXL_AUDIO_PANIC), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    }
+                }
+            }
+
+            // Keep the mode row and PANIC available during a restart.
             if (self->soundSystem && self->soundSystem->restartProgress > 0.0f &&
                 self->soundSystem->restartProgress < 1.0f)
             {
-                // Show progress indicator instead of quality buttons during restart
+                // Show progress while buffer controls are unavailable.
                 CLAY(
                     CLAY_ID("RestartProgressSection"),
                     CLAY_THEME_SECTION
@@ -253,57 +305,6 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
             }
             else
             {
-                // Show quality buttons when not restarting
-                CLAY(
-                    CLAY_ID("QualitySection"),
-                    CLAY_THEME_SECTION
-                )
-                {
-                    CLAY_TEXT(clayton->txl(TXL_AUDIO_MODE), CLAY_TEXT_CONFIG(labelFontCfg));
-
-                    // Quality buttons row
-                    CLAY(
-                        CLAY_ID("QualityRow"),
-                        {
-                            .layout = {
-                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                .childGap = 8,
-                                .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                            },
-                        }
-                    )
-                    {
-                        for (int i = 0; i < 2; i++)
-                        {
-                            Clay_Color btnColor = (self->quality == i)
-                                ? Clay_Color{100, 200, 100, 255}
-                                : Clay_Color{80, 80, 120, 255};
-
-                            CLAY(
-                                clayton->qualityClicks[i].clayId,
-                                {
-                                    .layout =
-                                        {
-                                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(50)},
-                                            .childAlignment =
-                                                {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                        },
-                                    .backgroundColor = ClayTheme_HoverColor(btnColor, 18.0f),
-                                    .cornerRadius = {8, 8, 8, 8},
-                                }
-                            )
-                            {
-                                Clay_String label = {
-                                    .isStaticallyAllocated = false,
-                                    .length = (int)strlen(self->qualityLabels[i]),
-                                    .chars = self->qualityLabels[i],
-                                };
-                                CLAY_TEXT(label, CLAY_TEXT_CONFIG(buttonFontCfg));
-                            }
-                        }
-                    }
-                }
-
                 CLAY(
                     CLAY_ID("BufferSection"),
                     CLAY_THEME_SECTION
@@ -576,27 +577,7 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                 }
             }
 
-            CLAY(
-                CLAY_ID("MidiPanicSection"),
-                CLAY_THEME_SECTION
-            )
-            {
-                CLAY(
-                    clayton->midiPanicClick.clayId,
-                    {
-                        .layout =
-                            {
-                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(52)},
-                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                            },
-                        .backgroundColor = ClayTheme_HoverColor((Clay_Color){180, 70, 60, 255}, 18.0f),
-                        .cornerRadius = {8, 8, 8, 8},
-                    }
-                )
-                {
-                    CLAY_TEXT(CLAY_STRING("MIDI PANIC"), CLAY_TEXT_CONFIG(buttonFontCfg));
-                }
-            }
+
         }
     }
 }
@@ -639,12 +620,10 @@ inline void applySoundSettings(SoundSettings *soundSettingsClay)
     case SoundSettings::QUALITY_HIFI:
         wantsSampleRate = 44100;
         soundSettingsClay->soundSystem->sampleRate = 44100;
-        printf("[SoundSettings] Quality requested: Synth 44100\n");
         break;
     case SoundSettings::QUALITY_OFF:
         wantsDisabled = true;
         wantsSampleRate = soundSettingsClay->soundSystem->sampleRate;
-        printf("[SoundSettings] Quality requested: audio off\n");
         break;
     }
 
@@ -671,6 +650,8 @@ inline void applySoundSettings(SoundSettings *soundSettingsClay)
 
         if (wantsDisabled)
         {
+            soundSettingsClay->soundSystem->restartState = GameSoundSystem::RestartState::RESTART_IDLE;
+            soundSettingsClay->soundSystem->restartProgress = 0.0f;
             soundSettingsClay->soundSystem->shutdown();
             return;
         }
@@ -678,10 +659,6 @@ inline void applySoundSettings(SoundSettings *soundSettingsClay)
         // Get current song pattern for restart
         const char *songPattern = soundSettingsClay->soundSystem->getSongPlaybackPattern(soundSettingsClay->soundSystem->currentSongIndex);
         soundSettingsClay->soundSystem->startRestart(songPattern);
-    }
-    else
-    {
-        printf("[SoundSettings] Mode unchanged (no restart needed)\n");
     }
 }
 
@@ -727,6 +704,10 @@ inline bool processSoundSettingsEvent(Clayton *clayton, SoundSettings *soundSett
     {
         if (isClaytonClicked(&clayton->qualityClicks[i], event))
         {
+            if (i == 0 && soundSettingsClay->soundSystem &&
+                soundSettingsClay->soundSystem->restartState != GameSoundSystem::RestartState::RESTART_IDLE &&
+                soundSettingsClay->soundSystem->restartState != GameSoundSystem::RestartState::RESTART_COMPLETE)
+                continue;
             soundSettingsClay->quality = (SoundSettings::Quality)i;
             applySoundSettings(soundSettingsClay);
             handled = true;

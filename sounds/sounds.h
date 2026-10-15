@@ -41,7 +41,6 @@ struct SoundSettings
     // Labels for buttons
     char musicVolLabels[5][10];
     char sfxVolLabels[5][10];
-    char qualityLabels[2][20];
     char bufferLabels[4][10];
     int bufferSize = DEFAULT_AUDIO_BUFFER_SIZE;
     

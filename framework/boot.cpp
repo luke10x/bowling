@@ -79,8 +79,6 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
     int drawW, drawH;
     SDL_GL_GetDrawableSize(window, &drawW, &drawH);
 
-    std::cout << "Window size:    " << winW  << " x " << winH  << "\n";
-    std::cout << "Drawable size:  " << drawW << " x " << drawH << "\n";
     float pixelRatio = float(drawW) / float(winW);    
 
 
@@ -92,7 +90,6 @@ static bool initVideo(vtx::VertexContext *ctx, const int initialWidth, const int
     glViewport(0, 0, winW, winH);
 #endif
 
-    std::cerr << "✅ Initial video done" << std::endl;
 
     /* Set video details back to ctx */ {
         ctx->sdlContext = gl_context;
@@ -225,7 +222,6 @@ int load_plugin()
         }
     }
 
-    std::cerr << "🔄 Reloading plugin...\n";
 
     // === load new ===
     char loadPath[PATH_MAX] = {};
@@ -304,14 +300,12 @@ void vtx::openVortex(int screenWidth, int screenHeight)
     }
 
 #ifdef HOT_RUNTIME
-    std::cerr << "🔥 Running in HOT RELEAD mode with swappable" << TOSTRING(HOT_RUNTIME) << std::endl;
     load_plugin();
 
     theInit(&g_ctx);
     isInitComplete = true;
 
 #else
-    std::cerr << "🧊 Running in STATIC build mode" << std::endl;
     vtx::init(&g_ctx);
 #endif
 
@@ -342,8 +336,6 @@ static EM_BOOL on_web_display_size_changed(
     int width = event->windowInnerWidth;
     int height = event->windowInnerHeight;
 
-    std::cerr << "web resize callback worked " << width << "x" << height
-              << std::endl;
     SDL_Event resizeEvent;
     resizeEvent.type = SDL_WINDOWEVENT;
     resizeEvent.window.event = SDL_WINDOWEVENT_RESIZED;

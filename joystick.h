@@ -286,7 +286,6 @@ struct Joystick
                     mouseDown = true;
                     int mouseX, mouseY;
                     SDL_GetMouseState(&mouseX, &mouseY);
-                    std::cout << "Mouse Position: (" << mouseX << ", " << mouseY << ")\n";
                     x = static_cast<float>(mouseX) / screenWidth;
                     y = static_cast<float>(mouseY) / screenHeight;
                     goto GESTURE_DOWN;

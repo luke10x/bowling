@@ -217,3 +217,35 @@ It is not expected to materially improve YMFM/Jolt/game CPU usage.
 `eggsfm` advances YMFM at the chip's native rate and resamples to the output
 rate. Lower output sample rates can reduce some buffer/mix/sequencer work, but
 do not proportionally reduce the core YMFM generation cost.
+
+## Web audio safety
+
+`wasm/audio_safety.js` is linked with `--pre-js`. Each SDL output is routed
+through a gain node before reaching the speakers. The game loop renews a
+1.5-second deadline (at most four times per second); without another frame,
+the audio engine fades the gain to zero over 50 ms. An audio callback or JS
+interval must not renew this deadline: those could keep running after gameplay
+has stopped. Gain automation can run while the main JS thread is blocked.
+
+PANIC disconnects this output before rebuilding SDL and synth state. Page exit
+and freeze disconnect it too; hiding the page mutes it immediately. Wasm aborts,
+audio callback exceptions, uncaught JS errors, and unhandled promise rejections
+also disconnect and close the context without calling back into Wasm. Fatal
+errors require a reload. Callback output is cleared before synthesis and again
+on an exception so a partial/previous buffer is not left behind.
+
+Run `node --test tests/test_web_audio_safety.cjs` for the deadline, callback
+failure, cleanup/restart, and lifecycle regression tests. On a real device,
+check foreground playback, background/relaunch, OFF/SYNTH/PANIC, and a main
+thread stall longer than two seconds. The guard limits stuck audio; it does
+not diagnose or fix the underlying gameplay hang, nor can it control audio
+owned by another page or a broken browser/OS audio session. The service worker
+only caches assets and has no playback code.
+
+## Runtime logging
+
+Keep normal gameplay quiet on stdout/stderr. FPS still updates the on-screen
+counter, but does not print periodically. Do not add per-frame, per-second,
+input, throw, score, or song traces. Log actionable events such as automatic
+buffer increases, screen size changes, recovery completion/failure, invalid state, and resource
+errors. Audio initialization/restarts should not dump each internal step.

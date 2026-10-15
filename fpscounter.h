@@ -1,7 +1,6 @@
 #pragma once
 
-#include <iostream>
-#include <iomanip>
+#include <cstdio>
 
 #if __has_include("build/generated/build_version.h")
 #include "build/generated/build_version.h"
@@ -66,14 +65,12 @@ struct FpsCounter
         allTimeAccumulator += frameSeconds; // will reset it now
 
         float measureInterval = 5.0f;
-        double measuresPerSecond = 1.0 / measureInterval;
         if (timeAccumulator >= measureInterval)
         {
             fps = frameCount / timeAccumulator;
 
             avgFrame = allTimeAccumulator / frameCount;
 
-            std::cout << "FPS: " << std::fixed << std::setprecision(2) << fps << std::endl;
             timeAccumulator = 0.0f;
             allTimeAccumulator = 0.0f;
             frameCount = 0;

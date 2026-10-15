@@ -313,7 +313,6 @@ struct CrowdControlState
     float staleLastEnemyStrength = 0.0f;
     bool staleDumpedThisEpisode = false;
     int lastContactCandidateCount = 0;
-    float metricsPrintTimer = 0.0f;
     int frontlineFightBatchCursor = 0;
     bool spawnBlockedByEnemyCloseNoticeLatched = false;
     bool criticalSpawnNoticeLatched = false;
@@ -758,7 +757,6 @@ struct CrowdControlState
         staleLastEnemyStrength = 0.0f;
         staleDumpedThisEpisode = false;
         lastContactCandidateCount = 0;
-        metricsPrintTimer = 0.0f;
         frontlineFightBatchCursor = 0;
         spawnBlockedByEnemyCloseNoticeLatched = false;
         criticalSpawnNoticeLatched = false;
@@ -2288,37 +2286,6 @@ struct CrowdControlState
         }
     }
 
-    void printRuntimeMetricsEverySecond(float dt)
-    {
-        metricsPrintTimer += dt;
-        if (metricsPrintTimer < 1.0f)
-            return;
-        metricsPrintTimer -= std::floor(metricsPrintTimer);
-
-        int activeBosses = 0;
-        for (const CrowdControlUnit &enemy : enemies)
-            if (enemy.active && IsBoss(enemy.kind))
-                ++activeBosses;
-
-        std::printf(
-            "[crowd-control] t=%.1f my=%d enemy=%d bosses=%d fighting=%d destroyed=%d spawned=%d/%d "
-            "spawnSet=%.1f/min enemyRate=%.2f/s power=%d ttl=%.2f hit=%.2f\n",
-            elapsed,
-            activeMalachCount(),
-            activeEnemyCount(),
-            activeBosses,
-            validFightingPairCount(),
-            destroyedEnemyCount(),
-            totalMalachimSpawned,
-            totalEnemiesSpawned,
-            spawnedMalachimPerMinute(),
-            effectiveEnemySpawnRate(),
-            malachHealthUpgrade,
-            newMalachTtlSeconds(),
-            newMalachHitBuff()
-        );
-    }
-
     void updateCrowdControl(float dt, float inputX)
     {
         updateDeathFx(dt);
@@ -2403,7 +2370,6 @@ struct CrowdControlState
 
         // ----- STALE DEBUG / END CONDITIONS -----
         detectAndDumpStaleState(dt);
-        printRuntimeMetricsEverySecond(dt);
 
         if (fortressHp <= 0)
         {

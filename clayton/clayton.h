@@ -503,25 +503,6 @@ struct Clayton
             ))
             abort();
 
-        {
-            const int glyphCount = this->stbFonts[0].useCustomChars
-                ? this->stbFonts[0].customCharCount
-                : this->stbFonts[0].charCount;
-            const float atlasArea = (float)(atlasW * atlasH);
-            const float usedPct = atlasArea > 0.0f
-                ? (100.0f * (float)this->stbFonts[0].usedPixelCount / atlasArea)
-                : 0.0f;
-            printf(
-                "[TXL Font] ui lang=%s chars=%d atlas_used=%d/%d (%.2f%%)\n",
-                language == TXL_LANG_ZH_CN ? "zh_cn" :
-                language == TXL_LANG_LT_LT ? "lt_lt" :
-                language == TXL_LANG_JP_JP ? "jp_jp" : "en_us",
-                glyphCount,
-                this->stbFonts[0].usedPixelCount,
-                atlasW * atlasH,
-                usedPct
-            );
-        }
 
         if (!Stb_LoadFontBytesWithChars(
                 &this->renderer.fontTextures[1],
@@ -549,22 +530,6 @@ struct Clayton
             ))
             abort();
 
-        {
-            const int glyphCount = this->stbFonts[2].useCustomChars
-                ? this->stbFonts[2].customCharCount
-                : this->stbFonts[2].charCount;
-            const float atlasArea = (float)(atlasW * atlasH);
-            const float usedPct = atlasArea > 0.0f
-                ? (100.0f * (float)this->stbFonts[2].usedPixelCount / atlasArea)
-                : 0.0f;
-            printf(
-                "[TXL Font] mono chars=%d atlas_used=%d/%d (%.2f%%)\n",
-                glyphCount,
-                this->stbFonts[2].usedPixelCount,
-                atlasW * atlasH,
-                usedPct
-            );
-        }
     }
 
     inline Clay_String txl(TxlKey key)
@@ -582,7 +547,6 @@ struct Clayton
         case SDL_MOUSEBUTTONDOWN:
             mouseX = pixelRatio * static_cast<float>(event->button.x);
             mouseY = pixelRatio * static_cast<float>(event->button.y);
-            std::cerr << "mouseX=" << mouseX << std::endl;
             mouseClicked = true;
             break;
         case SDL_MOUSEWHEEL:

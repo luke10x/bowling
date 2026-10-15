@@ -98,7 +98,6 @@ void Texture::loadTextureFromFile(const char *texturePath, const bool flip)
 {
     GLuint hudTexture;
 
-    std::cerr << "Start of loading image " << std::endl;
     const acl::LoadedImage *li = acl::loadImage(texturePath, flip);
     unsigned char *data = li->data;
     int width = li->width;

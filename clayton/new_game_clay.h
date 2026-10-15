@@ -471,6 +471,19 @@ inline void renderNewGameWindow(Clayton *clayton)
             }
             NewGame_RenderScoreDuel(clayton);
             NewGame_RenderScoreboards(clayton);
+            if (isResult && clayton->newGameDurationText[0])
+            {
+                Clay_TextElementConfig timeCfg = CLAY_THEME_TEXT_LABEL;
+                timeCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+                CLAY(CLAY_ID("ResultDuration"),
+                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                {
+                    CLAY_TEXT(ClayArena_FormatString(arena,
+                        Txl_Get(clayton->uiLanguage, TXL_TOTAL_TIME_FMT), clayton->newGameDurationText),
+                        CLAY_TEXT_CONFIG(timeCfg));
+                }
+            }
             NewGame_RenderMoneyBreakdown(clayton);
 
             if (isResult)

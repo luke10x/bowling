@@ -92,6 +92,7 @@ TEST_CASE("Bowling and bonus results show one currency total, with bowling score
     ui->newGameShowMoneyBreakdown = true;
     ui->newGameRoundCoins = 5;
     ui->newGameRoundMoneyTotal = 5;
+    std::snprintf(ui->newGameDurationText, sizeof(ui->newGameDurationText), "4:37");
     ui->newGameTitle = "VICTORY";
     ui->newGameButtonLabel = "NEXT";
     SUBCASE("Bowling")
@@ -109,6 +110,7 @@ TEST_CASE("Bowling and bonus results show one currency total, with bowling score
         CHECK(second.x >= first.x + first.width);
         CHECK(first.width == doctest::Approx(second.width));
         CHECK_FALSE(Clay_GetElementData(CLAY_ID("NewGameCoinsPanel")).found);
+        CHECK(ResultContainsText(commands, "Total Time  4:37"));
         CHECK(ResultContainsText(commands, "Total"));
         CHECK(ResultContainsText(commands, "$ 5"));
         CHECK_FALSE(ResultContainsText(commands, "COINS OBTAINED"));
@@ -118,6 +120,7 @@ TEST_CASE("Bowling and bonus results show one currency total, with bowling score
         const auto commands = RenderResultFixture(ui);
         CHECK_FALSE(Clay_GetElementData(CLAY_ID("ResultScoreboards")).found);
         CHECK_FALSE(Clay_GetElementData(CLAY_ID("NewGameCoinsPanel")).found);
+        CHECK(ResultContainsText(commands, "Total Time  4:37"));
         CHECK(ResultContainsText(commands, "Total"));
         CHECK(ResultContainsText(commands, "$ 5"));
         CHECK_FALSE(ResultContainsText(commands, "COINS OBTAINED"));
@@ -140,4 +143,22 @@ TEST_CASE("Post-campaign results identify the finished match's N B R tool settin
     CHECK(ResultContainsText(commands, "B -"));
     CHECK(ResultContainsText(commands, "R +"));
     delete ui;
+}
+
+TEST_CASE("Pixel snapping preserves every one-pixel scoreboard divider")
+{
+    for (float width : {31.2f, 37.6f, 42.8f})
+    {
+        for (int offset = 0; offset < 10; ++offset)
+        {
+            for (int frame = 0; frame < 9; ++frame)
+            {
+                const float x = offset * 0.1f + frame * (width + 1.0f);
+                const auto cell = Gles3_SnapBoundingBox({x, 0.6f, width, 39.6f});
+                const auto next = Gles3_SnapBoundingBox({x + width + 1.0f, 0.6f, width, 39.6f});
+                CHECK(next.x - (cell.x + cell.width) == doctest::Approx(1.0f));
+                CHECK(cell.y + cell.height == doctest::Approx(std::round(0.6f + 39.6f)));
+            }
+        }
+    }
 }

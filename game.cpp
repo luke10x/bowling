@@ -1019,6 +1019,7 @@ struct UserContext
     char miniGameResultTitle[64] = "BONUS COMPLETE";
     char miniGameResultDetail[256] = "";
     int resultRunBankAtStart = 0;
+    float resultRoundStartedAt = 0.0f;
     int resultCoinsAnimatedLast = 0;
     int resultCoinsTarget = 0;
     float resultCoinsAnimElapsed = 0.0f;
@@ -12485,6 +12486,7 @@ static inline void ResultWindow_ResetRoundEarnings(UserContext *usr)
 {
     if (!usr)
         return;
+    usr->resultRoundStartedAt = usr->gameplayTime;
     usr->resultRoundStrikeCount = 0;
     usr->resultRoundSpareCount = 0;
     usr->resultRoundCoins = 0;
@@ -12511,6 +12513,7 @@ static inline void ResultWindow_ClearPresentation(UserContext *usr)
 {
     if (!usr)
         return;
+    usr->clayton.newGameDurationText[0] = '\0';
     usr->clayton.newGameIsResult = false;
     usr->clayton.newGameContextLabel = "";
     usr->clayton.newGamePostCampaign = false;
@@ -12593,6 +12596,8 @@ static inline void ResultWindow_SetResultBase(UserContext *usr, bool victory, in
     RuneGuardPins_Clear(usr);
     usr->clayton.newGameContextLabel = "";
     usr->clayton.newGamePostCampaign = false;
+    FormatClockTime(usr->gameplayTime - usr->resultRoundStartedAt,
+        usr->clayton.newGameDurationText, sizeof(usr->clayton.newGameDurationText));
     usr->clayton.newGameIsResult = true;
     usr->clayton.newGameVictory = victory;
     usr->clayton.newGameTitle = Txl_Get(usr->language, victory ? TXL_VICTORY : TXL_YOU_LOSE);

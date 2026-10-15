@@ -403,6 +403,19 @@ void Gles3_SetRenderTextFunction(
     renderer->renderTextFunction = renderTextFunction;
 }
 
+static inline Clay_BoundingBox Gles3_SnapBoundingBox(Clay_BoundingBox box)
+{
+    // Snap shared edges consistently so fractional cell widths preserve pixel gaps.
+    const float left = roundf(box.x);
+    const float top = roundf(box.y);
+    return {
+        .x = left,
+        .y = top,
+        .width = roundf(box.x + box.width) - left,
+        .height = roundf(box.y + box.height) - top,
+    };
+}
+
 void Gles3_Render(
     Gles3_Renderer *renderer,
     Clay_RenderCommandArray cmds,
@@ -427,12 +440,7 @@ void Gles3_Render(
     for (int i = 0; i < cmds.length; i++)
     {
         Clay_RenderCommand *cmd = Clay_RenderCommandArray_Get(&cmds, i);
-        Clay_BoundingBox boundingBox = (Clay_BoundingBox){
-            .x = roundf(cmd->boundingBox.x),
-            .y = roundf(cmd->boundingBox.y),
-            .width = roundf(cmd->boundingBox.width),
-            .height = roundf(cmd->boundingBox.height),
-        };
+        Clay_BoundingBox boundingBox = Gles3_SnapBoundingBox(cmd->boundingBox);
 
         bool scissorChanged = false;
         switch (cmd->commandType)

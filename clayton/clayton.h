@@ -97,6 +97,7 @@ struct Clayton
     const char *newGameShopButtonLabel = "SHOP";
     bool newGameShopOpensInventory = false;
     bool newGameIsResult = false;
+    char newGameDurationText[32] = {};
     bool newGameVictory = false;
     const char *newGameContextLabel = "";
     bool newGamePostCampaign = false;

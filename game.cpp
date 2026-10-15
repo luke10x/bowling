@@ -12512,6 +12512,8 @@ static inline void ResultWindow_ClearPresentation(UserContext *usr)
     if (!usr)
         return;
     usr->clayton.newGameIsResult = false;
+    usr->clayton.newGameContextLabel = "";
+    usr->clayton.newGamePostCampaign = false;
     usr->clayton.newGameVictory = false;
     usr->clayton.newGameRepeatAvailable = false;
     usr->clayton.newGameNextAvailable = true;
@@ -12589,6 +12591,8 @@ static inline void ResultWindow_SetResultBase(UserContext *usr, bool victory, in
     // Patrol pins are a live-lane rune effect, never part of a result or the
     // next game.  Tear down their physics bodies and render state at game end.
     RuneGuardPins_Clear(usr);
+    usr->clayton.newGameContextLabel = "";
+    usr->clayton.newGamePostCampaign = false;
     usr->clayton.newGameIsResult = true;
     usr->clayton.newGameVictory = victory;
     usr->clayton.newGameTitle = Txl_Get(usr->language, victory ? TXL_VICTORY : TXL_YOU_LOSE);
@@ -12622,9 +12626,21 @@ static inline void ResultWindow_ConfigureBowling(
         return;
     (void)coins;
     ResultWindow_SetResultBase(usr, victory, ResultWindow_RoundMoneyTotal(usr), buttonLabel);
+    if (usr->playerRoute == PlayerRoute::CAMPAIGN)
+    {
+        usr->clayton.newGamePostCampaign = usr->campaignPostgameFreeplayActive;
+        const int playedLevel = glm::clamp(usr->campaignPlayedLevelIndex, 1, kCampaignLevelCount);
+        usr->clayton.newGameContextLabel = Txl_Get(usr->language,
+            usr->campaignPostgameFreeplayActive ? TXL_POST_CAMPAIGN : kCampaignLevels[playedLevel - 1].titleKey);
+        usr->clayton.newGameNosEnabled = usr->campaignRunPostgameNosEnabled;
+        usr->clayton.newGameBlocksEnabled = usr->campaignRunPostgameBlocksEnabled;
+        usr->clayton.newGameRunesEnabled = usr->campaignRunPostgameRunesEnabled;
+    }
     ResultWindow_ClearMoneyRows(usr);
     usr->clayton.newGameShowScores = true;
     usr->clayton.newGameShowOpponent = opponent != nullptr;
+    usr->clayton.newGamePlayerScoreboard = player ? *player : BowlingScoreboard{};
+    usr->clayton.newGameOpponentScoreboard = opponent ? *opponent : BowlingScoreboard{};
     std::snprintf(
         usr->clayton.newGameOpponentLabel,
         sizeof(usr->clayton.newGameOpponentLabel),

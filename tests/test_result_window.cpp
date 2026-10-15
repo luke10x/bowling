@@ -51,3 +51,86 @@ TEST_CASE("Skipping an empty Retry prompt preserves other pending windows and ac
     REQUIRE(stack.count == 1);
     CHECK(stack.kinds[stack.count - 1] == WindowKind_LocalHiscore);
 }
+
+static Clay_RenderCommandArray RenderResultFixture(Clayton *ui)
+{
+    static void *memory = std::malloc(Clay_MinMemorySize());
+    Clay_Initialize(Clay_CreateArenaWithCapacityAndMemory(Clay_MinMemorySize(), memory),
+        {430, 932}, {});
+    Clay_SetMeasureTextFunction([](Clay_StringSlice text, Clay_TextElementConfig *cfg, void *) {
+        return Clay_Dimensions{float(text.length) * cfg->fontSize * 0.6f, cfg->fontSize * 1.2f};
+    }, nullptr);
+    ClayArena_Init(&ui->clayArena);
+    initClaytonClick(&ui->playAgainClick, "fixtureContinue");
+    initClaytonClick(&ui->resultRepeatClick, "fixtureRepeat");
+    initClaytonClick(&ui->newGameShopClick, "fixtureShop");
+    Clay_BeginLayout();
+    CLAY(CLAY_ID("Root"), {.layout = {.sizing = {CLAY_SIZING_FIXED(430), CLAY_SIZING_FIXED(932)}}})
+    { renderNewGameWindow(ui); }
+    return Clay_EndLayout();
+}
+
+static bool ResultContainsText(const Clay_RenderCommandArray &commands, const char *expected)
+{
+    for (int i = 0; i < commands.length; ++i)
+    {
+        const auto &cmd = commands.internalArray[i];
+        if (cmd.commandType == CLAY_RENDER_COMMAND_TYPE_TEXT)
+        {
+            auto text = cmd.renderData.text.stringContents;
+            if (std::string(text.chars, text.length) == expected) return true;
+        }
+    }
+    return false;
+}
+
+TEST_CASE("Bowling and bonus results show one currency total, with bowling scoreboards below the totals")
+{
+    // Clayton embeds its text arena, so allocate it outside the wasm stack.
+    auto *ui = new Clayton{};
+    ui->newGameIsResult = true;
+    ui->newGameShowMoneyBreakdown = true;
+    ui->newGameRoundCoins = 5;
+    ui->newGameRoundMoneyTotal = 5;
+    ui->newGameTitle = "VICTORY";
+    ui->newGameButtonLabel = "NEXT";
+    SUBCASE("Bowling")
+    {
+        ui->newGameShowScores = true;
+        ui->newGameShowOpponent = true;
+        const auto commands = RenderResultFixture(ui);
+        const auto totals = Clay_GetElementData(CLAY_ID("NewGameScoreDuel"));
+        const auto boards = Clay_GetElementData(CLAY_ID("ResultScoreboards"));
+        CHECK(boards.found);
+        CHECK(boards.boundingBox.y >= totals.boundingBox.y + totals.boundingBox.height);
+        CHECK_FALSE(Clay_GetElementData(CLAY_ID("NewGameCoinsPanel")).found);
+        CHECK(ResultContainsText(commands, "Total $"));
+        CHECK_FALSE(ResultContainsText(commands, "COINS OBTAINED"));
+    }
+    SUBCASE("Minigame")
+    {
+        const auto commands = RenderResultFixture(ui);
+        CHECK_FALSE(Clay_GetElementData(CLAY_ID("ResultScoreboards")).found);
+        CHECK_FALSE(Clay_GetElementData(CLAY_ID("NewGameCoinsPanel")).found);
+        CHECK(ResultContainsText(commands, "Total $"));
+        CHECK_FALSE(ResultContainsText(commands, "COINS OBTAINED"));
+    }
+    delete ui;
+}
+
+TEST_CASE("Post-campaign results identify the finished match's N B R tool settings")
+{
+    auto *ui = new Clayton{};
+    ui->newGameIsResult = true;
+    ui->newGamePostCampaign = true;
+    ui->newGameContextLabel = "POST-CAMPAIGN";
+    ui->newGameNosEnabled = true;
+    ui->newGameBlocksEnabled = false;
+    ui->newGameRunesEnabled = true;
+    const auto commands = RenderResultFixture(ui);
+    CHECK(ResultContainsText(commands, "POST-CAMPAIGN"));
+    CHECK(ResultContainsText(commands, "N +"));
+    CHECK(ResultContainsText(commands, "B -"));
+    CHECK(ResultContainsText(commands, "R +"));
+    delete ui;
+}

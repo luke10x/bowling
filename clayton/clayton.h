@@ -98,6 +98,13 @@ struct Clayton
     bool newGameShopOpensInventory = false;
     bool newGameIsResult = false;
     bool newGameVictory = false;
+    const char *newGameContextLabel = "";
+    bool newGamePostCampaign = false;
+    bool newGameNosEnabled = false;
+    bool newGameBlocksEnabled = false;
+    bool newGameRunesEnabled = false;
+    BowlingScoreboard newGamePlayerScoreboard = {};
+    BowlingScoreboard newGameOpponentScoreboard = {};
     bool newGameRepeatAvailable = false;
     bool newGameNextAvailable = true;
     bool newGameShowScores = false;

@@ -99,6 +99,82 @@ static inline void NewGame_RenderScoreDuel(Clayton *clayton)
     }
 }
 
+static inline void NewGame_RenderScoreboardRow(Clayton *clayton, int role)
+{
+    const BowlingScoreboard &board = role == 0
+        ? clayton->newGamePlayerScoreboard : clayton->newGameOpponentScoreboard;
+    const int *scores = role == 0
+        ? clayton->newGamePlayerFrameScores : clayton->newGameOpponentFrameScores;
+    Clay_TextElementConfig textCfg = CLAY_THEME_TEXT_BODY;
+    textCfg.fontSize = 14;
+    textCfg.wrapMode = CLAY_TEXT_WRAP_NONE;
+    Clay_TextElementConfig rollCfg = textCfg;
+    rollCfg.fontSize = 12;
+    CLAY(CLAY_IDI("ResultScoreboardRow", role),
+         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                     .childGap = 1, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+    {
+        for (int i = 0; i < 10; ++i)
+        {
+            const Frame &frame = board.frames[i];
+            char first[16], second[16], third[16];
+            Clay_String r1 = Clayton::rollSymbol2(first, frame.roll1, 0, frame.isStrike, frame.isSpare, false);
+            Clay_String r2 = i < 9 && frame.isStrike ? CLAY_STRING("")
+                : Clayton::rollSymbol2(second, frame.roll2, frame.roll1, frame.isStrike, frame.isSpare, true);
+            Clay_String r3 = i == 9
+                ? Clayton::rollSymbol2(third, frame.roll3, frame.roll2, frame.roll3 == 10,
+                    frame.roll1 == 10 && frame.roll2 >= 0 && frame.roll2 < 10 && frame.roll2 + frame.roll3 == 10, true)
+                : CLAY_STRING("");
+            Clay_String rolls = ClayArena_FormatString(&clayton->clayArena, "%.*s %.*s%s%.*s",
+                r1.length, r1.chars, r2.length, r2.chars, i == 9 ? " " : "", r3.length, r3.chars);
+            Clay_String score = scores[i] < 0 ? CLAY_STRING("")
+                : ClayArena_FormatString(&clayton->clayArena, "%d", scores[i]);
+            CLAY(CLAY_IDI("ResultScoreboardFrame", role * 10 + i),
+                 {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIT()},
+                             .padding = {1, 1, 4, 4}, .childGap = 2,
+                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                             .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                  .backgroundColor = role == 0 ? Clay_Color{38, 66, 110, 225} : Clay_Color{95, 42, 52, 225}})
+            {
+                CLAY_TEXT(rolls, CLAY_TEXT_CONFIG(rollCfg));
+                CLAY_TEXT(score, CLAY_TEXT_CONFIG(textCfg));
+            }
+        }
+    }
+}
+
+static inline void NewGame_RenderScoreboards(Clayton *clayton)
+{
+    if (!clayton->newGameShowScores) return;
+    Clay_TextElementConfig labelCfg = CLAY_THEME_TEXT_LABEL;
+    labelCfg.fontSize = 12;
+    labelCfg.wrapMode = CLAY_TEXT_WRAP_NONE;
+    CLAY(CLAY_ID("ResultScoreboards"),
+         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 3,
+                     .layoutDirection = CLAY_TOP_TO_BOTTOM}})
+    {
+        CLAY(CLAY_ID("ResultScoreboardFrames"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                         .childGap = 1, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+        {
+            for (int i = 0; i < 10; ++i)
+            {
+                CLAY(CLAY_IDI("ResultFrameNumber", i),
+                     {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIT()},
+                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                { CLAY_TEXT(ClayArena_FormatString(&clayton->clayArena, "%d", i + 1), CLAY_TEXT_CONFIG(labelCfg)); }
+            }
+        }
+        CLAY_TEXT(clayton->txl(TXL_YOU), CLAY_TEXT_CONFIG(labelCfg));
+        NewGame_RenderScoreboardRow(clayton, 0);
+        if (clayton->newGameShowOpponent)
+        {
+            CLAY_TEXT(ClayArena_FormatString(&clayton->clayArena, "%s", clayton->newGameOpponentLabel), CLAY_TEXT_CONFIG(labelCfg));
+            NewGame_RenderScoreboardRow(clayton, 1);
+        }
+    }
+}
+
 static inline void NewGame_RenderMoneyRow(
     Clayton *clayton,
     int id,
@@ -116,7 +192,7 @@ static inline void NewGame_RenderMoneyRow(
         amountCfg.fontSize = 28;
         amountCfg.textColor = {255, 222, 45, 255};
     }
-    Clay_String nameText = ClayArena_FormatString(&clayton->clayArena, "%s", name ? name : "");
+    Clay_String nameText = ClayArena_FormatString(&clayton->clayArena, totalRow ? "%s $" : "%s", name ? name : "");
     Clay_String formulaText = ClayArena_FormatString(&clayton->clayArena, "%s", formula ? formula : "");
     Clay_String amountText = ClayArena_FormatString(&clayton->clayArena, "%d", amount);
     CLAY(
@@ -143,17 +219,20 @@ static inline void NewGame_RenderMoneyRow(
         {
             CLAY_TEXT(nameText, CLAY_TEXT_CONFIG(labelCfg));
         }
-        CLAY(
-            CLAY_IDI("NewGameMoneyFormula", id),
-            {
-                .layout = {
-                    .sizing = {CLAY_SIZING_FIXED(90), CLAY_SIZING_GROW()},
-                    .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
-                },
-            }
-        )
+        if (formula && formula[0])
         {
-            CLAY_TEXT(formulaText, CLAY_TEXT_CONFIG(formulaCfg));
+            CLAY(
+                CLAY_IDI("NewGameMoneyFormula", id),
+                {
+                    .layout = {
+                        .sizing = {CLAY_SIZING_FIXED(90), CLAY_SIZING_GROW()},
+                        .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
+                    },
+                }
+            )
+            {
+                CLAY_TEXT(formulaText, CLAY_TEXT_CONFIG(formulaCfg));
+            }
         }
         CLAY(
             CLAY_IDI("NewGameMoneyAmount", id),
@@ -274,8 +353,6 @@ inline void renderNewGameWindow(Clayton *clayton)
         titleCfg.fontSize = 40;
         titleCfg.textColor = outcomeColor;
     }
-    Clay_BoundingBox rootBox = Clay_GetElementData(CLAY_ID("Root")).boundingBox;
-    const bool narrowLayout = rootBox.width > 0.0f && rootBox.width < 520.0f;
 
     Clay_String title = ClayArena_FormatString(arena, "%s", clayton->newGameTitle ? clayton->newGameTitle : Txl_Get(clayton->uiLanguage, TXL_TRY_AGAIN));
     Clay_String detail = ClayArena_FormatString(arena, "%s", clayton->newGameDetail ? clayton->newGameDetail : "");
@@ -289,8 +366,6 @@ inline void renderNewGameWindow(Clayton *clayton)
         "%s",
         Txl_Get(clayton->uiLanguage, TXL_REPEAT)
     );
-    Clay_String coinsLabel = clayton->txl(TXL_COINS_OBTAINED);
-    Clay_String coinsAmount = ClayArena_FormatString(arena, "$ %d", clayton->newGameCoinsAnimated);
     Clay_String shopLabel = ClayArena_FormatString(
         arena,
         "%s",
@@ -363,56 +438,57 @@ inline void renderNewGameWindow(Clayton *clayton)
                 }
             }
 
+            if (clayton->newGameContextLabel && clayton->newGameContextLabel[0])
+            {
+                Clay_TextElementConfig contextCfg = CLAY_THEME_TEXT_LABEL;
+                contextCfg.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+                CLAY(CLAY_ID("ResultContext"),
+                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                                 .layoutDirection = CLAY_TOP_TO_BOTTOM, .childGap = 4}})
+                {
+                    CLAY_TEXT(ClayArena_FormatString(arena, "%s", clayton->newGameContextLabel), CLAY_TEXT_CONFIG(contextCfg));
+                    if (clayton->newGamePostCampaign)
+                    {
+                        CLAY(CLAY_ID("ResultPostgameTools"),
+                             {.layout = {.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                                         .childGap = 12, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+                        {
+                            const TxlKey keys[] = {TXL_NOS_SHORT, TXL_BLOCKS_SHORT, TXL_RUNES_SHORT};
+                            const bool enabled[] = {clayton->newGameNosEnabled, clayton->newGameBlocksEnabled, clayton->newGameRunesEnabled};
+                            for (int i = 0; i < 3; ++i)
+                            {
+                                Clay_TextElementConfig toolCfg = CLAY_THEME_TEXT_BODY;
+                                toolCfg.textColor = enabled[i] ? Clay_Color{120, 235, 150, 255} : Clay_Color{130, 120, 140, 255};
+                                CLAY_TEXT(ClayArena_FormatString(arena, "%s %s", Txl_Get(clayton->uiLanguage, keys[i]), enabled[i] ? "+" : "-"), CLAY_TEXT_CONFIG(toolCfg));
+                            }
+                        }
+                    }
+                }
+            }
             NewGame_RenderScoreDuel(clayton);
+            NewGame_RenderScoreboards(clayton);
             NewGame_RenderMoneyBreakdown(clayton);
 
             if (isResult)
             {
                 CLAY(
-                    CLAY_ID("NewGameCoinShopRow"),
+                    CLAY_ID("NewGameShopRow"),
                     {
                         .layout = {
                             .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                             .childGap = 12,
-                            .layoutDirection = narrowLayout ? CLAY_TOP_TO_BOTTOM : CLAY_LEFT_TO_RIGHT,
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT,
                         },
                     }
                 )
                 {
                     CLAY(
-                        CLAY_ID("NewGameCoinsPanel"),
-                        {
-                            .layout = {
-                                .sizing = {
-                                    narrowLayout ? CLAY_SIZING_GROW() : CLAY_SIZING_PERCENT(0.55f),
-                                    CLAY_SIZING_FIXED(76)
-                                },
-                                .padding = {14, 14, 8, 8},
-                                .childGap = 2,
-                                .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
-                                .layoutDirection = CLAY_TOP_TO_BOTTOM,
-                            },
-                            .backgroundColor = {35, 22, 52, 220},
-                            .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG},
-                            .border = {.color = outcomeColor, .width = CLAY_BORDER_OUTSIDE(2)},
-                        }
-                    )
-                    {
-                        Clay_TextElementConfig small = CLAY_THEME_TEXT_LABEL;
-                        small.fontSize = 14;
-                        CLAY_TEXT(coinsLabel, CLAY_TEXT_CONFIG(small));
-                        Clay_TextElementConfig coinsCfg = CLAY_THEME_TEXT_LARGE;
-                        coinsCfg.textColor = {255, 222, 45, 255};
-                        coinsCfg.fontSize = 30;
-                        CLAY_TEXT(coinsAmount, CLAY_TEXT_CONFIG(coinsCfg));
-                    }
-
-                    CLAY(
                         CLAY_ID("NewGameShopPanel"),
                         {
                             .layout = {
                                 .sizing = {
-                                    narrowLayout ? CLAY_SIZING_GROW() : CLAY_SIZING_PERCENT(0.45f),
+                                    CLAY_SIZING_GROW(),
                                     CLAY_SIZING_FIXED(76)
                                 },
                                 .childGap = 6,

@@ -4,6 +4,11 @@
 #define CHEST_RENDER_NO_GPU
 #include "../chest.h"
 
+TEST_CASE("Chest pickup radius is 80 percent of its original size")
+{
+    CHECK(ChestRender::kCollectiblePickupRadius == doctest::Approx(0.28f));
+}
+
 TEST_CASE("Chest reward close remains visible without restoring black cinematic overlay")
 {
     using Phase = ChestRender::CollectiblePhase;

@@ -16,7 +16,8 @@ namespace ChestRender
     static constexpr glm::vec3 kMeshCenter(-0.16150159f, 1.06357682f, 0.33416384f);
     static constexpr float kWorldScale = 0.165f;
     static constexpr float kCollectibleWorldScale = 0.085f;
-    static constexpr float kCollectiblePickupRadius = 0.35f;
+    // Require the ball to be closer to the chest before it can be collected.
+    static constexpr float kCollectiblePickupRadius = 0.28f;
     static constexpr float kSpinRadiansPerSecond = 1.70f;
     static constexpr float kSpawnChance = 1.0f;
     static constexpr float kSpawnDelayMinSeconds = 2.0f;

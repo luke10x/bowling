@@ -299,7 +299,18 @@ struct WindowStack
         shopRestockLaterRequested = false;
         windowStackPushWindow_(WindowKind_ShopRestockPrompt);
     }
-    inline void windowStackPushNewGameWindow() { windowStackPushWindow_(WindowKind_NewGame); }
+    inline void windowStackPushNewGameWindow(bool hasResults)
+    {
+        // A bare Retry/Try Again prompt has no decision or results to show.
+        // Use the same request as its button, including the normal reset,
+        // pending mode change, bonus, and shop continuation handling.
+        if (!hasResults)
+        {
+            playAgainRequested = true;
+            return;
+        }
+        windowStackPushWindow_(WindowKind_NewGame);
+    }
     inline void windowStackPushMassEditorWindow() { windowStackPushWindow_(WindowKind_MassEditor); }
     inline void windowStackPushSettingsWindow() { windowStackPushWindow_(WindowKind_Settings); }
     inline void windowStackPushSettingsResetConfirmWindow() { windowStackPushWindow_(WindowKind_SettingsResetConfirm); }

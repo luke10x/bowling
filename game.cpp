@@ -19408,7 +19408,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (!usr->dialog.active && usr->windowStack.count == 0 &&
                 !usr->pendingCampaignEndgameSummaryWindow &&
                 !usr->pendingCampaignPostgameChoiceDialog)
-                usr->windowStack.windowStackPushNewGameWindow();
+                usr->windowStack.windowStackPushNewGameWindow(usr->clayton.newGameIsResult);
             if (usr->clayton.shouldShowHiScore)
             {
                 // Put the hi-score window above the play-again window.
@@ -21284,7 +21284,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         {
                             // The completion dialogue precedes results. "Later"
                             // reveals those results before any bonus or next level.
-                            usr->windowStack.windowStackPushNewGameWindow();
+                            usr->windowStack.windowStackPushNewGameWindow(usr->clayton.newGameIsResult);
                         }
                     }
                     else if (storyEvent == EVENT_CAMPAIGN_POSTGAME_CONTINUE)
@@ -21843,7 +21843,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->campaignEndStoryShopAdvancePending = false;
         // This shop was offered by the pre-result completion dialogue.
         // Reveal the deferred results before offering the bonus or advancing.
-        usr->windowStack.windowStackPushNewGameWindow();
+        usr->windowStack.windowStackPushNewGameWindow(usr->clayton.newGameIsResult);
         return true;
     };
 
@@ -23699,13 +23699,12 @@ swing_checks_done:
                                         }
                                         // A chapter's victory dialogue precedes results,
                                         // even when the optional bonus is already queued.
-                                        if (!clearedFullCampaign &&
+                                        const bool showBowlingResult = !clearedFullCampaign &&
                                             !Campaign_HasVictoryEndStory(
                                                 usr->playerRoute == PlayerRoute::CAMPAIGN,
                                                 playerWins,
                                                 usr->campaignPostgameFreeplayActive,
-                                                cfg.endStoryId))
-                                            usr->windowStack.windowStackPushNewGameWindow();
+                                                cfg.endStoryId);
                                         if (usr->playerRoute == PlayerRoute::FREESTYLE)
                                         {
                                             LocalHi_SubmitScore(
@@ -23779,7 +23778,11 @@ swing_checks_done:
                                                 ? Campaign_OpponentDisplayName(usr->language, cfg.opponent)
 	                                                : BotAvatar_DisplayName(usr->language, usr->botAvatar)
 	                                        );
-                                            ResultWindow_ApplyReturnedBallsNotice(usr);
+                                        // Configure scores/rewards before deciding whether to show
+                                        // results or continue past a bare Retry prompt.
+                                        if (showBowlingResult)
+                                            usr->windowStack.windowStackPushNewGameWindow(usr->clayton.newGameIsResult);
+                                        ResultWindow_ApplyReturnedBallsNotice(usr);
 	                                        if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
                                             playerWins &&
                                             !usr->campaignPostgameFreeplayActive &&

@@ -459,181 +459,185 @@ TXL_STORY_40 =
 
 // Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself and promises that the player can save the world; the promise is deceptive (see lore.md).
 TXL_STORY_3002 =
-    "I am Ezekiel, first angel proud and bright.\n"
-    "I watched your throws while keeping out of sight.\n"
-    "Your gift shall help us save this world from sin,\n"
-    "From all the falsehood that has settled in.\n";
+    "I am Ezekiel, first angel of light.\n"
+    "I saw your throws and know your might.\n"
+    "Your gift can save a world gone wrong,\n"
+    "Where lies and evil reign so strong.\n";
 TXL_STORY_3102 =
-    "Your hand was steady, and your aim was bright.\n"
-    "The lane obeyed the covenant of flight.\n"
-    "Now leave this gentle ground and follow in,\n"
-    "Where sand conceals the marks of ancient sin.\n"; // Context: Speaker: Ezekiel. Level 2 completion, leading to the Red Desert.
+    "You rolled the ball with steady aim.\n"
+    "You played the lane and won the game.\n"
+    "Now through the desert lies our way,\n"
+    "Where sand hides sins of yesterday.\n"; // Context: Speaker: Ezekiel. Level 2 completion, leading to the Red Desert.
 TXL_STORY_3003 =
-    "This desert thirsts; corruption made it dry.\n"
-    "Its dust will choke the path where bowls must fly.\n"
-    "Anoint the lane with oil and incense, lest\n"
-    "The fire of cleansing leave your pride unblessed.\n"; // Context: Speaker: Ezekiel. Level 3 (Red Desert) introduction.
+    "No drop of water, no shade in sight;\n"
+    "The desert bakes in harsh sunlight.\n"
+    "Sand slows the ball upon the lane;\n"
+    "Use oil and incense once again.\n"; // Context: Speaker: Ezekiel. Level 3 (Red Desert) introduction.
 TXL_STORY_30031 =
-    "Perchance you strike the centre far too square.\n"
-    "The pins divide and leave their wound laid bare.\n"
-    "Come from the side; let hook and judgment bend.\n"
-    "A wiser line may make the split an end.\n"; // Context: Speaker: Ezekiel. Level 3 side-throw harassment after repeated splits.
+    "A hit dead centre splits the pins.\n"
+    "The gap may spoil your chance to win.\n"
+    "Try from the side to strike them right,\n"
+    "Or spin the ball and hit with might.\n"; // Context: Speaker: Ezekiel. Level 3 side-throw harassment after repeated splits.
 TXL_STORY_30032 =
-    "You cross the desert, yet the oil lies still.\n"
-    "Dry boards remember every boastful will.\n"
-    "Anoint the lane before your pride is tried.\n"
-    "Shall I unseal the oil and stand beside?\n"; // Context: Speaker: Ezekiel. Level 3 oil reminder when the player has not re-oiled.
+    "Mind how you roll beneath this sky;\n"
+    "In desert heat, the oil runs dry.\n"
+    "To let your ball glide as before,\n"
+    "Oil up the lane a little more.\n"; // Context: Speaker: Ezekiel. Level 3 oil reminder when the player has not re-oiled.
 TXL_STORY_3042 =
-    "Glass comes to you, a bright and cutting rain.\n"
-    "You may return that glittering pain again.\n"
-    "Break it with your ball, then cast it back at me.\n"
-    "The shattered pane can set your judgment free.\n"; // Context: Speaker: Ezekiel. Level 5 glass reminder when the player has not thrown glass back.
+    "You seem to like my rain of glass,\n"
+    "Too scared to throw it back, alas.\n"
+    "Glass slows the ball along its way;\n"
+    "Throw in time, or shards will spray.\n"; // Context: Speaker: Ezekiel. Level 5 glass reminder when the player has not thrown glass back.
 TXL_STORY_3050 =
-    "A rune has found you; do not let it sleep.\n"
-    "Drag it to the circle, where its vows will keep.\n"
-    "There let it turn with every curving throw.\n"
-    "Thus hidden power wakes, and comes to show.\n"; // Context: Speaker: Ezekiel. First rune discovery during the campaign: generic guidance on dragging a rune into the casting ring.
+    "Runes give you strength to best me yet.\n"
+    "The ring is where their spells are set.\n"
+    "Drag one inside to cast its spell;\n"
+    "Choose what to save and spend it well.\n"; // Context: Speaker: Ezekiel. First rune discovery during the campaign: generic guidance on dragging a rune into the casting ring.
 TXL_STORY_3051 =
-    "The rune can make a thunder from your ball.\n"
-    "Its loss may buy a harder enemy's fall.\n"
-    "Consider well the price before you choose.\n"
-    "A blast wins ground, yet leaves a ball to lose.\n"; // Context: Speaker: Ezekiel. Follow-up tutorial after the player first finds a Boom rune.
+    "Your ball will burst in one great blast.\n"
+    "That is the price when this is cast.\n"
+    "Drag to the ring to wake its might;\n"
+    "A shock wave smashes all in sight.\n"; // Context: Speaker: Ezekiel. Follow-up tutorial after the player first finds a Boom rune.
 TXL_STORY_3052 =
-    "A bolt is in your keeping, fierce and bright.\n"
-    "It may consume my rolling ball in light.\n"
-    "Yet I shall turn aside when danger nears.\n"
-    "Cast wisely, lest the thunder disappear.\n"; // Context: Speaker: Ezekiel. Follow-up tutorial after the player first finds a Bolt rune.
+    "Cast in the ring while there's time;\n"
+    "A bolt can burn this ball of mine.\n"
+    "Its fire can stop my rolling throw,\n"
+    "But I will try to dodge the blow.\n"; // Context: Speaker: Ezekiel. Follow-up tutorial after the player first finds a Bolt rune.
 TXL_STORY_3053 =
-    "Now you have magic to use against me?\n"
-    "Put it into the ball's spin circle to cast it.\n"; // Context: Speaker: Ezekiel. First Boom rune discovery during the campaign: casting-ring guidance, automatically followed by the Boom warning in story 3051.
+    "Runes give you strength to best me yet.\n"
+    "The ring is where their spells are set.\n"
+    "Drag one inside to cast its spell;\n"
+    "Choose what to save and spend it well.\n"; // Context: Speaker: Ezekiel. First Boom rune discovery during the campaign: casting-ring guidance, automatically followed by the Boom warning in story 3051.
 TXL_STORY_3054 =
-    "Now you have magic to use against me?\n"
-    "Put it into the ball's spin circle to cast it.\n"; // Context: Speaker: Ezekiel. First Bolt rune discovery during the campaign: casting-ring guidance, automatically followed by the Bolt warning in story 3052.
+    "Runes give you strength to best me yet.\n"
+    "The ring is where their spells are set.\n"
+    "Drag one inside to cast its spell;\n"
+    "Choose what to save and spend it well.\n"; // Context: Speaker: Ezekiel. First Bolt rune discovery during the campaign: casting-ring guidance, automatically followed by the Bolt warning in story 3052.
 TXL_STORY_3103 =
-    "You endured the desert, heat, and blinding sand.\n"
-    "Now coldness comes to take your footing from the land.\n"
-    "The path grows slick where every promise slips.\n"
-    "Walk true, lest ice undo your hands and hips.\n"; // Context: Speaker: Ezekiel. Level 3 completion, leading to the icy Level 4.
+    "No heat or drought can make you fold.\n"
+    "The hour of doom is close and cold.\n"
+    "We purged the world with heat before;\n"
+    "Now frost shall cleanse it even more.\n"; // Context: Speaker: Ezekiel. Level 3 completion, leading to the icy Level 4.
 TXL_STORY_3004 =
-    "Cold makes every surface treacherous and thin.\n"
-    "So souls may slide from where they might have been.\n"
-    "The womb, the road, the lane may lose their hold.\n"
-    "Keep straight your course; the careless drift grows cold.\n"; // Context: Speaker: Ezekiel. Level 4 introduction.
+    "We'll guard the earth in ice's embrace.\n"
+    "We'll freeze what fire could not erase.\n"
+    "The ball speeds down the frozen lane;\n"
+    "Keep straight despite the biting pain.\n"; // Context: Speaker: Ezekiel. Level 4 introduction.
 TXL_STORY_3104 =
-    "You did not slip; your path remained your own.\n"
-    "Now broken glass foretells a falling town.\n"
-    "A city's ruin starts where one small pane is torn.\n"
-    "Beyond that shining breach, Gomorrah shall be sworn.\n"; // Context: Speaker: Ezekiel. Level 4 completion, leading to the broken-glass level.
+    "You have no fear of ice or snow.\n"
+    "Those who can glide know where to go.\n"
+    "The frost will pass, the snow will thaw;\n"
+    "We press on still to purge each flaw.\n"; // Context: Speaker: Ezekiel. Level 4 completion, leading to the broken-glass level.
 TXL_STORY_3040 =
-    "This is as far as I may walk toward that town.\n"
-    "Beyond the glass, another angel wears the crown.\n"
-    "Cherubel's realm begins where my own charge must cease.\n"
-    "Go on; the broken window opens not to peace.\n"; // Context: Speaker: Ezekiel. Before Level 5 (Suburbia): Ezekiel introduces the broken-glass lesson; Cherubel is encountered in Level 6.
+    "The town of sin is drawing near,\n"
+    "But first we have some work out here.\n"
+    "What joy to smash each windowpane!\n"
+    "They've earned this fall of glassy rain.\n"; // Context: Speaker: Ezekiel. Before Level 5 (Suburbia): Ezekiel introduces the broken-glass lesson; Cherubel is encountered in Level 6.
 TXL_STORY_3041 =
-    "You felt the glass; its lesson has begun.\n"
-    "When turns are marked, return it with your own.\n"
-    "Watch for the sign that grants your answering throw.\n"
-    "Then cast the shards, and let the judgment flow.\n"; // Context: Speaker: Ezekiel. Level 5 first-glass tutorial.
+    "The glass I throw is yours to break;\n"
+    "Roll through; see the shards you make.\n"
+    "But at the far end of the lane,\n"
+    "You too can cast a glassy rain.\n"; // Context: Speaker: Ezekiel. Level 5 first-glass tutorial.
 TXL_STORY_3140 =
-    "My teaching ends beyond the broken frame.\n"
-    "Cherubel waits to teach a harsher game.\n"
-    "Go meet the keeper of Gomorrah's gate.\n"
-    "The city calls; its reckoning will not wait.\n"; // Context: Speaker: Ezekiel. Level 5 completion, before meeting Cherub.
+    "My road ends here; I cannot stay.\n"
+    "Let Cherubel now lead the way.\n"
+    "Go meet him at the city's gate,\n"
+    "And rid the world of sin and hate.\n"; // Context: Speaker: Ezekiel. Level 5 completion, before meeting Cherub.
 TXL_STORY_3141 =
-    "Before you meet him, seek the merchant's hall.\n"
-    "Each ball bears a different answer to your call.\n"
-    "Choose what suits your hand before the harder game.\n"
-    "Shall I open up the shop in your name?\n"; // Context: Speaker: Ezekiel. First shop prompt before the Cherub encounter.
+    "Before you go, stop at the store.\n"
+    "So many balls for you to explore!\n"
+    "Each has its traits, each has its grade;\n"
+    "Take care to choose how yours is made.\n"; // Context: Speaker: Ezekiel. First shop prompt before the Cherub encounter.
 TXL_STORY_3005 =
-    "I am Cherubel. Who enters Gomorrah's blight?\n"
-    "Here every sin takes root and calls itself a right.\n"
-    "Through glass, the city's stolen force becomes a crystal store.\n"
-    "Gather what it yields; the reckoning asks for more.\n"; // Context: Speaker: Cherubel. Level 6 (Gomorrah) introduction by Cherub.
+    "I am Cherubel. Who are you?\n"
+    "Gomorrah, town of sin, lies in view.\n"
+    "We'll gather crystals, shatter glass;\n"
+    "None of these sinners gets a pass.\n"; // Context: Speaker: Cherubel. Level 6 (Gomorrah) introduction by Cherub.
 TXL_STORY_3105 =
-    "You have entered Gomorrah, where the guilty hide.\n"
-    "Now cross the Desert of Power at my side.\n"
-    "There crystals wake to strength beneath the sand.\n"
-    "Take what the city stole from heaven's hand.\n"; // Context: Speaker: Cherubel. Level 6 completion, leading to the Energy Pyramid.
+    "Their way of life has sealed their fate;\n"
+    "We angels judge; we do not wait.\n"
+    "This town will soon be rubble here,\n"
+    "So let us leave as doom draws near.\n"; // Context: Speaker: Cherubel. Level 6 completion, leading to the Energy Pyramid.
 TXL_STORY_3006 =
-    "Through glass came gold; through gold came crystal light.\n"
-    "Turn crystals into energy and let NITRO ignite.\n"
-    "The world was drained; now take your measured share.\n"
-    "Its stolen strength is waiting in the air.\n"; // Context: Speaker: Cherubel. Level 7 (Energy Pyramid) introduction.
+    "Here, gates to other worlds lie wide.\n"
+    "The pyramid draws power inside.\n"
+    "We drain the earth to feed our might,\n"
+    "Though ruin be the price tonight.\n"; // Context: Speaker: Cherubel. Level 7 (Energy Pyramid) introduction.
 TXL_STORY_30061 =
-    "Your energy is full, yet still you spare the flame.\n"
-    "Press NITRO while the ball is in its game.\n"
-    "Let speed arrive, and let the lane be crossed.\n"
-    "Use what was gathered, lest its charge be lost.\n"; // Context: Speaker: Cherubel. Level 7 NOS reminder when it has not been used.
+    "Burn through your power; do not wait.\n"
+    "Press NITRO now; don't hesitate.\n"
+    "Let your ball shoot down the lane,\n"
+    "As speed surges through it again.\n"; // Context: Speaker: Cherubel. Level 7 NOS reminder when it has not been used.
 TXL_STORY_3106 =
-    "Carry this power onward through the shade.\n"
-    "The road to mines is choked with timber laid.\n"
-    "The forest stands where judgment must be brought.\n"
-    "Cut through its boughs, as prophecy has taught.\n"; // Context: Speaker: Cherubel. Level 7 completion, leading to the forest.
+    "What fate decreed is ours this hour.\n"
+    "We've claimed the crystals' full power.\n"
+    "We'll use its power for our own gain,\n"
+    "And bring mankind a world of pain.\n"; // Context: Speaker: Cherubel. Level 7 completion, leading to the forest.
 TXL_STORY_3007 =
-    "Cut down the trees; the world must lose its green.\n"
-    "Make desert of the place where life has been.\n"
-    "Yet keep the timber; stop the rolling sphere.\n"
-    "Against Seraphel, wood will serve you here.\n"; // Context: Speaker: Cherubel. Level 8 (Forest) introduction.
+    "No trees, no air; no air, no rain.\n"
+    "No water, life cannot remain.\n"
+    "We'll fell all trees, great and small;\n"
+    "They lived in sin, so let them fall.\n"; // Context: Speaker: Cherubel. Level 8 (Forest) introduction.
 TXL_STORY_3107 =
-    "You passed my final trial; our road divides.\n"
-    "Seraphel guards the mines where crystal power hides.\n"
-    "I enter not that depth; its keeper claims her due.\n"
-    "Go on, and let the buried dark receive you.\n"; // Context: Speaker: Cherubel. Level 8 completion, leading to Seraphel's mines.
+    "Wood blocks can stop the best of throws;\n"
+    "Our final match has reached its close.\n"
+    "To Seraphel's dark realm you go,\n"
+    "Down to the mines that lie below.\n"; // Context: Speaker: Cherubel. Level 8 completion, leading to Seraphel's mines.
 TXL_STORY_3008 =
-    "The plague is on Gomorrah; keep this secret near.\n"
-    "Its numbers fall, and purification draws them clear.\n"
-    "This is my final work; beyond it I shall part.\n"
-    "The city's fate is written in its heart.\n"; // Context: Speaker: Seraphel. Before Level 11 (Grey Desert / Cemetery): Seraphel describes the plague at Gomorrah.
+    "We angels keep this secret close:\n"
+    "For vile deeds, we sent them these woes.\n"
+    "The plague has thinned the human race;\n"
+    "No fatal thoughts now haunt this place.\n"; // Context: Speaker: Seraphel. Before Level 11 (Grey Desert / Cemetery): Seraphel describes the plague at Gomorrah.
 TXL_STORY_3108 =
-    "My work is done, but yours has just begun.\n"
-    "Gomorrah waits beneath a darkened sun.\n"
-    "Now Thrones receives you where the city stands.\n"
-    "Go on, and place its ending in your hands.\n"; // Context: Speaker: Seraphel. After winning Level 11, before Level 12: Seraphel departs and sends the player to Thrones in Gomorrah.
+    "My work is done; yours starts tonight.\n"
+    "Gomorrah must be set alight.\n"
+    "We part; an angel waits for you,\n"
+    "To help destroy the city too.\n"; // Context: Speaker: Seraphel. After winning Level 11, before Level 12: Seraphel departs and sends the player to Thrones in Gomorrah.
 TXL_STORY_3009 =
-    "I am Seraphel. These are Solomon's mines.\n"
-    "Beneath the earth, the crystal power shines.\n"
-    "It will not rise by mercy or by prayer.\n"
-    "Dig deep, and claim the force that slumbers there.\n"; // Context: Speaker: Seraphel. Level 9 (Mines) introduction by Seraphel.
+    "I'm Seraphel. These crystals shine\n"
+    "In Solomon's deep, hidden mine.\n"
+    "Deep in the earth, their layers lie,\n"
+    "Till time shall bid them burst on high.\n"; // Context: Speaker: Seraphel. Level 9 (Mines) introduction by Seraphel.
 TXL_STORY_3109 =
-    "The mines have yielded what the earth concealed.\n"
-    "Now to the plant, where hidden strength is sealed.\n"
-    "The crystals must be drawn to burning power.\n"
-    "Come; judgment ripens in this coming hour.\n"; // Context: Speaker: Seraphel. Level 9 completion, leading to the factory.
+    "The Lamb breaks yet another seal.\n"
+    "Each day, the kingdom grows more real.\n"
+    "Their fate is written in the sky:\n"
+    "The signs are clear; their end is nigh.\n"; // Context: Speaker: Seraphel. Level 9 completion, leading to the factory.
 TXL_STORY_3010 =
-    "Here crystals feed the engines, flame by flame.\n"
-    "The city's hands have stolen what they claim.\n"
-    "Draw out their strength; let none remain to hoard.\n"
-    "Their sin has weighed them in the angel's board.\n"; // Context: Speaker: Seraphel. Before Level 10 (Gas Factory): Seraphel demands the return of stolen energy.
+    "With mills and engines, night and day,\n"
+    "They drain the power we send their way.\n"
+    "The time has come to give it back,\n"
+    "And curb their sins with our attack.\n"; // Context: Speaker: Seraphel. Before Level 10 (Gas Factory): Seraphel demands the return of stolen energy.
 TXL_STORY_3110 =
-    "The engines have taken their appointed due.\n"
-    "The plague has passed, and made the living few.\n"
-    "Come to the graves beyond the city's wall.\n"
-    "There you will see what judgment calls us all.\n"; // Context: Speaker: Seraphel. After winning Level 10, before Level 11 (Grey Desert / Cemetery).
+    "Power returns to depths below.\n"
+    "They must give back each soul they owe.\n"
+    "If any still remain that day,\n"
+    "Our fire will burn them all away.\n"; // Context: Speaker: Seraphel. After winning Level 10, before Level 11 (Grey Desert / Cemetery).
 TXL_STORY_3011 =
-    "I am Thrones; Gomorrah's measure now is full.\n"
-    "Its lawless deeds have made its future null.\n"
-    "I know my weight, and what my falling brings.\n"
-    "Help set the city to ash beneath my wings.\n"; // Context: Speaker: Thrones. Level 12 introduction: Thrones judges Gomorrah.
+    "I am the fourth seal's angel here.\n"
+    "This town must blaze with fire and fear.\n"
+    "Its sinful deeds have earned the flame;\n"
+    "Now ash shall be its only name.\n"; // Context: Speaker: Thrones. Level 12 introduction: Thrones judges Gomorrah.
 TXL_STORY_3111 =
-    "Gomorrah burns; its smoke ascends the sky.\n"
-    "Its towers fail, its proud foundations die.\n"
-    "Yet one last work remains beyond this pyre.\n"
-    "The world itself must answer unto fire.\n"; // Context: Speaker: Thrones. Level 12 completion, leading to Judgment Day.
+    "Gomorrah burns; its smoke climbs high.\n"
+    "All life on earth turns ash and dies.\n"
+    "One final task before we part:\n"
+    "We'll strike at evil's very heart.\n"; // Context: Speaker: Thrones. Level 12 completion, leading to Judgment Day.
 TXL_STORY_3012 =
-    "This is Judgment Day; the final scale is set.\n"
-    "The earth is weighed against its ancient debt.\n"
-    "The Heavens watch as every old thing burns.\n"
-    "What came to pass shall meet what fire returns.\n"; // Context: Speaker: Thrones. Before Level 13 (Ashland / Judgment Day): Thrones announces the final trial.
+    "Judgment Day: the end comes fast.\n"
+    "Their endless pain shall cease at last.\n"
+    "Earth judged, its guilt now laid bare;\n"
+    "All burns to ash in fire's glare.\n"; // Context: Speaker: Thrones. Before Level 13 (Ashland / Judgment Day): Thrones announces the final trial.
 TXL_STORY_3112 =
-    "It came to pass: the earth was made to ash.\n"
-    "The old world vanished in the final flash.\n"
-    "Evil is ended; every trial is through.\n"
-    "There is no sin left, for no one remains but you.\n"; // Context: Speaker: Thrones. Level 13 completion and campaign ending.
+    "Evil is gone; the trial is done.\n"
+    "The old world cursed beneath the sun.\n"
+    "Purged by fire, all strife shall cease;\n"
+    "No people left to spoil the peace.\n"; // Context: Speaker: Thrones. Level 13 completion and campaign ending.
 TXL_STORY_32000 =
-    "I am Ezekiel; now plainly it may be said.\n"
-    "You passed the trials among the living and the dead.\n"
-    "You helped end evil, and the world is still.\n"
-    "What will you do next, now all obey your will?\n"; // Context: Speaker: Ezekiel. Post-campaign result dialog before random-game free play.
+    "Know me? I'm back to praise your skill.\n"
+    "Thanks to you, all evil lies still.\n"
+    "Well done! You laid the whole world low.\n"
+    "Choose where you wish from here to go.\n"; // Context: Speaker: Ezekiel. Post-campaign result dialog before random-game free play.
 TXL_STORY_OPTION_ENTER_TRAINING = "Enter training"; // Context: Choice button in Level 1 introductions/outros and the Level 2 recovery introduction: enter school.
 TXL_STORY_OPTION_YES = "Yes"; // Context: Confirmation button for switching school lessons; tutorial confirmation uses the separate YES_TUTORIAL key.
 TXL_STORY_OPTION_NO = "No"; // Context: Cancel button for switching school lessons; tutorial refusal uses the separate NO_TUTORIAL key.

@@ -450,185 +450,186 @@ TXL_STORY_40 = "Nelabai kaip sekasi? Gal verčiau atlikime praktiką, jeigu suri
 
 // Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself and promises that the player can save the world; the promise is deceptive (see lore.md).
 TXL_STORY_3002 =
-    "Aš, Ezekielis, pirmasis angelas išdidus.\n"
-    "Bet aš stebėjau tave, ir tavo metimus\n"
+    "Aš, Ezekielis, pirmasis angelas didus.\n"
+    "Aš stebėjau tave, ir tavo metimus\n"
     "Tavo talentas padės išgelbėti pasaulį.\n"
-    "Kurį užvaldė nuodėmė ir apgaulė.\n";
+    "Kurį seniai užvaldė blogis ir apgaulė.\n";
 TXL_STORY_3102 =
     "Turiu pasakyti kad tikrai neblogai\n"
     "Kamuolį per lentą tvirtai ridenai\n"
     "Toliau per dykumą veda šis kelias.\n"
-    "kur smėlis padengs nuodėmingas detales.\n"; // Context: Speaker: Ezekiel. Level 2 completion, leading to the Red Desert.
+    "Smėlis padengs nuodėmingas detales.\n"; // Context: Speaker: Ezekiel. Level 2 completion, leading to the Red Desert.
 TXL_STORY_3003 =
-    "Nedorybių karšta ir sausa,\n"
+    "Be lašo vandens, karšta ir sausa,\n"
     "Saulėje svyla ši plati dykuma.\n"
-    "Sunkiai rieda per lentą kai smėlis užbyra\n"
-    "Teks gerai ją įtrinti smilkalais ir alyva\n"; // Context: Speaker: Ezekiel. Level 3 (Red Desert) introduction.
+    "Sunkiai rieda per lentą, smėlis užbyra\n"
+    "Teks gerai įtrinti smilkalais ir alyva\n"; // Context: Speaker: Ezekiel. Level 3 (Red Desert) introduction.
 TXL_STORY_30031 =
     "Jei kalsi iš centro kėgliai išsižergs,\n"
     "Tarpas per vidurį kitam metimui pakenks.\n"
-    "Gal kalti iš šono apsimokėtų labiau,\n"
-    "O gal suktą paleisti ir mušt dar stipriau?\n"; // Context: Speaker: Ezekiel. Level 3 side-throw harassment after repeated splits.
+    "Gal iš šono apsimokėtų labiau,\n"
+    "Suktą paleisti ir mušt dar stipriau?\n"; // Context: Speaker: Ezekiel. Level 3 side-throw harassment after repeated splits.
 TXL_STORY_30032 =
     "Turi galvot ką darai kai aplink dykuma\n"
     "Alyva džiūsta greičiau kai žemė sausa.\n"
     "Jei nori kad slystų taip kaip anksčiau\n"
     "Sutepti tau lentą reikėtų dažniau\n"; // Context: Speaker: Ezekiel. Level 3 oil reminder when the player has not re-oiled.
 TXL_STORY_3042 =
-    "Gal tau ir patinka kai į tave krenta stiklai,\n"
-    "Bet juos mesti į mane gali ir tu,- ar žinai?\n"
-    "Daužydamas stiklą kamuolys greitį numes,\n"
-    "bet atlik tai laiku, nes teks valgyt šukes.\n"; // Context: Speaker: Ezekiel. Level 5 glass reminder when the player has not thrown glass back.
+    "Gal tau patinka kai į tave krenta stiklai,\n"
+    "Nes mest atgal, pastebėjau, bijai.\n"
+    "Stabdomas stiklo kamuolys greitį numes,\n"
+    "Tik paleisk laiku, nes teks gaudyt šukes.\n"; // Context: Speaker: Ezekiel. Level 5 glass reminder when the player has not thrown glass back.
 TXL_STORY_3050 =
     "Runos padės tau įveikti mane,\n"
-    "Bet kad jas panaudoti jos turi atsidurti rate\n"
+    "Bet tam jos turi atsidurti rate\n"
     "Tempk runą į ratą kad ją panaudoti\n"
-    "Tau spresti ką taupyti, o ką iškart išeikvoti\n"; // Context: Speaker: Ezekiel. First rune discovery during the campaign: generic guidance on dragging a rune into the casting ring.
+    "Tau spresti ką taupyti, o ką išeikvoti\n"; // Context: Speaker: Ezekiel. First rune discovery during the campaign: generic guidance on dragging a rune into the casting ring.
 TXL_STORY_3051 =
     "O, juk tai gali sukelti sprogimą?\n"
     "Aukoti kamuolį už žalos sukėlimą\n"
-    "kai ši runa atsidurs burtų rate,\n"
+    "Kai ši runa atsidurs burtų rate,\n"
     "Viską išdaužys galinga banga.\n"; // Context: Speaker: Ezekiel. Follow-up tutorial after the player first finds a Boom rune.
 TXL_STORY_3052 =
     "Jei mesi runą į ratą kol nevėlu,\n"
-    "sudegint mano kamuolį gali su trenksmu,\n"
-    "Žaibu sustabdyti ilgą metimą,\n"
-    "bet bandysiu vis tiek pabėgt nuo likimo.\n"; // Context: Speaker: Ezekiel. Follow-up tutorial after the player first finds a Bolt rune.
+    "Degint mano kamuolį gali su trenksmu,\n"
+    "Žaibu sustabdyti ilgą metimą;\n"
+    "Bandysiu vis tiek pabėgt nuo likimo.\n"; // Context: Speaker: Ezekiel. Follow-up tutorial after the player first finds a Bolt rune.
 TXL_STORY_3053 =
     "Runos padės tau įveikti mane,\n"
-    "Bet kad jas panaudoti jos turi atsidurti rate\n"
+    "Bet tam jos turi atsidurti rate\n"
     "Tempk runą į ratą kad ją panaudoti\n"
-    "Tau spresti ką taupyti, o ką iškart išeikvoti\n"; // Context: Speaker: Ezekiel. First Boom rune discovery during the campaign: casting-ring guidance, automatically followed by the Boom warning in story 3051.
+    "Tau spresti ką taupyti, o ką išeikvoti\n"; 
+    // Context: Speaker: Ezekiel. First Boom rune discovery during the campaign: casting-ring guidance, automatically followed by the Boom warning in story 3051.
 TXL_STORY_3054 =
     "Runos padės tau įveikti mane,\n"
-    "Bet kad jas panaudoti jos turi atsidurti rate\n"
+    "Bet tam jos turi atsidurti rate\n"
     "Tempk runą į ratą kad ją panaudoti\n"
-    "Tau spresti ką taupyti, o ką iškart išeikvoti\n"; // Context: Speaker: Ezekiel. First Bolt rune discovery during the campaign: casting-ring guidance, automatically followed by the Bolt warning in story 3052.
+    "Tau spresti ką taupyti, o ką išeikvoti\n"; 
 TXL_STORY_3103 =
-    "Tavęs nesustabdo nei karštis, nei sausra\n"
-    "Bausmė gula ant žemės, greit ateis valanda\n"
+    "Tavęs nestabdo nei karštis, nei sausra\n"
+    "Bausmė jau arti, greit ateis valanda\n"
     "Kai valėme pasaulį nuo blogio karščiu\n"
-    "Labai greit išbandysime ją paveikti šalčiu\n"; // Context: Speaker: Ezekiel. Level 3 completion, leading to the icy Level 4.
+    "Greit pabandysime ją paveikti šalčiu.\n"; // Context: Speaker: Ezekiel. Level 3 completion, leading to the icy Level 4.
 TXL_STORY_3004 =
-    "Kad apsaugoti žemę mes ją padengsim ledu.\n"
-    "Ko karštis pagailėjo mes sunaikinsim šalčiu\n"
-    "Kamuolys čiuožia greitai per sustingusį taką\n"
-    "Svarbu nenuslysti į šoną kai suriečia į ragą\n"; // Context: Speaker: Ezekiel. Level 4 introduction.
+    "Kad apsaugoti žemę ją padengsim ledu.\n"
+    "Ko karštis pagailėjo, sunaikinsim šalčiu\n"
+    "Kamuolys čiuožia greit per sustingusį taką\n"
+    "Svarbu nenuslysti, kai suriečia į ragą\n"; // Context: Speaker: Ezekiel. Level 4 introduction.
 TXL_STORY_3104 =
-    "Viena aišku ledas tau nebaisus.\n"
+    "Viena aišku - ledas tau nebaisus.\n"
     "Kas moka juo čiuožti tikrai nepražus.\n"
     "Po šalčių sniegas ištirps pagaliau\n"
     "O blogį naikinti mes eisim toliau.\n"; // Context: Speaker: Ezekiel. Level 4 completion, leading to the broken-glass level.
 TXL_STORY_3040 =
-    "Artėjam prie nuodėmių miesto, tačiau\n"
-    "Darbą atlikti mums reikia arčiau.\n"
-    "Langus daužyti yra baisiai smagu.\n"
-    "Jie nusipelnė to net su kaupu.\n"; // Context: Speaker: Ezekiel. Before Level 5 (Suburbia): Ezekiel introduces the broken-glass lesson; Cherubel is encountered in Level 6.
+    "Link nuodėmių miesto mes vis arčiau\n"
+    "Darbą atlikti mums reikia tačiau,\n"
+    "Langus daužyti yra baisiai smagu,\n"
+    "Jie to nusipelnė net su kaupu.\n"; // Context: Speaker: Ezekiel. Before Level 5 (Suburbia): Ezekiel introduces the broken-glass lesson; Cherubel is encountered in Level 6.
 TXL_STORY_3041 =
     "Stiklą kurį aš metu į tave\n"
-    "Gali nesunkiai pramušti - tai tau nebėda.\n"
+    "Pramušt nesunku - tai tau nebėda.\n"
     "Tik noriu priminti kad kelio gale\n"
     "Tu irgi gali mest stiklus į mane.\n"; // Context: Speaker: Ezekiel. Level 5 first-glass tutorial.
 TXL_STORY_3140 =
-    "Mano kelias čia baigtas, toliau eiti negaliu.\n"
+    "Mano kelias čia baigtas, aš toliau negaliu.\n"
     "Kerubas nuo šiol tebūnie tavo vedliu.\n"
     "Leisiu tau eiti į miestą ir jį pasitikt,\n"
-    "blogio naikinimo darbus atlikt.\n"; // Context: Speaker: Ezekiel. Level 5 completion, before meeting Cherub.
+    "Blogio naikinimo darbus atlikt.\n"; // Context: Speaker: Ezekiel. Level 5 completion, before meeting Cherub.
 TXL_STORY_3141 =
     "Prieš eidamas toliau, aplankyk parduotuvę.\n"
     "Skirtingi kamuoliai — kokių tik nebūna;\n"
-    "skirtingomis sąlygomis gali reikėti kitokio,\n"
-    "arba tiesiog atsinaujinti dėl geresnio grobio.\n"; // Context: Speaker: Ezekiel. First shop prompt before the Cherub encounter.
+    "Kiekvieno kamuolio yra unikalios savybės,\n"
+    "Ir ne visi kamuoliai vienodos kokybės.\n"; // Context: Speaker: Ezekiel. First shop prompt before the Cherub encounter.
 TXL_STORY_3005 =
-    "Aš, Kerubas. O kas esi tu?\n"
+    "Aš esu Kerubas. O kas esi tu?\n"
     "Čia nuodėmių miestas, Gomora vardu.\n"
-    "Toliau rinksime nitratus ir daužysime stiklus,\n"
-    "kol nubausime niekšus visus.\n"; // Context: Speaker: Cherubel. Level 6 (Gomorrah) introduction by Cherub.
+    "Mes rinksime nitratus ir daužysime stiklus,\n"
+    "Galiausiai nubausime niekšus visus.\n"; // Context: Speaker: Cherubel. Level 6 (Gomorrah) introduction by Cherub.
 TXL_STORY_3105 =
-    "Už tai kaip jie gyvena, ir kas jie yra\n"
+    "Už tai kaip jie gyvena, ateis jų valanda\n"
     "Jie bus nubausti, tai angelų pareiga.\n"
-    "Šis miestas netrukus ims virsti griuvėsiais.\n"
-    "Mes keliausim toliau iš kur nitratai šviečia.\n"; // Context: Speaker: Cherubel. Level 6 completion, leading to the Energy Pyramid.
+    "Miestas netrukus ims virsti griuvėsiais.\n"
+    "Išvykti greičiau mes todėl paskubėsim.\n"; // Context: Speaker: Cherubel. Level 6 completion, leading to the Energy Pyramid.
 TXL_STORY_3006 =
-    "Tai vartai per kuriuos mes patenkame čia,\n"
-    "Iš šitą pasaulį, ir paslapčia,\n"
-    "Mes siurbiame nitratų galią iš žemės gelmių.\n"
-    "Nors ir jie bandė pavogti ją iš angelų.\n"; // Context: Speaker: Cherubel. Level 7 (Energy Pyramid) introduction.
+    "Vartai į visatą atsiveria čia,\n"
+    "Pro šią piramidę jėgą siubiančią,\n"
+    "Mes semsime energiją iš žemės gelmių.\n"
+    "Net jei ir turės tai baisių pasekmių.\n"; // Context: Speaker: Cherubel. Level 7 (Energy Pyramid) introduction.
 TXL_STORY_30061 =
-    "Dabar mes galim degint nitratus, nieko nelauk.\n"
+    "Degink nitratus, nieko nelauk.\n"
     "Spausk \"NITRO\" pedalą ir neapsigauk.\n"
     "Tegul kamuolys greitai iššauna,\n"
-    "Kai nitratų energiją jis pasigauna.\n"; // Context: Speaker: Cherubel. Level 7 NOS reminder when it has not been used.
+    "Kai didelį greitį jis pasigauna.\n"; // Context: Speaker: Cherubel. Level 7 NOS reminder when it has not been used.
 TXL_STORY_3106 =
     "Kas buvo nulemta, tas jau padaryta.\n"
     "Didinga nitratų galia užvaldyta.\n"
     "Toliau ją naudosime savo reikmėms,\n"
-    "paruošime žmoniją žiaurioms pasekmėms.\n"; // Context: Speaker: Cherubel. Level 7 completion, leading to the forest.
+    "Paruošime žmoniją žiaurioms pasekmėms.\n"; // Context: Speaker: Cherubel. Level 7 completion, leading to the forest.
 TXL_STORY_3007 =
-    "Be medžių - nebus oro; Be oro nėr vandens;\n"
+    "Be medžių - nėr oro; Be oro nėr vandens;\n"
     "Be vandens - nebus gyvybės; jie neišgyvens;\n"
-    "Mes kirsime miškus, tol kol čia nieko nebebus,\n"
+    "Mes kirsime miškus, kol čia nieko nebus,\n"
     "Jie gyveno nuodėmingai ir todėl jie pražus.\n"; // Context: Speaker: Cherubel. Level 8 (Forest) introduction.
 TXL_STORY_3107 =
-    "Kaip ir neblogą metimą stabdo blokas medinis,\n"
+    "Net gerą metimą stabdo blokas medinis,\n"
     "deja, tarp mūsų šis bus paskutinis.\n"
     "Toliau tu keliausi į Serafelės valdas,\n"
-    "tau teks nusileisti į tamsias kasyklas.\n"; // Context: Speaker: Cherubel. Level 8 completion, leading to Seraphel's mines.
+    "Tau teks nusileisti į tamsias kasyklas.\n"; // Context: Speaker: Cherubel. Level 8 completion, leading to Seraphel's mines.
 TXL_STORY_3008 =
     "Tegul lieka tai mūsų, angelų, paslaptis:\n"
-    "už jų niekšybes jiems buvo atsiųsta mirtis.\n"
+    "Už jų niekšybes jiems buvo atsiųsta mirtis.\n"
     "Gyventojų skaičius sumažintas maro būdu;\n"
-    "žmonės išlaisvinti nuo begėdiškų minčių.\n"; // Context: Speaker: Seraphel. Before Level 11 (Grey Desert / Cemetery): Seraphel describes the plague at Gomorrah.
+    "Žmonės išlaisvinti nuo pražūtingų minčių.\n"; // Context: Speaker: Seraphel. Before Level 11 (Grey Desert / Cemetery): Seraphel describes the plague at Gomorrah.
 TXL_STORY_3108 =
-    "Mano darbas baigtas, bet tau tai tik pradžia.\n"
+    "Mano darbas baigtas, bet tau tik pradžia.\n"
     "Gomora privalo sudegti nakčia.\n"
     "Atėjo laikas mums išsiskirti;\n"
-    "kitas angelas tau padės miestą naikinti.\n"; // Context: Speaker: Seraphel. After winning Level 11, before Level 12: Seraphel departs and sends the player to Thrones in Gomorrah.
+    "Kitas angelas padės tau miestą naikinti.\n"; // Context: Speaker: Seraphel. After winning Level 11, before Level 12: Seraphel departs and sends the player to Thrones in Gomorrah.
 TXL_STORY_3009 =
     "Aš — Serafelė, o čia kristalų saugyklos,\n"
     "Karaliaus Saliamono nitratų kasyklos.\n"
     "Nitratų sankloda giliai po žeme\n"
-    "prasiverš į paviršių, kai išauš valanda.\n"; // Context: Speaker: Seraphel. Level 9 (Mines) introduction by Seraphel.
+    "Prasiverš į paviršių, kai išauš valanda.\n"; // Context: Speaker: Seraphel. Level 9 (Mines) introduction by Seraphel.
 TXL_STORY_3109 =
     "Avinėlis nuplėšia antspaudą dar vieną.\n"
-    "Karalystė ateina vis arčiau kiekvieną dieną.\n"
+    "Karalystė ateina arčiau kiekvieną dieną.\n"
     "Jų likimą nulėmė ženklai danguje —\n"
-    "šviečia aiškiai: tai išnykimo pradžia.\n"; // Context: Speaker: Seraphel. Level 9 completion, leading to the factory.
+    "Šviečia aiškiai: tai išnykimo pradžia.\n"; // Context: Speaker: Seraphel. Level 9 completion, leading to the factory.
 TXL_STORY_3010 =
-    "Nitratus vagia apsistatę fabrikais ir mašinomis;\n"
-    "jie siurbia galią, kurią mes gaminame.\n"
+    "Apsistatę mechanizmais, fabrikais ir mašinomis;\n"
+    "Jie siurbia galią, kurią mes gaminame.\n"
     "Laikas atėjo viską atiduoti,\n"
-    "nubausti ir nedorybes pažaboti.\n"; // Context: Speaker: Seraphel. Before Level 10 (Gas Factory): Seraphel demands the return of stolen energy.
+    "Nubausti ir nedorybes pažaboti.\n"; // Context: Speaker: Seraphel. Before Level 10 (Gas Factory): Seraphel demands the return of stolen energy.
 TXL_STORY_3110 =
-    "Nitratai grįžta atgal į žemės gelmes.\n"
+    "Grįžta atgal į žemės gelmes.\n"
     "Jie privalo grąžinti sielas visas.\n"
-    "O to, ko nespės iki tol sugrąžinti,\n"
-    "mes paleisime ugnį kartu su jais sunaikinti.\n"; // Context: Speaker: Seraphel. After winning Level 10, before Level 11 (Grey Desert / Cemetery).
+    "O jei nespės iki tol sugrąžinti,\n"
+    "Mes paleisime ugnį galutinai sunaikinti.\n"; // Context: Speaker: Seraphel. After winning Level 10, before Level 11 (Grey Desert / Cemetery).
 TXL_STORY_3011 =
     "Aš esu ketvirtojo antspaudo angelas,\n"
     "Šitas miestas privalo degti kaip fakelas.\n"
     "Jie pagarsėjo savo nuodėmingais darbais.\n"
-    "Laikas atėjo paversti Gomorą pelenais.\n"; // Context: Speaker: Thrones. Level 12 introduction: Thrones judges Gomorrah.
+    "Laikas atėjo pavirst pelenais.\n"; // Context: Speaker: Thrones. Level 12 introduction: Thrones judges Gomorrah.
 TXL_STORY_3111 =
     "Gomora liepsnoja, ir jos dūmai kyla.\n"
-    "pelenais virsta visa, kas žemėje gyva.\n"
-    "Kitas darbas bus paskutinis —\n"
-    "galutinai sunaikinsime blogio šaltinį.\n"; // Context: Speaker: Thrones. Level 12 completion, leading to Judgment Day.
+    "Pelenais virsta visa, kas žemėje gyva.\n"
+    "Kitas darbas tau jau bus paskutinis —\n"
+    "Galutinai sunaikinsime blogio šaltinį.\n"; // Context: Speaker: Thrones. Level 12 completion, leading to Judgment Day.
 TXL_STORY_3012 =
     "Tai Teismo diena, pabaigos pradžia.\n"
-    "Greitai pasibaigs jų baisioji kančia.\n"
+    "Pasibaigs pagaliau jų amžinoji kančia.\n"
     "Žemė pasverta, jie pripažinti kaltais;\n"
-    "viskas sudegs ir pavirs pelenais.\n"; // Context: Speaker: Thrones. Before Level 13 (Ashland / Judgment Day): Thrones announces the final trial.
+    "Viskas sudegs ir pavirs pelenais.\n"; // Context: Speaker: Thrones. Before Level 13 (Ashland / Judgment Day): Thrones announces the final trial.
 TXL_STORY_3112 =
     "Blogis sunaikintas, išbandymas baigtas,\n"
-    "senasis pasaulis buvo prakeiktas.\n"
+    "Senasis pasaulis buvo prakeiktas.\n"
     "Išvalytas ugnimi, dabar jau ramu;\n"
-    "neliko nuodėmės, nes nebeliko žmonių.\n"; // Context: Speaker: Thrones. Level 13 completion and campaign ending.
+    "Neliko nuodėmės, nes nebeliko žmonių.\n"; // Context: Speaker: Thrones. Level 13 completion and campaign ending.
 TXL_STORY_32000 =
     "Ar prisimeni mane? Aš sugrįžau.\n"
     "Blogis nugalėtas — už tai ačiū tik tau.\n"
-    "Grįžau pasveikinti: pavyko viską sunaikinti.\n"
-    "Ką darysi toliau — tiktai tau pasirinkti.\n"; // Context: Speaker: Ezekiel. Post-campaign result dialog before random-game free play.
+    "Grįžau pasveikinti: tau pavyko sunaikinti.\n"
+    "Ką darysi toliau — gali pasirinkti.\n"; // Context: Speaker: Ezekiel. Post-campaign result dialog before random-game free play.
 TXL_STORY_OPTION_ENTER_TRAINING = "Eiti į praktiką"; // Context: Choice button in Level 1 introductions/outros and the Level 2 recovery introduction: enter school.
 TXL_STORY_OPTION_YES = "Yes"; // Context: Confirmation button for switching school lessons; tutorial confirmation uses the separate YES_TUTORIAL key.
 TXL_STORY_OPTION_NO = "No"; // Context: Cancel button for switching school lessons; tutorial refusal uses the separate NO_TUTORIAL key.

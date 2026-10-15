@@ -103,8 +103,14 @@ TEST_CASE("Bowling and bonus results show one currency total, with bowling score
         const auto boards = Clay_GetElementData(CLAY_ID("ResultScoreboards"));
         CHECK(boards.found);
         CHECK(boards.boundingBox.y >= totals.boundingBox.y + totals.boundingBox.height);
+        CHECK_FALSE(Clay_GetElementData(CLAY_ID("ResultScoreboardFrames")).found);
+        const auto first = Clay_GetElementData(CLAY_IDI("ResultThrowSlot", 0)).boundingBox;
+        const auto second = Clay_GetElementData(CLAY_IDI("ResultThrowSlot", 1)).boundingBox;
+        CHECK(second.x >= first.x + first.width);
+        CHECK(first.width == doctest::Approx(second.width));
         CHECK_FALSE(Clay_GetElementData(CLAY_ID("NewGameCoinsPanel")).found);
-        CHECK(ResultContainsText(commands, "Total $"));
+        CHECK(ResultContainsText(commands, "Total"));
+        CHECK(ResultContainsText(commands, "$ 5"));
         CHECK_FALSE(ResultContainsText(commands, "COINS OBTAINED"));
     }
     SUBCASE("Minigame")
@@ -112,7 +118,8 @@ TEST_CASE("Bowling and bonus results show one currency total, with bowling score
         const auto commands = RenderResultFixture(ui);
         CHECK_FALSE(Clay_GetElementData(CLAY_ID("ResultScoreboards")).found);
         CHECK_FALSE(Clay_GetElementData(CLAY_ID("NewGameCoinsPanel")).found);
-        CHECK(ResultContainsText(commands, "Total $"));
+        CHECK(ResultContainsText(commands, "Total"));
+        CHECK(ResultContainsText(commands, "$ 5"));
         CHECK_FALSE(ResultContainsText(commands, "COINS OBTAINED"));
     }
     delete ui;

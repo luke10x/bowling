@@ -125,8 +125,6 @@ static inline void NewGame_RenderScoreboardRow(Clayton *clayton, int role)
                 ? Clayton::rollSymbol2(third, frame.roll3, frame.roll2, frame.roll3 == 10,
                     frame.roll1 == 10 && frame.roll2 >= 0 && frame.roll2 < 10 && frame.roll2 + frame.roll3 == 10, true)
                 : CLAY_STRING("");
-            Clay_String rolls = ClayArena_FormatString(&clayton->clayArena, "%.*s %.*s%s%.*s",
-                r1.length, r1.chars, r2.length, r2.chars, i == 9 ? " " : "", r3.length, r3.chars);
             Clay_String score = scores[i] < 0 ? CLAY_STRING("")
                 : ClayArena_FormatString(&clayton->clayArena, "%d", scores[i]);
             CLAY(CLAY_IDI("ResultScoreboardFrame", role * 10 + i),
@@ -134,9 +132,30 @@ static inline void NewGame_RenderScoreboardRow(Clayton *clayton, int role)
                              .padding = {1, 1, 4, 4}, .childGap = 2,
                              .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                              .layoutDirection = CLAY_TOP_TO_BOTTOM},
-                  .backgroundColor = role == 0 ? Clay_Color{38, 66, 110, 225} : Clay_Color{95, 42, 52, 225}})
+                  .backgroundColor = role == 0 ? Clay_Color{38, 66, 110, 225} : Clay_Color{95, 42, 52, 225},
+                  .cornerRadius = {
+                      .topLeft = role == 0 && i == 0 ? float(CLAY_RADIUS_SM) : 0.0f,
+                      .topRight = role == 0 && i == 9 ? float(CLAY_RADIUS_SM) : 0.0f,
+                      .bottomLeft = (role == 1 || !clayton->newGameShowOpponent) && i == 0 ? float(CLAY_RADIUS_SM) : 0.0f,
+                      .bottomRight = (role == 1 || !clayton->newGameShowOpponent) && i == 9 ? float(CLAY_RADIUS_SM) : 0.0f,
+                  }})
             {
-                CLAY_TEXT(rolls, CLAY_TEXT_CONFIG(rollCfg));
+                CLAY(CLAY_IDI("ResultFrameThrows", role * 10 + i),
+                     {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIT()},
+                                 .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+                {
+                    const Clay_String symbols[] = {r1, r2, r3};
+                    for (int roll = 0; roll < (i == 9 ? 3 : 2); ++roll)
+                    {
+                        CLAY(CLAY_IDI("ResultThrowSlot", role * 30 + i * 3 + roll),
+                             {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIT()},
+                                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                        {
+                            CLAY_TEXT(ClayArena_FormatString(&clayton->clayArena, "%.*s",
+                                symbols[roll].length, symbols[roll].chars), CLAY_TEXT_CONFIG(rollCfg));
+                        }
+                    }
+                }
                 CLAY_TEXT(score, CLAY_TEXT_CONFIG(textCfg));
             }
         }
@@ -146,30 +165,13 @@ static inline void NewGame_RenderScoreboardRow(Clayton *clayton, int role)
 static inline void NewGame_RenderScoreboards(Clayton *clayton)
 {
     if (!clayton->newGameShowScores) return;
-    Clay_TextElementConfig labelCfg = CLAY_THEME_TEXT_LABEL;
-    labelCfg.fontSize = 12;
-    labelCfg.wrapMode = CLAY_TEXT_WRAP_NONE;
     CLAY(CLAY_ID("ResultScoreboards"),
          {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 3,
                      .layoutDirection = CLAY_TOP_TO_BOTTOM}})
     {
-        CLAY(CLAY_ID("ResultScoreboardFrames"),
-             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                         .childGap = 1, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
-        {
-            for (int i = 0; i < 10; ++i)
-            {
-                CLAY(CLAY_IDI("ResultFrameNumber", i),
-                     {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIT()},
-                                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
-                { CLAY_TEXT(ClayArena_FormatString(&clayton->clayArena, "%d", i + 1), CLAY_TEXT_CONFIG(labelCfg)); }
-            }
-        }
-        CLAY_TEXT(clayton->txl(TXL_YOU), CLAY_TEXT_CONFIG(labelCfg));
         NewGame_RenderScoreboardRow(clayton, 0);
         if (clayton->newGameShowOpponent)
         {
-            CLAY_TEXT(ClayArena_FormatString(&clayton->clayArena, "%s", clayton->newGameOpponentLabel), CLAY_TEXT_CONFIG(labelCfg));
             NewGame_RenderScoreboardRow(clayton, 1);
         }
     }
@@ -192,9 +194,10 @@ static inline void NewGame_RenderMoneyRow(
         amountCfg.fontSize = 28;
         amountCfg.textColor = {255, 222, 45, 255};
     }
-    Clay_String nameText = ClayArena_FormatString(&clayton->clayArena, totalRow ? "%s $" : "%s", name ? name : "");
+    Clay_String nameText = ClayArena_FormatString(&clayton->clayArena, "%s", name ? name : "");
     Clay_String formulaText = ClayArena_FormatString(&clayton->clayArena, "%s", formula ? formula : "");
-    Clay_String amountText = ClayArena_FormatString(&clayton->clayArena, "%d", amount);
+    amountCfg.wrapMode = CLAY_TEXT_WRAP_NONE;
+    Clay_String amountText = ClayArena_FormatString(&clayton->clayArena, totalRow ? "$ %d" : "%d", amount);
     CLAY(
         CLAY_IDI("NewGameMoneyRow", id),
         {
@@ -238,7 +241,7 @@ static inline void NewGame_RenderMoneyRow(
             CLAY_IDI("NewGameMoneyAmount", id),
             {
                 .layout = {
-                    .sizing = {CLAY_SIZING_FIXED(76), CLAY_SIZING_GROW()},
+                    .sizing = {totalRow ? CLAY_SIZING_FIT(76) : CLAY_SIZING_FIXED(76), CLAY_SIZING_GROW()},
                     .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_CENTER},
                 },
             }

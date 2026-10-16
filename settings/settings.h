@@ -7,6 +7,7 @@ struct GameSettings
     Clayton_Slider snowflakeSlider;
     int maxSnowflakes = 0;
     int snowflakeCount = 0;
+    bool extraParticlesEnabled = true;
     enum WebUpdateStatus
     {
         WEB_UPDATE_UNSUPPORTED = 0,

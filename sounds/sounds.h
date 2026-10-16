@@ -41,7 +41,7 @@ struct SoundSettings
     // Labels for buttons
     char musicVolLabels[5][10];
     char sfxVolLabels[5][10];
-    char bufferLabels[4][10];
+    char bufferLabels[5][10];
     int bufferSize = DEFAULT_AUDIO_BUFFER_SIZE;
     
     // Song names for display
@@ -403,6 +403,7 @@ inline int Sound_ClampAudioBufferSize(int samples)
     case 1024:
     case 2048:
     case 4096:
+    case 8192:
         return samples;
     default:
         return DEFAULT_AUDIO_BUFFER_SIZE;

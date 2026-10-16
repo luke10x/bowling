@@ -221,6 +221,21 @@ struct ShaderProgram
     static const char *DEFAULT_VERTEX_SHADER;
     static const char *DEFAULT_FRAGMENT_SHADER;
     GLuint id;
+    GLuint cachedRenderProgram = 0;
+    GLint projectionLocation = -1;
+    GLint modelLocation = -1;
+    GLint viewLocation = -1;
+    GLuint cachedMaterialProgram = 0;
+    GLint textureScaleLocation = -1;
+    GLint tileSizeLocation = -1;
+    GLint atlasStartLocation = -1;
+    GLint atlasScaleLocation = -1;
+    GLint useAtlasRectLocation = -1;
+    GLint tintColorLocation = -1;
+    GLint tintMixLocation = -1;
+    GLint alphaMultiplierLocation = -1;
+
+    void cacheMaterialUniforms();
 
     void initDefaultShaderProgram();
 
@@ -505,6 +520,8 @@ void ShaderProgram::initDefaultShaderProgram()
     this->id = vtx::createShaderProgram(
         ShaderProgram::DEFAULT_VERTEX_SHADER,
         ShaderProgram::DEFAULT_FRAGMENT_SHADER);
+    cachedRenderProgram = 0;
+    cachedMaterialProgram = 0;
     updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
 }
 
@@ -514,6 +531,22 @@ void ShaderProgram::initShaderProgram(
 {
     this->id = vtx::createShaderProgram(
         vertexShaderText, fragmentShaderText);
+    cachedRenderProgram = 0;
+    cachedMaterialProgram = 0;
+}
+
+void ShaderProgram::cacheMaterialUniforms()
+{
+    if (cachedMaterialProgram == this->id) return;
+    textureScaleLocation = glGetUniformLocation(this->id, "u_textureScale");
+    tileSizeLocation = glGetUniformLocation(this->id, "u_tileSize");
+    atlasStartLocation = glGetUniformLocation(this->id, "u_atlasStart");
+    atlasScaleLocation = glGetUniformLocation(this->id, "u_atlasScale");
+    useAtlasRectLocation = glGetUniformLocation(this->id, "u_useAtlasRect");
+    tintColorLocation = glGetUniformLocation(this->id, "u_tintColor");
+    tintMixLocation = glGetUniformLocation(this->id, "u_tintMix");
+    alphaMultiplierLocation = glGetUniformLocation(this->id, "u_alphaMultiplier");
+    cachedMaterialProgram = this->id;
 }
 
 void ShaderProgram::updateBoneTransformData(const std::vector<glm::mat4> &transformMatrices)
@@ -572,14 +605,15 @@ void ShaderProgram::updateUseTextureAlpha(bool useTextureAlpha)
 void ShaderProgram::updateColorTintMix(glm::vec3 tintColor, float tintMix, float alphaMultiplier)
 {
     glUseProgram(this->id);
+    cacheMaterialUniforms();
     glUniform3f(
-        glGetUniformLocation(this->id, "u_tintColor"),
+        tintColorLocation,
         tintColor.x,
         tintColor.y,
         tintColor.z
     );
-    glUniform1f(glGetUniformLocation(this->id, "u_tintMix"), tintMix);
-    glUniform1f(glGetUniformLocation(this->id, "u_alphaMultiplier"), alphaMultiplier);
+    glUniform1f(tintMixLocation, tintMix);
+    glUniform1f(alphaMultiplierLocation, alphaMultiplier);
 }
 
 /**
@@ -663,27 +697,30 @@ void ShaderProgram::updateTextureParamsInOneGo(
     float atlasScale
 ) {
     glUseProgram(this->id);
+    cacheMaterialUniforms();
 
     glUniform3f(
-        glGetUniformLocation(this->id, "u_textureScale"),
+        textureScaleLocation,
         textureScaling.x,
         textureScaling.y,
         textureScaling.z);
     glUniform2f(
-        glGetUniformLocation(this->id, "u_tileSize"),
+        tileSizeLocation,
         tileSize.x,
         tileSize.y);
     glUniform2f(
-        glGetUniformLocation(this->id, "u_atlasStart"),
+        atlasStartLocation,
         atlasStart.x, atlasStart.y);
     glUniform1f(
-        glGetUniformLocation(this->id, "u_atlasScale"),
+        atlasScaleLocation,
         atlasScale);
     glUniform1f(
-        glGetUniformLocation(this->id, "u_useAtlasRect"),
+        useAtlasRectLocation,
         0.0f);
 
+#if defined(VTX_GL_CHECK_HOT_PATH)
     checkOpenGLError();
+#endif
 }
 
 // NOTE: this goes hand-in-hand with the lightSpaceMatrix bellow
@@ -722,24 +759,30 @@ void ShaderProgram::renderRealMesh(
     glm::mat4 projectionMatrix)
 {
     glUseProgram(this->id);
+    if (cachedRenderProgram != this->id)
+    {
+        projectionLocation = glGetUniformLocation(this->id, "u_projection");
+        modelLocation = glGetUniformLocation(this->id, "u_modelToWorld");
+        viewLocation = glGetUniformLocation(this->id, "u_worldToView");
+        cachedRenderProgram = this->id;
+    }
 
     glUniformMatrix4fv(
-        glGetUniformLocation(
-            this->id, "u_projection"),   // uniform location
+        projectionLocation,               // uniform location
         1,                               // number of matrices
         GL_FALSE,                        // transpose
         glm::value_ptr(projectionMatrix) // value
     );
 
     glUniformMatrix4fv(
-        glGetUniformLocation(this->id, "u_modelToWorld"), // uniform location
+        modelLocation, // uniform location
         1,                                                // number of matrices
         GL_FALSE,                                         // transpose
         glm::value_ptr(modelMatrix)                       // value
     );
 
     glUniformMatrix4fv(
-        glGetUniformLocation(this->id, "u_worldToView"), // uniform location
+        viewLocation, // uniform location
         1,                                               // number of matrices
         GL_FALSE,                                        // transpose
         glm::value_ptr(cameraMatrix)                     // value

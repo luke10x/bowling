@@ -85,6 +85,7 @@ extern "C" void Tracker_NativeSetSongFileCallbacks(
 #include "electroball.h"
 #include "pin_electric_veins.h"
 #include "fpscounter.h"
+#include "frame_profile_graph.h"
 #include "hiscore/hiscore_clay.h"
 #include "hiscore/localhi.h"
 #include "hooker.h"
@@ -1190,6 +1191,8 @@ struct UserContext
     ExplosionFx explosion;
     Tween<float> auroraVibe;
     FpsCounter fpsCounter;
+    FrameProfileGraph frameProfileGraph;
+    bool showFrameProfileGraph = true;
     uint64_t lastFrameTime = 0;
     TimePoint last = Clock::now();
     uint64_t totalFrames = 0;
@@ -3589,6 +3592,9 @@ static inline void RenderWorldCollectables3D(
         usr->mainShader.updateUseTextureAlpha(false);
     }
 
+    static thread_local std::vector<InstanceData> collectableInstances;
+    collectableInstances.clear();
+    collectableInstances.reserve(usr->coinLane.getActiveCount());
     for (int i = 0; i < usr->coinLane.getActiveCount(); i++)
     {
         const Coin &coin = usr->coinLane.getCoins()[i];
@@ -3613,12 +3619,33 @@ static inline void RenderWorldCollectables3D(
         if (!coin.isRenderable())
             continue;
 
-        AssetMesh *collectableMesh = isGem ? gemCollectableMesh : coinCollectableMesh;
         const float collectableWorldScale = isGem ? 0.34f : 0.25f;
-        glm::mat4 model = glm::scale(coin.transform, glm::vec3(collectableWorldScale));
+        glm::mat4 rotation = glm::rotate(glm::mat4(1.0f), coin.rotation, glm::vec3(0.0f, 1.0f, 0.0f));
         if (isGem)
-            model = glm::rotate(model, 0.35f, glm::vec3(1.0f, 0.0f, 0.0f));
-        usr->mainShader.renderRealMesh(*collectableMesh, model, usr->cameraMat, usr->perspectiveMat);
+            rotation = glm::rotate(rotation, 0.35f, glm::vec3(1.0f, 0.0f, 0.0f));
+        InstanceData instance{};
+        instance.instRot = glm::quat_cast(glm::mat3(rotation));
+        instance.textureScale = glm::vec3(1.0f);
+        instance.positionOffset = coin.position;
+        instance.scaleOffset = glm::vec3(coin.scale * collectableWorldScale);
+        instance.atlasStart = glm::vec2(0.0f);
+        collectableInstances.push_back(instance);
+    }
+
+    if (!collectableInstances.empty())
+    {
+        AssetMesh *collectableMesh = renderGems ? gemCollectableMesh : coinCollectableMesh;
+        // The same meshes are used by later HUD animations, so restore their
+        // previous instance data immediately after this world-space batch.
+        std::vector<InstanceData> savedInstances;
+        savedInstances.swap(collectableMesh->instanceData);
+        collectableMesh->instanceData.swap(collectableInstances);
+        collectableMesh->sendInstanceDataToGpu();
+        usr->mainShader.renderRealMesh(
+            *collectableMesh, glm::mat4(1.0f), usr->cameraMat, usr->perspectiveMat);
+        collectableInstances.swap(collectableMesh->instanceData);
+        collectableMesh->instanceData.swap(savedInstances);
+        collectableMesh->sendInstanceDataToGpu();
     }
 
     if (pass == CollectableRenderPass::GemsAll ||
@@ -18604,6 +18631,7 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->thunder.initThunder();
         usr->explosion.initExplosion();
 	    usr->fpsCounter.initFpsCounter();
+	    usr->frameProfileGraph.init();
 	    usr->particles.init();
         usr->wings.initWings();
         usr->particles.setSnowflakeCount(usr->settings.snowflakeCount);
@@ -18769,6 +18797,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.minigameCrowdControlClick, "minigameCrowdControl");
     initClaytonClick(&usr->clayton.bonusPlayClick, "bonusPlay");
     initClaytonClick(&usr->clayton.settingsCloseClick, "settingsClose");
+    initClaytonClick(&usr->clayton.settingsExtraParticlesClick, "settingsExtraParticles");
     initClaytonClick(&usr->clayton.settingsResetCampaignClick, "settingsResetCampaign");
     initClaytonClick(&usr->clayton.settingsResetProgressClick, "settingsResetProgress");
     initClaytonClick(&usr->clayton.settingsResetConfirmYesClick, "settingsResetConfirmYes");
@@ -19216,6 +19245,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
 #endif
 
+    usr->frameProfileGraph.beginFrame();
     float deltaTime = (float)usr->fpsCounter.startFrame();
     const float safeDeltaTime = std::isfinite(deltaTime) ? glm::clamp(deltaTime, 0.0f, 0.100f) : (1.0f / 60.0f);
     const bool lowFpsAimSwingFrame = safeDeltaTime > (1.0f / 28.0f);
@@ -19727,6 +19757,11 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
         }
 
+        if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_F3 && e.key.repeat == 0)
+        {
+            usr->showFrameProfileGraph = !usr->showFrameProfileGraph;
+            continue;
+        }
         usr->imgui.processEvent(&e, ctx);
 
         float pixelRatio = ctx->pixelRatio;
@@ -21135,6 +21170,8 @@ void vtx::loop(vtx::VertexContext *ctx)
     if (modalWindowActiveNow || usr->dialog.active)
         UI_DismissTransientOverlaysForDialog(usr);
 
+    usr->frameProfileGraph.mark(FrameProfileGraph::Events);
+
     // School Lesson 4 completion: show completion story after the player closes the Oil window.
     // This must be per-frame (not tied to SDL events), otherwise the dialog may never open
     // if the player stops moving/clicking right after completion.
@@ -21583,6 +21620,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
     }
 
+    usr->frameProfileGraph.mark(FrameProfileGraph::State);
     /* Stuff that depends on ball stats, and affects every frame */ {
         // Moved to BallStats_EveryFrame
     }
@@ -22493,6 +22531,7 @@ swing_checks_done:
         }
     }
 
+    usr->frameProfileGraph.mark(FrameProfileGraph::Controls);
     glm::vec3 IDLE_BALL_POS = Scene_IdleBallPos(usr->scene);
 
     float yFactor = 0.0f;
@@ -24037,6 +24076,7 @@ swing_checks_done:
     usr->enemyNosBoostedThisFrame = false;
     usr->playerNosUsageActiveThisFrame = false;
     usr->enemyNosUsageActiveThisFrame = false;
+    usr->frameProfileGraph.mark(FrameProfileGraph::RollAndScore);
     float physicsInterval = 0.500f; // Default physics is 2 times a second
     if (usr->phase == UserContext::Phase::IDLE)
     {
@@ -24075,6 +24115,7 @@ swing_checks_done:
         RuneFootball_RefreshRestitutionForLaneZ(usr);
         if (gameplayDeltaTime > 0.0f)
 	        usr->phy.physics_step(gameplayDeltaTime, physicsInterval);
+    usr->frameProfileGraph.mark(FrameProfileGraph::Physics);
         Enemy_TickInFlightAimAssist(usr, gameplayDeltaTime);
         const bool playerNosArmed = ShouldShowNosToolbar(usr) && usr->nosHeld;
         const bool playerNosCanBoost = playerNosArmed && usr->phy.is_ball_physics_active();
@@ -25243,14 +25284,27 @@ END_LINE:
         usr->circle.resetCircle();
     }
 
+    usr->frameProfileGraph.mark(FrameProfileGraph::Updates);
 	    // ===== [NEW] PRE-PASS: Render ball to texture for UI =====
 
+    // Render UI previews only while a window that displays them is open.
+    // Carousel indices remain valid after closing the shop, so indices alone
+    // must not trigger the three ball FBO renders during gameplay.
+    const bool campaignLevelDetailPreviewActive =
+        usr->windowStack.count > 0 &&
+        usr->windowStack.kinds[usr->windowStack.count - 1] == WindowKind_CampaignLevelDetail;
+    const bool ballShopPreviewActive = usr->shouldShowShop &&
+        !campaignLevelDetailPreviewActive && !usr->clayton.shouldShowBotSelect &&
+        !usr->clayton.shouldShowHouses && !usr->clayton.shouldShowOilStatus;
+    const bool windowPreviewActive = campaignLevelDetailPreviewActive ||
+        usr->clayton.shouldShowBotSelect || usr->clayton.shouldShowHouses ||
+        ballShopPreviewActive || usr->clayton.shouldShowOilStatus;
+
     // (Do this AFTER ballModel is computed, BEFORE any rendering)
-    if (!trackerOnlyMode)
+    if (!trackerOnlyMode && windowPreviewActive)
 	    {
         ZONE("RENDER TO TEXTURE FRAMEBUFFER")
         {
-        float step = 1.0f / 16.0f;
         usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
 
         // ── Icon camera: closer + simple ──
@@ -25282,9 +25336,6 @@ END_LINE:
         );
         // The campaign detail owns slot 1 while it is open.  Keep this mutually
         // exclusive with every shop preview pass below so nothing overwrites it.
-        const bool campaignLevelDetailPreviewActive =
-            usr->windowStack.count > 0 &&
-            usr->windowStack.kinds[usr->windowStack.count - 1] == WindowKind_CampaignLevelDetail;
         if (campaignLevelDetailPreviewActive)
         {
             usr->clayton.renderer.imageTextures[1] = usr->ballRenderTex.colorTexture;
@@ -25452,7 +25503,7 @@ END_LINE:
 	                1.0f
 	            );
 	        }
-	        else if (usr->carousel.closestBallIdx != -1)
+	        else if (ballShopPreviewActive && usr->carousel.closestBallIdx != -1)
 	        {
 	            usr->clayton.renderer.imageTextures[3] = usr->oilRenderTex.colorTexture;
 	            usr->ballRenderTex.bindForWriting();
@@ -25483,7 +25534,7 @@ END_LINE:
                 ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
             );
 	        }
-		        if (!campaignLevelDetailPreviewActive && !usr->clayton.shouldShowHouses && usr->carousel.closest2ndBallIdx != -1)
+		        if (ballShopPreviewActive && usr->carousel.closest2ndBallIdx != -1)
 		        {
 	            usr->ballRenderTex2.bindForWriting();
 	            glClearColor(0, 0, 0, 1);
@@ -25515,7 +25566,7 @@ END_LINE:
 		        }
 	
 		        // 3rd closest ball preview (reuse oilRenderTex slot 3 when Oil Status isn't visible).
-		        if (!campaignLevelDetailPreviewActive && !usr->clayton.shouldShowHouses && !usr->clayton.shouldShowOilStatus && usr->carousel.closest3rdBallIdx != -1)
+		        if (ballShopPreviewActive && usr->carousel.closest3rdBallIdx != -1)
 		        {
 		            usr->oilRenderTex.bindForWriting();
 		            glClearColor(0, 0, 0, 1);
@@ -25618,6 +25669,7 @@ END_LINE:
         }
     }
 
+    usr->frameProfileGraph.mark(FrameProfileGraph::Offscreen);
     ZONE("3D render")
     {
 
@@ -25805,11 +25857,43 @@ END_LINE:
                 glDisable(GL_BLEND);
             }
 
-	        // TODO optimize to instanced render
+	        usr->frameProfileGraph.mark(FrameProfileGraph::WorldBackdrop);
 	        // Pins: UV-shifted pin texture per selected house.
 	        // Base pin tile is authored in atlas column 0 at (col=0,row=7) in an 8x8 conceptual grid,
 	        // and variants are stacked downwards in the atlas; selection uses the same 1/8 V stepping
 	        // as lane variants.
+	        auto renderPlainPins = [&](const std::vector<glm::mat4> &models)
+	        {
+	            if (models.empty()) return;
+	            if (models.size() == 1)
+	            {
+	                usr->mainShader.renderRealMesh(
+	                    usr->pinMesh, models[0], usr->cameraMat, usr->perspectiveMat);
+	                return;
+	            }
+	            static thread_local std::vector<InstanceData> instances;
+	            instances.clear();
+	            instances.reserve(models.size());
+	            for (const glm::mat4 &model : models)
+	            {
+	                InstanceData instance{};
+	                instance.instRot = glm::quat_cast(glm::mat3(model));
+	                instance.textureScale = glm::vec3(1.0f);
+	                instance.positionOffset = glm::vec3(model[3]);
+	                instance.scaleOffset = glm::vec3(1.0f);
+	                instance.atlasStart = glm::vec2(0.0f);
+	                instances.push_back(instance);
+	            }
+	            std::vector<InstanceData> savedInstances;
+	            savedInstances.swap(usr->pinMesh.instanceData);
+	            usr->pinMesh.instanceData.swap(instances);
+	            usr->pinMesh.sendInstanceDataToGpu();
+	            usr->mainShader.renderRealMesh(
+	                usr->pinMesh, glm::mat4(1.0f), usr->cameraMat, usr->perspectiveMat);
+	            instances.swap(usr->pinMesh.instanceData);
+	            usr->pinMesh.instanceData.swap(savedInstances);
+	            usr->pinMesh.sendInstanceDataToGpu();
+	        };
 	        {
 	            const float cell = 1.0f / 8.0f;
 	            const int idx = glm::clamp(usr->pinTextureIdx, 0, 3);
@@ -25827,6 +25911,8 @@ END_LINE:
                         usr->school.selectedLesson == 3)
                     {
                         const auto &coins = usr->coinLane.getCoins();
+                        std::vector<glm::mat4> targetPinModels;
+                        targetPinModels.reserve(usr->coinLane.getActiveCount());
                         for (int i = 0; i < usr->coinLane.getActiveCount(); i++)
                         {
                             const Coin &target = coins[i];
@@ -25834,15 +25920,16 @@ END_LINE:
                                 continue;
                             glm::mat4 pinModel = glm::translate(glm::mat4(1.0f), target.position);
                             pinModel = glm::translate(pinModel, glm::vec3(0.0f, -0.19f, 0.0f));
-                            usr->mainShader.renderRealMesh(
-                                usr->pinMesh, pinModel, usr->cameraMat, usr->perspectiveMat
-                            );
-                            checkOpenGLError("school spin target pin");
+                            targetPinModels.push_back(pinModel);
                         }
+                        renderPlainPins(targetPinModels);
+                        checkOpenGLError("school spin target pins");
                     }
                     else
                     {
-		            for (int i = 0; i < 10; i++)
+	            std::vector<glm::mat4> plainPinModels;
+	            plainPinModels.reserve(10);
+	            for (int i = 0; i < 10; i++)
 		            {
                         const uint16_t pinBit = (uint16_t)(1u << i);
                         if (usr->phy.mPinDead[i] && (usr->boltElectrifiedPinMask & pinBit) == 0u)
@@ -25853,6 +25940,11 @@ END_LINE:
                             const uint16_t freezeBit = pinBit;
                             const bool frozenPin = (usr->freezeCoatedPinMask & freezeBit) != 0u;
                             const bool electrifiedPin = (usr->boltElectrifiedPinMask & freezeBit) != 0u;
+                            if (!frozenPin && !electrifiedPin)
+                            {
+                                plainPinModels.push_back(pinModel);
+                                continue;
+                            }
                             if (frozenPin)
                             {
                                 const float inT = ChestRender::Smooth01(usr->freezeCoatingT);
@@ -25874,10 +25966,11 @@ END_LINE:
 			                usr->mainShader.renderRealMesh(
 			                    usr->pinMesh, pinModel, usr->cameraMat, usr->perspectiveMat
 			                );
-			                checkOpenGLError("stare");
                             if (frozenPin || electrifiedPin)
                                 usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
 			            }
+                        renderPlainPins(plainPinModels);
+                        checkOpenGLError("pins");
                         if (usr->boltElectrifiedPinMask != 0u)
                         {
                             glm::vec3 veinPins[10];
@@ -25924,6 +26017,7 @@ END_LINE:
 			        }
                 }
 
+        usr->frameProfileGraph.mark(FrameProfileGraph::WorldPins);
         // BOT avatar (Angel / Cherub) — only shown in BOT mode.
         glm::vec3 botRightHandWorld = glm::vec3(0.0f);
         bool haveBotRightHandWorld = false;
@@ -26001,6 +26095,7 @@ END_LINE:
             }
         }
 
+        usr->frameProfileGraph.mark(FrameProfileGraph::WorldBotAvatar);
         // Opaque world-geometry pass.
         //
         // Draw depth-writing 3D scene objects here: lane, opaque minigame actors,
@@ -26123,6 +26218,7 @@ END_LINE:
             1.0f
         );
 
+        usr->frameProfileGraph.mark(FrameProfileGraph::WorldLane);
         // BOT mode: while Angel's throw clip is active, render enemy ball using the update-driven
         // smoothed render position (hand -> idle -> physics catch-up).
         if (usr->gameMode == UserContext::GameMode::BOT &&
@@ -26290,6 +26386,7 @@ END_LINE:
             1.0f                         // Atlas region scale compared to entire atlas
         );
 
+        usr->frameProfileGraph.mark(FrameProfileGraph::WorldBall);
         // Transparent world-geometry pass.
         //
         // Use this for ordinary 3D scene objects that need alpha blending but still
@@ -26320,6 +26417,7 @@ END_LINE:
             );
         }
 
+        usr->frameProfileGraph.mark(FrameProfileGraph::FxTransparent);
         if (usr->strikeSpareFlashTime > 0.0f)
             usr->strikeSpareFlashTime = glm::max(0.0f, usr->strikeSpareFlashTime - gameplayDeltaTime);
         if (usr->negativeBannerFlashTime > 0.0f)
@@ -26555,6 +26653,7 @@ END_LINE:
         // 5. Add coin to bank if
         // usr->coinLane.getNewlyCollected =
 
+        usr->frameProfileGraph.mark(FrameProfileGraph::FxCollectableLogic);
         // Collectable lifecycle pass.
         //
         // Coins/gems are not just ordinary world transparency: during collection
@@ -26613,56 +26712,69 @@ END_LINE:
             );
         }
 
+        usr->frameProfileGraph.mark(FrameProfileGraph::FxCollectables);
         glDisable(GL_CULL_FACE);
         const float snowSpinDeltaRadians = usr->phy.get_ball_angular_velocity().y * (float)deltaTime;
         usr->particles.setSnowflakeCount(usr->settings.snowflakeCount);
-        usr->particles.drawSnow(
-            (float)deltaTime,
-            snowSpinDeltaRadians,
-            usr->cameraMat,
-            usr->perspectiveMat
-        );
-        if (!MiniGame_IsCrowdControl(usr))
+        if (usr->settings.extraParticlesEnabled)
         {
-            float ballTraceIntensity = 0.15f;
-            if (ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr))
-                ballTraceIntensity = glm::max(ballTraceIntensity, turnElectroBall->getPickupPulse01());
-
-            const bool playerNosActive = usr->playerNosUsageActiveThisFrame;
-            const bool enemyNosActive = usr->enemyNosUsageActiveThisFrame;
-            const bool allowAmbientBallTraceSpawn = !(playerNosActive || enemyNosActive);
-
-            if (playerNosActive || enemyNosActive)
-                ballTraceIntensity = glm::max(ballTraceIntensity, 0.35f);
-
-            if (!usr->boomBallGone)
-            {
-                usr->particles.drawBallTrace(
-                    (float)deltaTime,
-                    glm::vec3(ballModel[3]),
-                    ballTraceIntensity,
-                    allowAmbientBallTraceSpawn,
-                    usr->cameraMat,
-                    usr->perspectiveMat
-                );
-                if (!MiniGame_IsCountMasters(usr) && !MiniGame_IsCrowdControl(usr))
-                {
-	                    usr->particles.drawSpinRings(
-	                        (float)deltaTime,
-	                        glm::vec3(ballModel[3]),
-	                        -usr->phy.get_ball_angular_velocity().y,
-	                        usr->cameraMat,
-	                        usr->perspectiveMat
-	                    );
-	                }
-	            }
-	        }
-        if (!MiniGame_IsCrowdControl(usr))
-        {
-            usr->particles.drawBlockSparks((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
-            usr->particles.drawLaneDust((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
+            usr->particles.drawSnow(
+                (float)deltaTime,
+                snowSpinDeltaRadians,
+                usr->cameraMat,
+                usr->perspectiveMat
+            );
         }
-        usr->particles.draw((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
+        usr->frameProfileGraph.mark(FrameProfileGraph::FxSnow);
+        if (usr->settings.extraParticlesEnabled)
+        {
+            if (!MiniGame_IsCrowdControl(usr))
+            {
+                float ballTraceIntensity = 0.15f;
+                if (ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr))
+                    ballTraceIntensity = glm::max(ballTraceIntensity, turnElectroBall->getPickupPulse01());
+
+                const bool playerNosActive = usr->playerNosUsageActiveThisFrame;
+                const bool enemyNosActive = usr->enemyNosUsageActiveThisFrame;
+                const bool allowAmbientBallTraceSpawn = !(playerNosActive || enemyNosActive);
+
+                if (playerNosActive || enemyNosActive)
+                    ballTraceIntensity = glm::max(ballTraceIntensity, 0.35f);
+
+                if (!usr->boomBallGone)
+                {
+                    usr->particles.drawBallTrace(
+                        (float)deltaTime,
+                        glm::vec3(ballModel[3]),
+                        ballTraceIntensity,
+                        allowAmbientBallTraceSpawn,
+                        usr->cameraMat,
+                        usr->perspectiveMat
+                    );
+                    if (!MiniGame_IsCountMasters(usr) && !MiniGame_IsCrowdControl(usr))
+                    {
+                        usr->particles.drawSpinRings(
+                            (float)deltaTime,
+                            glm::vec3(ballModel[3]),
+                            -usr->phy.get_ball_angular_velocity().y,
+                            usr->cameraMat,
+                            usr->perspectiveMat
+                        );
+                    }
+                }
+            }
+        }
+        usr->frameProfileGraph.mark(FrameProfileGraph::FxBallTrail);
+        if (usr->settings.extraParticlesEnabled)
+        {
+            if (!MiniGame_IsCrowdControl(usr))
+            {
+                usr->particles.drawBlockSparks((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
+                usr->particles.drawLaneDust((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
+            }
+            usr->particles.draw((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
+        }
+        usr->frameProfileGraph.mark(FrameProfileGraph::FxAmbientParticles);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDepthMask(GL_TRUE);
 
@@ -26688,6 +26800,7 @@ END_LINE:
             );
         }
         RenderBlockCardDropAnimation(usr, (float)deltaTime);
+        usr->frameProfileGraph.mark(FrameProfileGraph::FxFlyingCollectables);
         usr->decalBatch.renderDecals(
             usr->everythingTexture.id, // Atlas for all decals
             usr->cameraMat,            // view to world
@@ -26709,6 +26822,7 @@ END_LINE:
         // }
         glm::mat4 m = glm::mat4(3.0f);
 
+        usr->frameProfileGraph.mark(FrameProfileGraph::FxDecals);
         const bool playerControlsVisible =
             !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr)) &&
             !MiniGame_IsCountMasters(usr) &&
@@ -26887,6 +27001,24 @@ END_LINE:
         }
     }
 
+    if (trackerOnlyMode)
+    {
+        // Tracker draws the backdrop but skips the world/FX passes above.
+        usr->frameProfileGraph.mark(FrameProfileGraph::WorldBackdrop);
+        usr->frameProfileGraph.mark(FrameProfileGraph::WorldPins);
+        usr->frameProfileGraph.mark(FrameProfileGraph::WorldBotAvatar);
+        usr->frameProfileGraph.mark(FrameProfileGraph::WorldLane);
+        usr->frameProfileGraph.mark(FrameProfileGraph::WorldBall);
+        usr->frameProfileGraph.mark(FrameProfileGraph::FxTransparent);
+        usr->frameProfileGraph.mark(FrameProfileGraph::FxCollectableLogic);
+        usr->frameProfileGraph.mark(FrameProfileGraph::FxCollectables);
+        usr->frameProfileGraph.mark(FrameProfileGraph::FxSnow);
+        usr->frameProfileGraph.mark(FrameProfileGraph::FxBallTrail);
+        usr->frameProfileGraph.mark(FrameProfileGraph::FxAmbientParticles);
+        usr->frameProfileGraph.mark(FrameProfileGraph::FxFlyingCollectables);
+        usr->frameProfileGraph.mark(FrameProfileGraph::FxDecals);
+    }
+    usr->frameProfileGraph.mark(FrameProfileGraph::FxOverlay);
     ZONE("clay")
     {
         if (!trackerOnlyMode && Chest_IsTextureActive(usr))
@@ -27021,6 +27153,7 @@ END_LINE:
             .width = (float)ctx->screenWidth,
             .height = (float)ctx->screenHeight,
         });
+        usr->frameProfileGraph.mark(FrameProfileGraph::UiPrep);
         Clay_BeginLayout();
 
         // When any modal/window is present, the window-stack overlay dims the whole screen.
@@ -29304,6 +29437,7 @@ END_LINE:
 
 	}
 
+    usr->frameProfileGraph.mark(FrameProfileGraph::UiLayout);
 	Clay_RenderCommandArray cmds = Clay_EndLayout();
 
 // int mouseX = 0;
@@ -29958,9 +30092,21 @@ if (usr->shouldShowImgui)
     usr->imgui.endImgui();
 }
 
+usr->frameProfileGraph.mark(FrameProfileGraph::UiDraw);
+if (usr->showFrameProfileGraph)
+{
+    bindDefaultOpenGLFramebuffer();
+    usr->frameProfileGraph.draw(
+        (int)(ctx->screenWidth * ctx->pixelRatio),
+        (int)(ctx->screenHeight * ctx->pixelRatio),
+        28.0f * ctx->pixelRatio);
+}
+usr->frameProfileGraph.mark(FrameProfileGraph::ProfileGraphDraw);
 usr->fpsCounter.endFrame();
 
 SDL_GL_SwapWindow(ctx->sdlWindow);
+usr->frameProfileGraph.extraParticlesEnabled = usr->settings.extraParticlesEnabled;
+usr->frameProfileGraph.endFrame();
 
 #if defined(TARGET_OS_IOS) && TARGET_OS_IOS
 if (!usr->iosDeferredSoundInitDone)

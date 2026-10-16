@@ -2171,6 +2171,12 @@ inline bool WindowStack::processSettingsWindowEvent(
         return true;
     }
 
+    if (isClaytonClicked(&clayton->settingsExtraParticlesClick, e))
+    {
+        settings->extraParticlesEnabled = !settings->extraParticlesEnabled;
+        return true;
+    }
+
     if (isClaytonClicked(&clayton->settingsResetCampaignClick, e))
     {
         if (self)

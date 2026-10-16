@@ -152,7 +152,7 @@ struct Clayton
     Clayton_Click musicVolClicks[5]; // 5 volume buttons for music
     Clayton_Click sfxVolClicks[5];   // 5 volume buttons for SFX
     Clayton_Click qualityClicks[2];  // Synth / Off
-    Clayton_Click bufferClicks[4];   // 4 SDL buffer size buttons
+    Clayton_Click bufferClicks[5];   // SDL buffer size buttons
     Clayton_Click prevSongClick;
     Clayton_Click nextSongClick;
     Clayton_Click midiPanicClick;
@@ -201,6 +201,7 @@ struct Clayton
     Clayton_Click minigameCrowdControlClick;
     Clayton_Click bonusPlayClick;
     Clayton_Click settingsCloseClick;
+    Clayton_Click settingsExtraParticlesClick;
     Clayton_Click settingsResetCampaignClick;
     Clayton_Click settingsResetProgressClick;
     Clayton_Click settingsResetConfirmYesClick;

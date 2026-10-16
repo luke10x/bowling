@@ -38,6 +38,7 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
     strcpy(soundSettingsState->bufferLabels[1], "1024");
     strcpy(soundSettingsState->bufferLabels[2], "2048");
     strcpy(soundSettingsState->bufferLabels[3], "4096");
+    strcpy(soundSettingsState->bufferLabels[4], "8192");
 
     // Initialize clicks
     const char *volIds[] = {"musicVol0", "musicVol1", "musicVol2", "musicVol3", "musicVol4"};
@@ -60,8 +61,8 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
     {
         initClaytonClick(&clayton->qualityClicks[i], qualIds[i]);
     }
-    const char *bufferIds[] = {"buffer512", "buffer1024", "buffer2048", "buffer4096"};
-    for (int i = 0; i < 4; i++)
+    const char *bufferIds[] = {"buffer512", "buffer1024", "buffer2048", "buffer4096", "buffer8192"};
+    for (int i = 0; i < 5; i++)
     {
         initClaytonClick(&clayton->bufferClicks[i], bufferIds[i]);
     }
@@ -328,8 +329,8 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                         }
                     )
                     {
-                        const int bufferOptions[4] = {512, 1024, 2048, 4096};
-                        for (int i = 0; i < 4; i++)
+                        const int bufferOptions[5] = {512, 1024, 2048, 4096, 8192};
+                        for (int i = 0; i < 5; i++)
                         {
                             Clay_Color btnColor = (self->bufferSize == bufferOptions[i])
                                 ? Clay_Color{100, 200, 100, 255}
@@ -714,8 +715,8 @@ inline bool processSoundSettingsEvent(Clayton *clayton, SoundSettings *soundSett
         }
     }
 
-    const int bufferOptions[4] = {512, 1024, 2048, 4096};
-    for (int i = 0; i < 4; i++)
+    const int bufferOptions[5] = {512, 1024, 2048, 4096, 8192};
+    for (int i = 0; i < 5; i++)
     {
         if (isClaytonClicked(&clayton->bufferClicks[i], event))
         {

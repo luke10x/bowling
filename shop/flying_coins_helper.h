@@ -21,52 +21,26 @@ void renderFlyingCollectables(
     std::array<MeshInstanceBatch, 8> &gpuBatches,
     float screenWidth,
     float screenHeight,
-    bool isAbove, /* vary */
+    bool beforeHudPass,
     int hudLevel,
     float pixelScale
 )
 {
-    // Flying rewards share geometry with the world meshes. Their dedicated
-    // instance buffers leave each mesh's one-item instance data untouched.
+    // This function is called twice at different points in the frame: first
+    // for rewards below the HUD edge in the world pass, then for rewards in
+    // front of the HUD after Clay. Never mix the two sides in one batch.
     constexpr size_t kKindCount = 8;
     const std::array<AssetMesh *, kKindCount> kindMeshes = {{
         coinMesh, gemMesh ? gemMesh : coinMesh, runeBoomMesh, runeBoltMesh,
         runeFreezeMesh, runeSkullMesh, runeGuardPinsMesh, runeFootballMesh
     }};
-    std::array<AssetMesh *, kKindCount> batchMeshes{};
-    static thread_local std::array<std::vector<InstanceData>, kKindCount> batches;
-    for (auto &batch : batches)
-        batch.clear();
-    size_t batchCount = 0;
-
-    const auto visibleOnThisSide = [isAbove, hudLevel](const CoinFlyAnimation &fly) {
-        return fly.isVisible() && (isAbove ? fly.currentPos.y < hudLevel
-                                           : fly.currentPos.y >= hudLevel);
+    const auto visibleOnThisSide = [beforeHudPass, hudLevel](const CoinFlyAnimation &fly) {
+        return fly.isVisible() && (beforeHudPass ? fly.currentPos.y < hudLevel
+                                                : fly.currentPos.y >= hudLevel);
     };
-    for (const CoinFlyAnimation &fly : coinLane->flyAnimations)
-    {
-        if (!visibleOnThisSide(fly))
-            continue;
-
-        const size_t kind = static_cast<size_t>(fly.visualKind);
-        AssetMesh *mesh = kind < kindMeshes.size() && kindMeshes[kind]
-            ? kindMeshes[kind] : coinMesh;
-        if (!mesh)
-            continue;
-        size_t batchIndex = 0;
-        while (batchIndex < batchCount && batchMeshes[batchIndex] != mesh)
-            ++batchIndex;
-        if (batchIndex == batchCount)
-            batchMeshes[batchCount++] = mesh;
-
-        InstanceData instance{};
-        instance.instRot = glm::angleAxis(fly.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
-        instance.textureScale = glm::vec3(1.0f);
-        instance.positionOffset = glm::vec3(fly.currentPos.x, fly.currentPos.y, 10.0f);
-        instance.scaleOffset = glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE * pixelScale);
-        batches[batchIndex].push_back(instance);
-    }
-    if (batchCount == 0)
+    const bool anyVisible = std::any_of(
+        coinLane->flyAnimations.begin(), coinLane->flyAnimations.end(), visibleOnThisSide);
+    if (!anyVisible)
         return;
 
     const glm::mat4 orthoProj =
@@ -81,31 +55,73 @@ void renderFlyingCollectables(
         glm::vec2(1.0f),
         1.0f
     );
-    mainShader->updateUseTextureAlpha(false);
-    mainShader->updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+    // Before the HUD, coins fly across the 3D scene and need both the atlas
+    // alpha and partial opacity. The later HUD overlay uses full opacity.
+    mainShader->updateUseTextureAlpha(beforeHudPass);
+    mainShader->updateColorTintMix(
+        glm::vec3(1.0f), 0.0f, beforeHudPass ? 0.70f : 1.0f);
 
     // ✅ Light position in VIEW SPACE (for ortho screen-space, view = identity)
     mainShader->updateLightPos(
         glm::vec3(screenWidth / 2.0f, screenHeight / 2.0f, 10.0f)
     );
 
-    for (size_t batchIndex = 0; batchIndex < batchCount; ++batchIndex)
-    {
-        AssetMesh &mesh = *batchMeshes[batchIndex];
-        const auto &batch = batches[batchIndex];
-        if (batch.size() == 1 && mesh.instanceData.size() == 1)
+    // Batch only adjacent rewards using the same mesh. Grouping every coin
+    // ahead of every gem changed alpha/depth draw order when their flight
+    // paths overlap, especially at the HUD boundary.
+    static thread_local std::vector<InstanceData> runInstances;
+    runInstances.clear();
+    AssetMesh *runMesh = nullptr;
+    const auto drawRun = [&]() {
+        if (!runMesh || runInstances.empty())
+            return;
+        if (runInstances.size() == 1 && runMesh->instanceData.size() == 1)
         {
             // One reward needs no instance-buffer upload. Keep the original
-            // single-item path cheaper than uploading and restoring a batch.
-            const InstanceData &instance = batch.front();
+            // single-item path cheaper than uploading a batch.
+            const InstanceData &instance = runInstances.front();
             glm::mat4 model = glm::translate(identity, instance.positionOffset);
             model *= glm::mat4_cast(instance.instRot);
             model = glm::scale(model, instance.scaleOffset);
-            mainShader->renderRealMesh(mesh, model, identity, orthoProj);
-            continue;
+            mainShader->renderRealMesh(*runMesh, model, identity, orthoProj);
+            return;
         }
+        size_t batchIndex = 0;
+        while (batchIndex < kindMeshes.size() && kindMeshes[batchIndex] != runMesh)
+            ++batchIndex;
+        if (batchIndex == kindMeshes.size())
+            return;
         MeshInstanceBatch &gpuBatch = gpuBatches[batchIndex];
-        gpuBatch.upload(mesh, batch);
-        mainShader->renderRealMesh(mesh, identity, identity, orthoProj, &gpuBatch);
+        gpuBatch.upload(*runMesh, runInstances);
+        mainShader->renderRealMesh(*runMesh, identity, identity, orthoProj, &gpuBatch);
+    };
+    for (const CoinFlyAnimation &fly : coinLane->flyAnimations)
+    {
+        if (!visibleOnThisSide(fly))
+            continue;
+        const size_t kind = static_cast<size_t>(fly.visualKind);
+        AssetMesh *mesh = kind < kindMeshes.size() && kindMeshes[kind]
+            ? kindMeshes[kind] : coinMesh;
+        if (!mesh)
+            continue;
+        if (mesh != runMesh)
+        {
+            drawRun();
+            runInstances.clear();
+            runMesh = mesh;
+        }
+
+        InstanceData instance{};
+        instance.instRot = glm::angleAxis(fly.rotationY, glm::vec3(0.0f, 1.0f, 0.0f));
+        instance.textureScale = glm::vec3(1.0f);
+        instance.positionOffset = glm::vec3(fly.currentPos.x, fly.currentPos.y, 10.0f);
+        instance.scaleOffset = glm::vec3(fly.currentScale * CoinFlyConfig::PIXEL_SIZE * pixelScale);
+        runInstances.push_back(instance);
+    }
+    drawRun();
+    if (beforeHudPass)
+    {
+        mainShader->updateUseTextureAlpha(false);
+        mainShader->updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
     }
 }

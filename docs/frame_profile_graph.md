@@ -100,10 +100,12 @@ the matrix, atlas, and tint uniform locations it uses on common draw paths.
 The hot atlas update leaves OpenGL error checking available behind
 `VTX_GL_CHECK_HOT_PATH` so routine frames avoid that driver query.
 
-Flying HUD rewards use one instance batch per distinct mesh in each HUD
-pass when multiple rewards share a mesh. Their transforms are packed into
-a dedicated instance buffer, so the shared mesh's one-item data needs no restore
-upload. A lone reward keeps the single-item draw path with no batch upload.
+Flying rewards are drawn in two passes using the same HUD edge for the whole
+frame. Below that edge they are translucent and draw with the world; at or
+above it they draw after the HUD at full opacity. Within each pass, adjacent
+rewards using the same mesh share an instance batch. This keeps the original
+coin/gem/rune draw order when their paths overlap. Dedicated instance buffers
+avoid restore uploads, and a lone reward keeps the single-item draw path.
 
 DECAL keeps its 14 fixed lane-mark records on the GPU after the first draw.
 Only the aiming-line record is uploaded while it changes. Its shader uniform

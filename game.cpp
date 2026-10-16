@@ -19268,6 +19268,9 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     usr->frameProfileGraph.setEnabled(usr->settings.performanceAnalysisEnabled);
     usr->frameProfileGraph.beginFrame();
+    // Clay recalculates the HUD edge later in this loop. Both fly passes must
+    // use the same edge or a reward can be drawn twice or missed in one frame.
+    const int flyHudBoundaryThisFrame = usr->hudAboveThis;
     float deltaTime = (float)usr->fpsCounter.startFrame();
     const float safeDeltaTime = std::isfinite(deltaTime) ? glm::clamp(deltaTime, 0.0f, 0.100f) : (1.0f / 60.0f);
     const bool lowFpsAimSwingFrame = safeDeltaTime > (1.0f / 28.0f);
@@ -26807,6 +26810,11 @@ END_LINE:
 
         if (!Chest_IsTextureActive(usr))
         {
+            // This is the translucent world-side flight. The later HUD-side
+            // flight is drawn after Clay with depth testing disabled.
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            glDepthMask(GL_FALSE);
             renderFlyingCollectables(
                 &usr->mainShader,
                 coinCollectableMesh,
@@ -26822,10 +26830,11 @@ END_LINE:
                 usr->flyingCollectableBatches,
                 (float)ctx->screenWidth,
                 (float)ctx->screenHeight,
-                true, // vary
-                usr->hudAboveThis,
+                true, // world pass, before HUD
+                flyHudBoundaryThisFrame,
                 3.0f
             );
+            glDepthMask(GL_TRUE);
         }
         usr->frameProfileGraph.mark(FrameProfileGraph::FxFlyingCollectables);
         RenderBlockCardDropAnimation(usr, (float)deltaTime);
@@ -29720,8 +29729,8 @@ if (!Chest_IsCinematicActive(usr))
 	        usr->flyingCollectableBatches,
 	        (float)ctx->screenWidth,
 	        (float)ctx->screenHeight,
-	        false, // vary
-	        Chest_IsRewardActive(usr) ? -100000 : usr->hudAboveThis,
+	        false, // overlay pass, after HUD
+	        Chest_IsRewardActive(usr) ? -100000 : flyHudBoundaryThisFrame,
 	        3.0f
 	    );
 }

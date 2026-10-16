@@ -44,6 +44,9 @@ struct WingsState
     GLuint vbo = 0;
     GLuint ebo = 0;
     GLuint shaderId = 0;
+    GLint viewUniform = -1;
+    GLint projectionUniform = -1;
+    GLint timeUniform = -1;
     bool initialized = false;
 
     std::array<WingRenderVertex, kVertexCount> vertices = {};
@@ -128,6 +131,7 @@ inline void WingsState::initWings()
         glDeleteProgram(this->shaderId);
         this->shaderId = 0;
     }
+    this->viewUniform = this->projectionUniform = this->timeUniform = -1;
 
     {
         static const char *vertexShader = GLSL_VERSION R"(
@@ -188,6 +192,9 @@ inline void WingsState::initWings()
             }
         )";
         this->shaderId = vtx::createShaderProgram(vertexShader, fragmentShader);
+        this->viewUniform = glGetUniformLocation(this->shaderId, "u_worldToView");
+        this->projectionUniform = glGetUniformLocation(this->shaderId, "u_projection");
+        this->timeUniform = glGetUniformLocation(this->shaderId, "u_time");
     }
 
     const uint32_t layerIndices[kIndicesPerLayer] = {
@@ -500,9 +507,9 @@ inline void renderWings(
     glDisable(GL_CULL_FACE);
 
     glUseProgram(wings->shaderId);
-    glUniformMatrix4fv(glGetUniformLocation(wings->shaderId, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(worldToView));
-    glUniformMatrix4fv(glGetUniformLocation(wings->shaderId, "u_projection"), 1, GL_FALSE, glm::value_ptr(projection));
-    glUniform1f(glGetUniformLocation(wings->shaderId, "u_time"), wings->time);
+    glUniformMatrix4fv(wings->viewUniform, 1, GL_FALSE, glm::value_ptr(worldToView));
+    glUniformMatrix4fv(wings->projectionUniform, 1, GL_FALSE, glm::value_ptr(projection));
+    glUniform1f(wings->timeUniform, wings->time);
 
     glBindVertexArray(wings->vao);
     glDrawElements(GL_TRIANGLES, WingsState::kIndexCount, GL_UNSIGNED_INT, 0);
@@ -512,5 +519,7 @@ inline void renderWings(
     if (depthWasEnabled) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
     if (cullWasEnabled) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
     if (blendWasEnabled) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+#if defined(VTX_GL_CHECK_HOT_PATH)
     checkOpenGLError("render wings");
+#endif
 }

@@ -1356,6 +1356,7 @@ struct UserContext
     WingsState wings;
     FracturedBlockRenderFragment intactBlockRender;
     FracturedBlockRenderFragment crowdControlRewardCardRender;
+    MeshInstanceBatch crowdControlSpawnBatch;
     FracturedBlockRenderFragment countMastersGateLabelRender;
     FracturedBlockRenderFragment countMastersGateShardRender;
     FracturedBlockRenderFragment blockCardDropRender;
@@ -3350,6 +3351,7 @@ static inline void ClearActiveBlockVisualState(UserContext *usr)
     usr->intactBlockRender.mesh.releaseGpu();
     usr->intactBlockRender.vertices.clear();
     usr->intactBlockRender.indices.clear();
+    usr->crowdControlSpawnBatch.releaseGpu();
     usr->crowdControlRewardCardRender.mesh.releaseGpu();
     usr->crowdControlRewardCardRender.vertices.clear();
     usr->crowdControlRewardCardRender.indices.clear();
@@ -4700,15 +4702,23 @@ static inline void MiniGame_RenderCrowdControl(UserContext *usr, bool transparen
         glCullFace(GL_BACK);
         usr->mainShader.updateUseTextureAlpha(false);
         renderRewardConveyor(CrowdControlCardKind::RATE, glassConfig, glm::vec3(0.35f, 1.0f, 0.72f), 0.42f, 0.68f);
-        usr->crowdControlRewardCardRender.mesh.instanceData.clear();
-        usr->crowdControlRewardCardRender.mesh.instanceData.push_back({
-            glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
-            glm::vec3(1.0f),
-            glm::vec3(0.0f),
-            glm::vec3(1.0f),
-            glm::vec2(0.0f),
-        });
-        usr->crowdControlRewardCardRender.mesh.sendInstanceDataToGpu();
+        // The spawn marker needs an identity instance after the changing RATE
+        // batch. Keep it in its own VAO/VBO and upload it only when the box
+        // mesh is (re)created, rather than restoring it every frame.
+        AssetMesh &spawnMesh = usr->crowdControlRewardCardRender.mesh;
+        MeshInstanceBatch &spawnBatch = usr->crowdControlSpawnBatch;
+        if (spawnBatch.vao == 0 || spawnBatch.sourceVBO != spawnMesh.meshVBO ||
+            spawnBatch.sourceEBO != spawnMesh.meshEBO)
+        {
+            const std::vector<InstanceData> identityInstance = {{
+                glm::quat(1.0f, 0.0f, 0.0f, 0.0f),
+                glm::vec3(1.0f),
+                glm::vec3(0.0f),
+                glm::vec3(1.0f),
+                glm::vec2(0.0f),
+            }};
+            spawnBatch.upload(spawnMesh, identityInstance);
+        }
         glDisable(GL_CULL_FACE);
         glDepthMask(GL_TRUE);
         glDisable(GL_BLEND);
@@ -4782,7 +4792,7 @@ static inline void MiniGame_RenderCrowdControl(UserContext *usr, bool transparen
         glEnable(GL_CULL_FACE);
         glCullFace(GL_BACK);
         usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 1.0f, alpha);
-        usr->mainShader.renderRealMesh(usr->crowdControlRewardCardRender.mesh, model, usr->cameraMat, usr->perspectiveMat);
+        usr->mainShader.renderRealMesh(spawnMesh, model, usr->cameraMat, usr->perspectiveMat, &spawnBatch);
         glDisable(GL_CULL_FACE);
         glDepthMask(GL_TRUE);
         glDisable(GL_BLEND);
@@ -13182,6 +13192,7 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
             usr->crowdControlSpawnLabelCountdownS = -1.0f;
             usr->crowdControlPowerLabelCountdownS = -1.0f;
             MiniGame_ClearCoinLaneNoPayout(usr);
+            usr->crowdControlSpawnBatch.releaseGpu();
             Block_BuildIntactBoxMesh(
                 usr->crowdControlRewardCardRender,
                 1.0f,

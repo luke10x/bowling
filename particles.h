@@ -582,12 +582,18 @@ struct Particles
         float intensity,
         const glm::vec4 &tint,
         float sizeScale = 0.55f,
-        float motionScale = 1.0f
+        float motionScale = 1.0f,
+        bool upload = true
     )
     {
         const float clampedIntensity = glm::clamp(intensity, 0.0f, 1.0f);
         const int trailCount = glm::clamp(2 + (int)glm::round(clampedIntensity * 5.0f), 2, 7);
-        spawnBlockSparkBurst(center, awayDir, clampedIntensity, trailCount, 0.0f, true, tint, sizeScale, 1, motionScale);
+        spawnBlockSparkBurst(center, awayDir, clampedIntensity, trailCount, 0.0f, upload, tint, sizeScale, 1, motionScale);
+    }
+
+    void uploadPendingBlockSparks()
+    {
+        uploadBlockSparkVerts();
     }
 
     void clearCardTrailSparks()

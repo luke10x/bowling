@@ -13,6 +13,7 @@ TEST_CASE("Coin rush minigame lays out sparse moving coin rows")
     MiniGameCoinRush::InitCoinGrid(&lane);
 
     REQUIRE(lane.activeCount == MiniGameCoinRush::ComputeCoinCount());
+    REQUIRE(lane.activeCount <= CoinLane::MAX_COINS);
     REQUIRE(lane.activeCount > 20);
     REQUIRE(lane.activeCount < 60);
     CHECK(lane.currentPattern == CoinPattern::SideToSide);
@@ -48,6 +49,19 @@ TEST_CASE("Coin rush minigame lays out sparse moving coin rows")
         counted += rowCount;
     }
     CHECK(counted == lane.activeCount);
+}
+
+TEST_CASE("Coin and flying reward pools cover configured game bursts")
+{
+    CHECK(CoinLane::MAX_COINS >=
+          CountMastersState::GATE_COUNT * 2 * CountMastersState::MAX_GATE_COINS_PER_SIDE);
+    CHECK(CoinLane::MAX_COINS >=
+          MiniGameCoinRush::ComputeRowCount() * MiniGameCoinRush::MAX_COINS_PER_ROW);
+
+    // A 50-coin chest payout can overlap recently collected lane coins.
+    CoinLane lane = {};
+    for (int i = 0; i < 50 + MiniGameCoinRush::ComputeCoinCount(); ++i)
+        REQUIRE(lane.spawnFlyAnimation(glm::vec2(0.0f), glm::vec2(1.0f)));
 }
 
 TEST_CASE("Campaign victories pick story bonus minigames by defeated opponent tier")

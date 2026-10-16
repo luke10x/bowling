@@ -30,7 +30,8 @@ label. The clearance scales with display pixel ratio.
 | `#68A9E0` | SNOW: snow particles | After snow draw |
 | `#D960B7` | TRAIL: ball trails and rings | After ball trail and spin ring draws |
 | `#DB8F31` | AMBI: ambient particles | After sparks, lane dust, and confetti draws |
-| `#784CB6` | FLY: flying rewards | After flying collectables and card drop animation |
+| `#784CB6` | FLY: flying rewards | After flying collectables below the HUD |
+| `#E277A3` | CARD: block-card drop | After the block-card drop animation and optional sparks |
 | `#D64E62` | DECAL: decals | After the decal batch |
 | `#49B5B0` | HUD: controls and screen effects | Before Clay UI work |
 | `#A9764B` | PREP: UI preparation | Before `Clay_BeginLayout` |
@@ -40,7 +41,7 @@ label. The clearance scales with display pixel ratio.
 | `#E5D569` | SWAP: presentation | After FPS accounting and `SDL_GL_SwapWindow` |
 
 Every zone has its own color. The bar stacks zones in fixed execution order,
-bottom to top. The legend ranks all 28 zones by total time in the rolling
+bottom to top. The legend ranks all 29 zones by total time in the rolling
 100-frame history: `01` is the largest bottleneck, and entries can move as
 their costs change. The five-second stderr table independently ranks zones
 by time in that reporting interval. Its rank can differ from the live legend.
@@ -76,7 +77,8 @@ GRAPH zone because it skips graph drawing.
 The Settings window has an **Extra particles** checkbox matching the tracker
 cell editor controls for A/B profiling.
 Turning it off skips snow, ball trails, spin rings, sparks, lane dust, and
-confetti draws. It leaves collectables, decals, and gameplay logic active.
+confetti draws, plus block-card-drop spark generation and uploads. It leaves
+collectables, decals, and gameplay logic active.
 The stderr header reports how many frames had the checkbox on during each
 five-second sample; compare samples with all frames on or all frames off.
 
@@ -95,3 +97,8 @@ separately so the next measurement can distinguish those costs. The shared mesh 
 the matrix, atlas, and tint uniform locations it uses on common draw paths.
 The hot atlas update leaves OpenGL error checking available behind
 `VTX_GL_CHECK_HOT_PATH` so routine frames avoid that driver query.
+
+Flying HUD rewards now use one instance batch per distinct mesh in each HUD
+pass when multiple rewards share a mesh. Their transforms are packed into
+instance data, then the shared mesh's previous data is restored. A lone reward
+keeps the single-item draw path to avoid two buffer uploads.

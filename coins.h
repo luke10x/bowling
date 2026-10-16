@@ -230,8 +230,12 @@ struct Coin {
 // -----------------------------------------------------------------------------
 struct CoinLane {
     // === Configuration (static inline const for hot-reload) ===
-    static inline const int MAX_COINS = 768;
-    static inline const int MAX_FLY_ANIMATIONS = 768;
+    // Current layouts use at most 40 coin slots (Count Masters); 64 also covers
+    // Coin Rush's 19 rows at its configured maximum of 3 coins per row.
+    static inline const int MAX_COINS = 64;
+    // Reward flights are independent of lane coin slots. Keep room for a
+    // 50-coin chest payout plus other active pickup animations.
+    static inline const int MAX_FLY_ANIMATIONS = 128;
     
     // Lane geometry (world units, meters)
     static inline const float LANE_START_Z = -15.288f;  // Far end

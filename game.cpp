@@ -3886,23 +3886,30 @@ static inline void RenderBlockCardDropAnimation(UserContext *usr, float deltaTim
     {
         const glm::vec3 from = anim.previousTrailPointsValid ? anim.previousTrailPoints[i] : edgePoints[i];
         const glm::vec3 to = edgePoints[i];
-        const glm::vec3 segment = to - from;
-        const float segmentLen = glm::length(segment);
-        const int sampleCount = glm::clamp(1 + int(segmentLen / kCardTrailSpacingM), 1, 10);
-        for (int sample = 0; sample < sampleCount; ++sample)
+        if (usr->settings.extraParticlesEnabled)
         {
-            const float sampleT = (sampleCount <= 1) ? 1.0f : float(sample + 1) / float(sampleCount);
-            const glm::vec3 point = glm::mix(from, to, sampleT);
-            glm::vec2 outward(point.x - cardCenter.x, point.z - cardCenter.z);
-            if (glm::dot(outward, outward) < 1.0e-6f)
-                outward = glm::vec2(segment.x, segment.z);
-            if (glm::dot(outward, outward) < 1.0e-6f)
-                outward = glm::vec2(0.0f, -1.0f);
-            usr->particles.trailBlockSparks(point, outward, trailIntensity, trailTint, 1.05f, 0.5f);
+            const glm::vec3 segment = to - from;
+            const float segmentLen = glm::length(segment);
+            const int sampleCount = glm::clamp(1 + int(segmentLen / kCardTrailSpacingM), 1, 10);
+            for (int sample = 0; sample < sampleCount; ++sample)
+            {
+                const float sampleT = (sampleCount <= 1) ? 1.0f : float(sample + 1) / float(sampleCount);
+                const glm::vec3 point = glm::mix(from, to, sampleT);
+                glm::vec2 outward(point.x - cardCenter.x, point.z - cardCenter.z);
+                if (glm::dot(outward, outward) < 1.0e-6f)
+                    outward = glm::vec2(segment.x, segment.z);
+                if (glm::dot(outward, outward) < 1.0e-6f)
+                    outward = glm::vec2(0.0f, -1.0f);
+                usr->particles.trailBlockSparks(point, outward, trailIntensity, trailTint, 1.05f, 0.5f, false);
+            }
         }
+        // Keep the previous position fresh while FX is disabled so re-enabling
+        // particles mid-drop does not bridge an old segment with a large burst.
         anim.previousTrailPoints[i] = edgePoints[i];
     }
     anim.previousTrailPointsValid = true;
+    if (usr->settings.extraParticlesEnabled)
+        usr->particles.uploadPendingBlockSparks();
 
     const BlockConfiguration &config = configs[size_t(anim.variantIndex)];
     usr->mainShader.updateDiffuseTexture(usr->everythingTexture);
@@ -26802,8 +26809,9 @@ END_LINE:
                 3.0f
             );
         }
-        RenderBlockCardDropAnimation(usr, (float)deltaTime);
         usr->frameProfileGraph.mark(FrameProfileGraph::FxFlyingCollectables);
+        RenderBlockCardDropAnimation(usr, (float)deltaTime);
+        usr->frameProfileGraph.mark(FrameProfileGraph::FxCardDrop);
         usr->decalBatch.renderDecals(
             usr->everythingTexture.id, // Atlas for all decals
             usr->cameraMat,            // view to world
@@ -27019,6 +27027,7 @@ END_LINE:
         usr->frameProfileGraph.mark(FrameProfileGraph::FxBallTrail);
         usr->frameProfileGraph.mark(FrameProfileGraph::FxAmbientParticles);
         usr->frameProfileGraph.mark(FrameProfileGraph::FxFlyingCollectables);
+        usr->frameProfileGraph.mark(FrameProfileGraph::FxCardDrop);
         usr->frameProfileGraph.mark(FrameProfileGraph::FxDecals);
     }
     usr->frameProfileGraph.mark(FrameProfileGraph::FxOverlay);

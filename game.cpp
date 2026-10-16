@@ -1709,6 +1709,48 @@ struct UserContext
     glm::vec3 cameraReturnEndTarget = glm::vec3(0.0f);
 };
 
+// All gameplay physics step intervals live here, in milliseconds. The second
+// column is used when a frame falls below the FPS threshold. Equal columns
+// mean that phase does not currently reduce its step rate on slow devices.
+struct PhysicsStepSchedule
+{
+    static constexpr float LowFpsThreshold = 28.0f;
+    static constexpr float NearPinDeckZ = -1.0f;
+
+    enum Row { Other, Idle, Aim, Swing, ThrowApproach, ThrowNearDeck, Result, CountMastersPinCrash, Count };
+    struct Interval { float normalMs; float lowFpsMs; };
+    inline static constexpr std::array<Interval, Count> Milliseconds = {{
+        {500.0f, 500.0f}, // Other: FINAL_RESULT, MENU
+        { 20.0f,  20.0f}, // IDLE: keep restocked pins supported
+        { 50.0f,  80.0f}, // AIM
+        {  5.0f,  10.0f}, // SWING
+        { 15.0f,  15.0f}, // THROW approach: ball z <= NearPinDeckZ
+        {  5.0f,   5.0f}, // THROW near pin deck: preserve ball/pin contacts even at low FPS
+        {  5.0f,   5.0f}, // RESULT
+        {  5.0f,   5.0f}  // Count Masters PIN_CRASH, overrides phase
+    }};
+
+    static constexpr float interval(UserContext::Phase phase, bool lowFps,
+                                    float ballZ, bool countMastersPinCrash)
+    {
+        Row row = Other;
+        switch (phase)
+        {
+        case UserContext::Phase::IDLE: row = Idle; break;
+        case UserContext::Phase::AIM: row = Aim; break;
+        case UserContext::Phase::SWING: row = Swing; break;
+        case UserContext::Phase::THROW:
+            row = ballZ > NearPinDeckZ ? ThrowNearDeck : ThrowApproach;
+            break;
+        case UserContext::Phase::RESULT: row = Result; break;
+        case UserContext::Phase::FINAL_RESULT:
+        case UserContext::Phase::MENU: break;
+        }
+        if (countMastersPinCrash) row = CountMastersPinCrash;
+        return (lowFps ? Milliseconds[row].lowFpsMs : Milliseconds[row].normalMs) * 0.001f;
+    }
+};
+
 static inline void PlaceCenteredConfiguredBlock(UserContext *usr, int configIndex);
 static inline void PlayBlockPlacedFeedback(UserContext *usr, int configIndex);
 static inline void PlaceConfiguredBlock(UserContext *usr, const FracturedBlockSettings &settings)
@@ -19266,6 +19308,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
 #endif
 
+    usr->sound.setAudioCallbackProfiling(usr->settings.performanceAnalysisEnabled);
     usr->frameProfileGraph.setEnabled(usr->settings.performanceAnalysisEnabled);
     usr->frameProfileGraph.beginFrame();
     // Clay recalculates the HUD edge later in this loop. Both fly passes must
@@ -19273,7 +19316,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     const int flyHudBoundaryThisFrame = usr->hudAboveThis;
     float deltaTime = (float)usr->fpsCounter.startFrame();
     const float safeDeltaTime = std::isfinite(deltaTime) ? glm::clamp(deltaTime, 0.0f, 0.100f) : (1.0f / 60.0f);
-    const bool lowFpsAimSwingFrame = safeDeltaTime > (1.0f / 28.0f);
+    const bool lowFpsAimSwingFrame = safeDeltaTime > 1.0f / PhysicsStepSchedule::LowFpsThreshold;
     auto vec3Finite = [](const glm::vec3 &v) -> bool {
         return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
     };
@@ -21199,6 +21242,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     // sample immediately when analysis is switched off this frame.
     if (usr->frameProfileGraph.setEnabled(usr->settings.performanceAnalysisEnabled))
         usr->frameProfileGraph.beginFrame();
+    usr->sound.setAudioCallbackProfiling(usr->settings.performanceAnalysisEnabled);
     usr->frameProfileGraph.mark(FrameProfileGraph::Events);
 
     // School Lesson 4 completion: show completion story after the player closes the Oil window.
@@ -24106,44 +24150,13 @@ swing_checks_done:
     usr->playerNosUsageActiveThisFrame = false;
     usr->enemyNosUsageActiveThisFrame = false;
     usr->frameProfileGraph.mark(FrameProfileGraph::RollAndScore);
-    float physicsInterval = 0.500f; // Default physics is 2 times a second
-    if (usr->phase == UserContext::Phase::IDLE)
-    {
-        physicsInterval = 0.020f; // make sure they don't fall through when restocked
-    }
-    if (usr->phase == UserContext::Phase::AIM)
-    {
-        physicsInterval = lowFpsAimSwingFrame ? 0.080f : 0.050f; // Loosen cost on slow devices
-    }
-    if (usr->phase == UserContext::Phase::SWING)
-    {
-        physicsInterval = lowFpsAimSwingFrame ? 0.010f : 0.005f; // More forgiving under slow WASM/Android
-    }
-    if (usr->phase == UserContext::Phase::THROW)
-    {
-        if (ballModel[3].z > -1.0f)
-        {
-            physicsInterval = 0.005f; // throw most intense before the end
-        }
-        else
-        {
-            physicsInterval = 0.015f; // Otherwise moderate
-            // Note it requires more spin if not frequent enough
-        }
-    }
-    if (usr->phase == UserContext::Phase::RESULT)
-    {
-        physicsInterval = 0.005f; //
-                                  // Swing most intense because of the launch time
-	    }
-    if (MiniGame_IsCountMasters(usr) && usr->countMasters.phase == CountMastersPhase::PIN_CRASH)
-    {
-        physicsInterval = 0.005f;
-    }
-        RuneGuardPins_Tick(usr, (float)gameplayDeltaTime);
-        RuneFootball_RefreshRestitutionForLaneZ(usr);
-        if (gameplayDeltaTime > 0.0f)
-	        usr->phy.physics_step(gameplayDeltaTime, physicsInterval);
+    const float physicsInterval = PhysicsStepSchedule::interval(
+        usr->phase, lowFpsAimSwingFrame, ballModel[3].z,
+        MiniGame_IsCountMasters(usr) && usr->countMasters.phase == CountMastersPhase::PIN_CRASH);
+    RuneGuardPins_Tick(usr, (float)gameplayDeltaTime);
+    RuneFootball_RefreshRestitutionForLaneZ(usr);
+    if (gameplayDeltaTime > 0.0f)
+        usr->phy.physics_step(gameplayDeltaTime, physicsInterval);
     usr->frameProfileGraph.mark(FrameProfileGraph::Physics);
         Enemy_TickInFlightAimAssist(usr, gameplayDeltaTime);
         const bool playerNosArmed = ShouldShowNosToolbar(usr) && usr->nosHeld;
@@ -30135,6 +30148,9 @@ if (usr->shouldShowImgui)
 usr->frameProfileGraph.mark(FrameProfileGraph::UiDraw);
 if (usr->settings.performanceAnalysisEnabled)
 {
+    usr->frameProfileGraph.setAudioCallbackFormat(
+        usr->sound.audioDev ? usr->sound.obtainedBufferSize : 0,
+        usr->sound.obtainedSampleRate);
     bindDefaultOpenGLFramebuffer();
     usr->frameProfileGraph.draw(
         (int)(ctx->screenWidth * ctx->pixelRatio),
@@ -30146,7 +30162,12 @@ usr->fpsCounter.endFrame();
 
 SDL_GL_SwapWindow(ctx->sdlWindow);
 usr->frameProfileGraph.extraParticlesEnabled = usr->settings.extraParticlesEnabled;
-usr->frameProfileGraph.endFrame();
+if (usr->frameProfileGraph.enabled)
+{
+    const auto audioProfile = usr->sound.takeAudioCallbackProfile();
+    usr->frameProfileGraph.endFrame(audioProfile.totalTicks, audioProfile.count,
+                                    audioProfile.durations.data(), audioProfile.durationCount);
+}
 
 #if defined(TARGET_OS_IOS) && TARGET_OS_IOS
 if (!usr->iosDeferredSoundInitDone)

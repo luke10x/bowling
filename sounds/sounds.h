@@ -2,6 +2,9 @@
 
 #include <SDL.h>
 #include <string>
+#include <utility>
+#include <array>
+#include <algorithm>
 #include "./../../eggsfm/xfm_api.h"
 
 // #include <clay.h>
@@ -119,6 +122,49 @@ struct GameSoundSystem
 
     SDL_AudioDeviceID audioDev = 0;
     std::atomic<bool> audioShutdownInProgress{false};  // Emscripten: atomic for cross-thread visibility
+    // Callback and game loop may run on different threads on native SDL.
+    // Keep profiling opt-in and transfer completed callback work atomically.
+    std::atomic<bool> profileAudioCallback{false};
+    std::atomic<Uint64> audioCallbackTicks{0};
+    std::atomic<unsigned> audioCallbackCount{0};
+    static constexpr unsigned AudioProfileQueueSize = 256;
+    static constexpr unsigned AudioProfileDrainLimit = AudioProfileQueueSize;
+    std::array<std::atomic<Uint64>, AudioProfileQueueSize> audioCallbackDurations{};
+    std::atomic<Uint64> audioCallbackPublished{0};
+    Uint64 audioCallbackReadIndex = 0; // game thread only
+
+    struct AudioCallbackProfile
+    {
+        Uint64 totalTicks = 0;
+        unsigned count = 0;
+        std::array<Uint64, AudioProfileDrainLimit> durations{};
+        unsigned durationCount = 0;
+    };
+
+    void setAudioCallbackProfiling(bool enabled)
+    {
+        if (profileAudioCallback.exchange(enabled, std::memory_order_relaxed) != enabled)
+        {
+            audioCallbackTicks.exchange(0, std::memory_order_relaxed);
+            audioCallbackCount.exchange(0, std::memory_order_relaxed);
+            audioCallbackReadIndex = audioCallbackPublished.load(std::memory_order_acquire);
+        }
+    }
+
+    AudioCallbackProfile takeAudioCallbackProfile()
+    {
+        AudioCallbackProfile result;
+        result.totalTicks = audioCallbackTicks.exchange(0, std::memory_order_relaxed);
+        result.count = audioCallbackCount.exchange(0, std::memory_order_relaxed);
+        const Uint64 published = audioCallbackPublished.load(std::memory_order_acquire);
+        const Uint64 first = published - std::min<Uint64>(
+            published - audioCallbackReadIndex, AudioProfileDrainLimit);
+        for (Uint64 index = first; index < published; ++index)
+            result.durations[result.durationCount++] =
+                audioCallbackDurations[index % AudioProfileQueueSize].load(std::memory_order_relaxed);
+        audioCallbackReadIndex = published;
+        return result;
+    }
 
     float musicVolume = 0.5f;
     float sfxVolume   = 1.0f;

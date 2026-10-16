@@ -93,21 +93,20 @@ Open question:
   Prepacking should either create volume variants or patch only the affected TL
   registers at note time.
 
-### Try Wasm SIMD
+### Wasm SIMD trial
 
-Add an optional Makefile flag for `-msimd128` and measure on real browser
-targets.
+`Makefile.emscripten` now defaults to `WASM_SIMD=1`. This enables Jolt's
+`USE_WASM_SIMD` option and compiles the game with matching `-msimd128 -msse4.2`
+flags. Build with `WASM_SIMD=0` to compare against the previous
+scalar path. No physics step intervals or collision settings change.
 
 Expected effect:
 
 - May help Jolt, GLM math, and some compiler-generated loops.
 - YMFM benefit is uncertain unless the compiler can vectorize useful pieces.
 
-Suggested shape:
-
-- Add a switch such as `SIMD=1`.
-- When enabled, append `-msimd128` to compile and link flags.
-- Test on target browsers/devices before making it default.
+Measure the PHYS zone and worst frame peaks on target browsers/devices before
+keeping this enabled for release.
 
 Risk:
 

@@ -1079,10 +1079,36 @@ void GameSoundSystem::startRestart(const char* songPattern)
 
 static void my_audio_callback(void* userdata, Uint8* stream, int len)
 {
+    GameSoundSystem* self = (GameSoundSystem*)userdata;
+    if (self == nullptr)
+    {
+        std::memset(stream, 0, len);
+        return;
+    }
+    // The scope includes silence paths and every mixer pass. No clock read or
+    // sample write occurs when performance analysis is off.
+    struct CallbackProfileScope
+    {
+        GameSoundSystem *sound;
+        Uint64 start;
+        explicit CallbackProfileScope(GameSoundSystem *s) : sound(s),
+            start(s->profileAudioCallback.load(std::memory_order_relaxed)
+                      ? SDL_GetPerformanceCounter() : 0) {}
+        ~CallbackProfileScope()
+        {
+            if (!start || !sound->profileAudioCallback.load(std::memory_order_relaxed)) return;
+            const Uint64 duration = SDL_GetPerformanceCounter() - start;
+            sound->audioCallbackTicks.fetch_add(duration, std::memory_order_relaxed);
+            sound->audioCallbackCount.fetch_add(1, std::memory_order_relaxed);
+            const Uint64 index = sound->audioCallbackPublished.load(std::memory_order_relaxed);
+            sound->audioCallbackDurations[index % GameSoundSystem::AudioProfileQueueSize].store(
+                duration, std::memory_order_relaxed);
+            sound->audioCallbackPublished.store(index + 1, std::memory_order_release);
+        }
+    } profile(self);
+
     // Always clear the destination, including during teardown.
     std::memset(stream, 0, len);
-    if (userdata == nullptr) return;
-    GameSoundSystem* self = (GameSoundSystem*)userdata;
 
     // Emscripten: callback runs async, must check ALL state flags FIRST
     if (self->audioShutdownInProgress.load()) {

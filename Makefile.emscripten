@@ -72,6 +72,17 @@ $(TXL_FONT_ROBOTO_MONO): $(PWD)/assets/files/RobotoMono-Regular.ttf
 # 
 
 BUILD ?= release
+WASM_SIMD ?= 1
+
+# Keep the game and Jolt on matching Jolt SIMD definitions. Set WASM_SIMD=0
+# for an A/B build with the previous scalar path.
+ifeq ($(WASM_SIMD),1)
+	JOLT_WASM_SIMD := ON
+	WASM_SIMD_FLAGS := -msimd128 -msse4.2
+else
+	JOLT_WASM_SIMD := OFF
+	WASM_SIMD_FLAGS :=
+endif
 
 ifeq ($(BUILD),debug)
 	OPTFLAGS := -O0 -g3
@@ -88,17 +99,18 @@ else
 endif
 
 JOLT_SRC_DIR=$(PWD)/3rdparty/JoltPhysics
-JOLT_BUILD_DIR=build/emscripten/jolt
-JOLT_LIB=$(PWD)/build/emscripten/usr/lib/libJolt.a
+JOLT_BUILD_DIR=build/emscripten/jolt-$(BUILD)-simd$(WASM_SIMD)
+JOLT_LIB=$(PWD)/$(JOLT_BUILD_DIR)/lib/libJolt.a
 
 jolt: $(JOLT_LIB)
 
 $(JOLT_LIB): Makefile.emscripten
-	rm -rf $(JOLT_BUILD_DIR)/../usr/lib/libJolt* $(JOLT_BUILD_DIR)
+	rm -rf $(JOLT_BUILD_DIR)
 	mkdir -p $(JOLT_BUILD_DIR)
 	(cd $(JOLT_BUILD_DIR) && \
 	emcmake cmake \
 		-DUSE_ASSERTS=$(JOLT_USE_ASSERTS) \
+		-DUSE_WASM_SIMD=$(JOLT_WASM_SIMD) \
 		-DTARGET_SAMPLES=OFF \
 		-DTARGET_UNIT_TESTS=OFF \
 		-DTARGET_VIEWER=OFF \
@@ -110,7 +122,7 @@ $(JOLT_LIB): Makefile.emscripten
 		-DCMAKE_BUILD_TYPE=Release \
 		-DCMAKE_CXX_FLAGS="$(OPTFLAGS) $(LTOFLAGS)" \
 		-DCMAKE_EXE_LINKER_FLAGS="$(OPTFLAGS) $(LTOFLAGS)" \
-		-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=$(abspath $(JOLT_BUILD_DIR)/../usr/lib) \
+		-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=$(abspath $(JOLT_BUILD_DIR)/lib) \
 		$(abspath $(JOLT_SRC_DIR))/Build && \
 	emmake make -j8)
 
@@ -124,6 +136,7 @@ HOST_CXX ?= c++
 CXXFLAGS = -std=c++20
 CXXFLAGS += -Wno-reorder-init-list
 CXXFLAGS += $(OPTFLAGS) $(LTOFLAGS)
+CXXFLAGS += $(WASM_SIMD_FLAGS)
 CXXFLAGS += -I.
 
 # Web heap policy:
@@ -157,6 +170,7 @@ LDLIBS += $(PWD)/sounds/sounds.cpp
 # redirects `EM_CACHE` into the repo so ports can be reused offline once cached.
 LDLIBS += -s USE_ZLIB=1
 LDLIBS += -s USE_SDL=2
+LDLIBS += $(WASM_SIMD_FLAGS)
 LDLIBS += -s FULL_ES2=1 -s USE_WEBGL2=1
 LDLIBS += -s ALLOW_MEMORY_GROWTH=0 -s INITIAL_MEMORY=$(EM_INITIAL_MEMORY_BYTES) -s ABORTING_MALLOC=1 -s GL_UNSAFE_OPTS=0
 LDLIBS += -s STACK_SIZE=2048kb
@@ -227,7 +241,7 @@ main: $(JOLT_LIB) imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(STAMPED_SW) $(PW
 	(cd "$(PWD)/build/emscripten/www" && zip -r ../bowling.zip .)
 
 test:
-	make -f Makefile.emscripten main \
+	$(MAKE) -f Makefile.emscripten main \
 		&& (cd build/emscripten/www && python3 -mhttp.server 8000)
 
 clean:

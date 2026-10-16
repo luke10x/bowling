@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <cstdio>
+#include <cmath>
 #include <vector>
 
 // CPU wall time for completed frames. Each mark closes the preceding zone.
@@ -41,6 +42,7 @@ struct FrameProfileGraph
         UiDraw,
         ProfileGraphDraw,
         Present,
+        Audio,
         Count
     };
 
@@ -84,7 +86,8 @@ struct FrameProfileGraph
         {"LAY",   "UI layout",           0.7f, 0x6BA8CF},
         {"DRAW",  "UI draw",             7.2f, 0xE2A15A},
         {"GRAPH", "Profile graph",      -1.0f, 0xA6A6B0},
-        {"SWAP",  "Present/swap",        -1.0f, 0xE5D569}
+        {"SWAP",  "Present/swap",        -1.0f, 0xE5D569},
+        {"AUDIO", "SDL audio callback",  -1.0f, 0xFFFFFF}
     }};
 
     struct Vertex { float x, y, r, g, b, a; };
@@ -104,7 +107,11 @@ struct FrameProfileGraph
     double reportGapMs = 0.0;
     bool extraParticlesEnabled = true;
     std::array<double, Count> reportTotalsMs{};
+    double reportAudioMs = 0.0;
+    double reportAudioMaxMs = 0.0;
+    unsigned reportAudioCallbacks = 0;
     double ticksPerMs = 1.0;
+    float audioCallbackIntervalMs = 0.0f;
     GLuint program = 0, vao = 0, vbo = 0;
     bool enabled = false;
 
@@ -117,6 +124,12 @@ struct FrameProfileGraph
     void setZoneColor(Zone zone, uint32_t rgb)
     {
         if (zone >= 0 && zone < Count) zoneColors[zone] = rgb & 0xFFFFFF;
+    }
+
+    void setAudioCallbackFormat(int bufferFrames, int sampleRate)
+    {
+        audioCallbackIntervalMs = bufferFrames > 0 && sampleRate > 0
+            ? 1000.0f * bufferFrames / sampleRate : 0.0f;
     }
 
     static std::array<float, 3> colorComponents(uint32_t rgb)
@@ -171,6 +184,9 @@ struct FrameProfileGraph
         reportFrames = reportExtraParticlesOnFrames = reportGapSamples = 0;
         reportGapMs = 0.0;
         reportTotalsMs.fill(0.0);
+        reportAudioMs = 0.0;
+        reportAudioMaxMs = 0.0;
+        reportAudioCallbacks = 0;
         if (enabled && program == 0) init();
         return enabled;
     }
@@ -201,11 +217,20 @@ struct FrameProfileGraph
         nextZone = zone + 1;
     }
 
-    void endFrame()
+    void endFrame(Uint64 audioTicks, unsigned audioCallbackCount,
+                  const Uint64 *callbackTicks, unsigned sampleCount)
     {
         if (!enabled) return;
         mark(Present);
+        // Attribute completed callbacks since the previous sample to this
+        // frame. AUDIO is the final fixed-order stack segment, not a mark.
+        current[Audio] = (float)((double)audioTicks / ticksPerMs);
         frames[nextFrame] = current;
+        reportAudioMs += (double)audioTicks / ticksPerMs;
+        reportAudioCallbacks += audioCallbackCount;
+        for (unsigned i = 0; i < sampleCount; ++i)
+            reportAudioMaxMs = std::max(reportAudioMaxMs,
+                                        (double)callbackTicks[i] / ticksPerMs);
         nextFrame = (nextFrame + 1) % History;
         if (recordedFrames < History) ++recordedFrames;
         for (int zone = 0; zone < Count; ++zone)
@@ -218,6 +243,9 @@ struct FrameProfileGraph
         {
             printReport(elapsedMs);
             reportTotalsMs.fill(0.0);
+            reportAudioMs = 0.0;
+            reportAudioMaxMs = 0.0;
+            reportAudioCallbacks = 0;
             reportFrames = 0;
             reportExtraParticlesOnFrames = 0;
             reportGapSamples = 0;
@@ -238,6 +266,11 @@ struct FrameProfileGraph
                      reportExtraParticlesOnFrames, reportFrames,
                      reportGapSamples > 0 ? reportGapMs / reportGapSamples : 0.0,
                      reportGapSamples);
+        std::fprintf(stderr, "AUDIO callback: %.3f ms/frame, %.3f ms/call average, %.3f ms maximum, %u calls (white bottom segment; may overlap loop work on native)\n",
+                     reportFrames > 0 ? reportAudioMs / reportFrames : 0.0,
+                     reportAudioCallbacks > 0 ? reportAudioMs / reportAudioCallbacks : 0.0,
+                     reportAudioMaxMs,
+                     reportAudioCallbacks);
         std::fprintf(stderr, "%4s | %-5s | %-22s | %-9s | %8s | %8s | %8s\n",
                      "Rank", "Key", "Zone", "Color", "Expected", "Measured", "Avg ms");
         std::fprintf(stderr, "-----+-------+------------------------+-----------+----------+----------+---------\n");
@@ -257,7 +290,7 @@ struct FrameProfileGraph
                          expected, measured, averageMs);
         }
         std::fprintf(stderr, "     | %-5s | %-22s | %-9s | %7d%% | %7.1f%% | %8.3f\n",
-                     "TOTAL", "Measured loop work", "", 100, totalMs > 0.0 ? 100.0 : 0.0,
+                     "TOTAL", "Combined CPU work", "", 100, totalMs > 0.0 ? 100.0 : 0.0,
                      reportFrames > 0 ? totalMs / reportFrames : 0.0);
         std::fflush(stderr);
     }
@@ -284,6 +317,7 @@ struct FrameProfileGraph
         case '7': return {{31,1,2,4,8,8,8}};
         case '8': return {{14,17,17,14,17,17,14}};
         case '9': return {{14,17,17,15,1,1,14}};
+        case '.': return {{0,0,0,0,0,0,4}};
         case 'A': return {{14,17,17,31,17,17,17}};
         case 'B': return {{30,17,17,30,17,17,30}};
         case 'C': return {{15,16,16,16,16,16,15}};
@@ -311,7 +345,8 @@ struct FrameProfileGraph
     }
 
     void label(float xPx, float yPx, float scale, const char *text,
-               float width, float height)
+               float width, float height,
+               float r = 1.0f, float g = 1.0f, float b = 1.0f)
     {
         for (const char *p = text; *p; ++p, xPx += 6.0f * scale)
         {
@@ -326,7 +361,7 @@ struct FrameProfileGraph
                              -1.0f + 2.0f * y / height,
                              -1.0f + 2.0f * (x + scale) / width,
                              -1.0f + 2.0f * (y + scale) / height,
-                             1.0f, 1.0f, 1.0f, 0.96f);
+                             r, g, b, 0.96f);
                     }
         }
     }
@@ -350,14 +385,14 @@ struct FrameProfileGraph
         const float x0 = -graphWidth / width;
         const float x1 = graphWidth / width;
         const float y0 = -1.0f + 2.0f * bottomPx / height;
-        const float y1 = y0 + 2.0f * (graphHeight - legendHeight) / height;
+        const float barHeight = graphHeight - legendHeight;
+        const float y1 = y0 + 2.0f * barHeight / height;
+        // Keep larger audio-buffer deadlines visible with room for the label.
+        const float chartScaleMs = audioCallbackIntervalMs > 0.0f
+            ? std::max(ScaleMs, 25.0f * std::ceil((audioCallbackIntervalMs + 20.0f) / 25.0f))
+            : ScaleMs;
         quad(x0, y0, x1, y0 + 2.0f * graphHeight / height,
              0.02f, 0.025f, 0.04f, 0.80f);
-        for (float ms : {16.67f, 33.33f, 66.67f})
-        {
-            const float y = y0 + (y1 - y0) * ms / ScaleMs;
-            quad(x0, y, x1, y + 2.0f / height, 0.8f, 0.8f, 0.8f, 0.30f);
-        }
         std::array<double, Count> recentTotalsMs{};
         for (int col = 0; col < recordedFrames; ++col)
         {
@@ -365,17 +400,20 @@ struct FrameProfileGraph
             const float left = x0 + (x1 - x0) * col / History;
             const float right = x0 + (x1 - x0) * (col + 1) / History;
             float total = 0.0f;
-            for (int zone = 0; zone < Count; ++zone)
+            // AUDIO is sampled after the loop, but draw it first so its white
+            // segment stays at the bottom of every stacked frame column.
+            for (int drawIndex = 0; drawIndex < Count; ++drawIndex)
             {
-                const float from = std::min(total, ScaleMs);
+                const int zone = drawIndex == 0 ? Audio : drawIndex - 1;
+                const float from = std::min(total, chartScaleMs);
                 const float zoneMs = frames[index][zone];
                 recentTotalsMs[zone] += zoneMs;
                 total += zoneMs;
-                const float to = std::min(total, ScaleMs);
+                const float to = std::min(total, chartScaleMs);
                 if (to <= from) continue;
                 const auto c = colorComponents(zoneColors[zone]);
-                quad(left, y0 + (y1 - y0) * from / ScaleMs,
-                     right, y0 + (y1 - y0) * to / ScaleMs,
+                quad(left, y0 + (y1 - y0) * from / chartScaleMs,
+                     right, y0 + (y1 - y0) * to / chartScaleMs,
                      c[0], c[1], c[2], 0.95f);
             }
         }
@@ -383,7 +421,61 @@ struct FrameProfileGraph
         const float scale = slotWidth >= 90.0f ? 1.5f :
             std::min(1.0f, (slotWidth - 12.0f) / 48.0f);
         const float graphLeftPx = (width - graphWidth) * 0.5f;
-        const float legendBottomPx = bottomPx + graphHeight - legendHeight;
+        // Keep the timing guides above the bars, with a black label on each end.
+        // The light plates make the text legible regardless of the zone colors below.
+        struct TimingGuide { float ms; const char *msLabel; const char *fpsLabel; };
+        constexpr std::array<TimingGuide, 3> timingGuides = {{
+            {16.67f, "16.7 MS", "60 FPS"},
+            {33.33f, "33.3 MS", "30 FPS"},
+            {66.67f, "66.7 MS", "15 FPS"}
+        }};
+        const float guideScale = compact ? 1.0f : 1.2f;
+        const float labelHeight = 7.0f * guideScale;
+        const float plateHeight = labelHeight + 4.0f;
+        for (const auto &guide : timingGuides)
+        {
+            const float lineYPx = bottomPx + barHeight * guide.ms / chartScaleMs;
+            const float y = -1.0f + 2.0f * lineYPx / height;
+            quad(x0, y, x1, y + 2.0f / height, 0.85f, 0.85f, 0.85f, 0.55f);
+
+            const float plateBottomPx = lineYPx - plateHeight * 0.5f;
+            const float textBottomPx = plateBottomPx + 2.0f;
+            const float leftPx = graphLeftPx + 4.0f;
+            const float msPlateWidth = 7.0f * 6.0f * guideScale + 6.0f;
+            const float fpsPlateWidth = 6.0f * 6.0f * guideScale + 6.0f;
+            const float rightPx = graphLeftPx + graphWidth - fpsPlateWidth - 4.0f;
+            for (const auto &plate : {std::array<float, 2>{leftPx, msPlateWidth},
+                                      std::array<float, 2>{rightPx, fpsPlateWidth}})
+                quad(-1.0f + 2.0f * plate[0] / width,
+                     -1.0f + 2.0f * plateBottomPx / height,
+                     -1.0f + 2.0f * (plate[0] + plate[1]) / width,
+                     -1.0f + 2.0f * (plateBottomPx + plateHeight) / height,
+                     0.96f, 0.96f, 0.96f, 0.93f);
+            label(leftPx + 3.0f, textBottomPx, guideScale, guide.msLabel,
+                  width, height, 0.0f, 0.0f, 0.0f);
+            label(rightPx + 3.0f, textBottomPx, guideScale, guide.fpsLabel,
+                  width, height, 0.0f, 0.0f, 0.0f);
+        }
+        if (audioCallbackIntervalMs > 0.0f)
+        {
+            const float lineYPx = bottomPx + barHeight * audioCallbackIntervalMs / chartScaleMs;
+            const float y = -1.0f + 2.0f * lineYPx / height;
+            quad(x0, y, x1, y + 3.0f / height, 0.95f, 0.12f, 0.12f, 0.95f);
+            char audioGuideLabel[32];
+            const int chars = std::snprintf(audioGuideLabel, sizeof(audioGuideLabel),
+                                            "AUDIO %.1f MS", audioCallbackIntervalMs);
+            const float plateWidth = chars * 6.0f * guideScale + 8.0f;
+            const float plateLeftPx = graphLeftPx + (graphWidth - plateWidth) * 0.5f;
+            const float plateBottomPx = lineYPx - plateHeight * 0.5f;
+            quad(-1.0f + 2.0f * plateLeftPx / width,
+                 -1.0f + 2.0f * plateBottomPx / height,
+                 -1.0f + 2.0f * (plateLeftPx + plateWidth) / width,
+                 -1.0f + 2.0f * (plateBottomPx + plateHeight) / height,
+                 1.0f, 0.86f, 0.86f, 0.96f);
+            label(plateLeftPx + 4.0f, plateBottomPx + 2.0f, guideScale,
+                  audioGuideLabel, width, height, 0.0f, 0.0f, 0.0f);
+        }
+        const float legendBottomPx = bottomPx + barHeight;
         const auto order = rankedZones(recentTotalsMs);
         for (int rank = 0; rank < Count; ++rank)
         {

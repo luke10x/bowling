@@ -17,7 +17,9 @@ label. The clearance scales with display pixel ratio.
 | `#DC4242` | PHYS: physics | After `physics_step` |
 | `#65B95B` | UPD: post-physics updates | Before offscreen previews |
 | `#3F83D8` | FBO: UI previews and decal labels | Before the main world pass |
-| `#C485DD` | BG: backdrop and biome | Before pins |
+| `#7D8794` | CLR: scene clear and GL setup | After clearing the world framebuffer |
+| `#47C8E7` | AUR: aurora sky | After aurora update and draw |
+| `#C485DD` | BG: active level backdrop and water | Before pins |
 | `#E3BE39` | PINS: pin meshes and effects | Before bot avatar |
 | `#5766D8` | BOT: bot avatar | Before opaque lane pass |
 | `#38B87B` | LANE: lane and props | Before ball and chest |
@@ -38,13 +40,19 @@ label. The clearance scales with display pixel ratio.
 | `#E5D569` | SWAP: presentation | After FPS accounting and `SDL_GL_SwapWindow` |
 
 Every zone has its own color. The bar stacks zones in fixed execution order,
-bottom to top. The legend ranks all 26 zones by total time in the rolling
+bottom to top. The legend ranks all 28 zones by total time in the rolling
 100-frame history: `01` is the largest bottleneck, and entries can move as
 their costs change. The five-second stderr table independently ranks zones
 by time in that reporting interval. Its rank can differ from the live legend.
 The full key and current hex color for all zones appear in the stderr report.
 To recolor a zone, change its row in `FrameProfileGraph::Zones`, or call
 `FrameProfileGraph::setZoneColor(zone, 0xRRGGBB)` at runtime.
+
+CLR, AUR, and BG replace the former combined BG zone. CLR includes GL state
+reset and the color/depth clear; AUR includes aurora vibe update and the sky
+draw; BG includes world shader setup and just the selected biome, plus water
+for biomes that use it. The former 8.4% BG estimate covered all three, so
+the new rows have no separate prior estimate.
 
 Every five seconds, stderr prints each zone's color, estimate where available,
 **measured** share of loop work, and average milliseconds per frame, highest

@@ -25693,6 +25693,7 @@ END_LINE:
         glDepthMask(GL_TRUE);
         glClearColor(0.1f, 0.2f, 0.1f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        usr->frameProfileGraph.mark(FrameProfileGraph::SceneClear);
 
         usr->auroraVibe.update(deltaTime);
         // Fullscreen background passes should ignore scene depth, same as previews.
@@ -25705,6 +25706,7 @@ END_LINE:
         ); //  * projectionMatrix);
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE);
+        usr->frameProfileGraph.mark(FrameProfileGraph::Aurora);
 
         if (!trackerOnlyMode)
         {
@@ -27004,7 +27006,7 @@ END_LINE:
 
     if (trackerOnlyMode)
     {
-        // Tracker draws the backdrop but skips the world/FX passes above.
+        // Tracker draws the aurora but skips the level backdrop and world/FX passes.
         usr->frameProfileGraph.mark(FrameProfileGraph::WorldBackdrop);
         usr->frameProfileGraph.mark(FrameProfileGraph::WorldPins);
         usr->frameProfileGraph.mark(FrameProfileGraph::WorldBotAvatar);

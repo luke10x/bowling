@@ -19,12 +19,18 @@ struct InstanceData
     glm::vec3 positionOffset;
     glm::vec3 scaleOffset;
     glm::vec2 atlasStart;
-    float _pad1; // Aliggn the structure, otherwise Emscrpten dies
-    float _pad2;
-    float _pad3;
-    float _pad4;
+    // Pin batching reuses the old padding as RGB tint plus blend amount.
+    // Other meshes leave these at zero and keep using the uniform tint.
+    float tintR;
+    float tintG;
+    float tintB;
+    float tintMix;
     float _pad5;
 };
+
+// useInstanceColorTint() reads these four floats as one vec4 attribute.
+static_assert(offsetof(InstanceData, tintMix) ==
+              offsetof(InstanceData, tintR) + 3 * sizeof(float));
 
 struct AssetMesh
 {
@@ -43,6 +49,7 @@ struct AssetMesh
     void sendMeshDataToGpu(MeshData *meshData);
 
     void sendInstanceDataToGpu();
+    void useInstanceColorTint();
 };
 
 void AssetMesh::releaseGpu()
@@ -216,6 +223,20 @@ void AssetMesh::sendInstanceDataToGpu()
     }
 }
 
+void AssetMesh::useInstanceColorTint()
+{
+    // Only the dedicated pin batch VAO opts in. Its vertex-color slot now
+    // advances once per instance and reads (tint RGB, blend amount) from the
+    // same instance buffer as the transform. The regular pin VAO is untouched.
+    glBindVertexArray(this->meshVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, this->instanceVBO);
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(InstanceData),
+                          (void *)offsetof(InstanceData, tintR));
+    glVertexAttribDivisor(1, 1);
+    glBindVertexArray(0);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+}
+
 struct ShaderProgram
 {
     static const char *DEFAULT_VERTEX_SHADER;
@@ -234,6 +255,7 @@ struct ShaderProgram
     GLint tintColorLocation = -1;
     GLint tintMixLocation = -1;
     GLint alphaMultiplierLocation = -1;
+    GLint instanceColorTintLocation = -1; // Selects instance color vs. legacy uniform tint.
 
     void cacheMaterialUniforms();
 
@@ -264,6 +286,7 @@ struct ShaderProgram
     void updateDepthMap(GLuint depthMap, glm::mat4 lightSpaceMatrix); // #4shadows
     void updateUseTextureAlpha(bool useTextureAlpha);
     void updateColorTintMix(glm::vec3 tintColor, float tintMix, float alphaMultiplier);
+    void updateInstanceColorTint(bool enabled);
     void renderRealMesh(
         AssetMesh &realMesh,
         glm::mat4 modelMatrix,
@@ -404,6 +427,7 @@ const char *ShaderProgram::DEFAULT_FRAGMENT_SHADER =
     uniform vec3 u_tintColor;
     uniform float u_tintMix;
     uniform float u_alphaMultiplier;
+    uniform float u_instanceColorTint; // Enabled only for the pin batch draw.
 
     out vec4 FragColor;
 
@@ -507,7 +531,11 @@ const char *ShaderProgram::DEFAULT_FRAGMENT_SHADER =
         float shadow = ShadowCalculation(FragPosLightSpace);
         float lightAmount = ambient + diffuse;
         vec3 litRgb = surfaceColor.rgb * vec3(lightColor * lightAmount) * (1.0 - shadow * 0.2);
-        litRgb = mix(litRgb, u_tintColor, clamp(u_tintMix, 0.0, 1.0));
+        // v_color is per-instance for the pin VAO and per-vertex elsewhere.
+        // The uniform switch preserves every existing mesh's tint behavior.
+        vec3 tintColor = u_instanceColorTint > 0.5 ? v_color.rgb : u_tintColor;
+        float tintMix = u_instanceColorTint > 0.5 ? v_color.a : u_tintMix;
+        litRgb = mix(litRgb, tintColor, clamp(tintMix, 0.0, 1.0));
         float outAlpha = mix(1.0, surfaceColor.a, clamp(u_useTextureAlpha, 0.0, 1.0));
         outAlpha *= max(0.0, u_alphaMultiplier);
         FragColor = vec4(litRgb, outAlpha);
@@ -523,6 +551,8 @@ void ShaderProgram::initDefaultShaderProgram()
     cachedRenderProgram = 0;
     cachedMaterialProgram = 0;
     updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+    // Keep legacy meshes on the uniform tint path until a batch opts in.
+    updateInstanceColorTint(false);
 }
 
 void ShaderProgram::initShaderProgram(
@@ -546,6 +576,7 @@ void ShaderProgram::cacheMaterialUniforms()
     tintColorLocation = glGetUniformLocation(this->id, "u_tintColor");
     tintMixLocation = glGetUniformLocation(this->id, "u_tintMix");
     alphaMultiplierLocation = glGetUniformLocation(this->id, "u_alphaMultiplier");
+    instanceColorTintLocation = glGetUniformLocation(this->id, "u_instanceColorTint");
     cachedMaterialProgram = this->id;
 }
 
@@ -614,6 +645,14 @@ void ShaderProgram::updateColorTintMix(glm::vec3 tintColor, float tintMix, float
     );
     glUniform1f(tintMixLocation, tintMix);
     glUniform1f(alphaMultiplierLocation, alphaMultiplier);
+}
+
+void ShaderProgram::updateInstanceColorTint(bool enabled)
+{
+    // Pin rendering enables this for one draw, then restores the normal path.
+    glUseProgram(this->id);
+    cacheMaterialUniforms();
+    glUniform1f(instanceColorTintLocation, enabled ? 1.0f : 0.0f);
 }
 
 /**

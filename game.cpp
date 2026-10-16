@@ -1244,7 +1244,10 @@ struct UserContext
 	    xfm_voice_id chestReadyLoopVoice = FM_VOICE_INVALID;
 	    float chestReadyLoopT = 0.0f;
     AssetMesh laneMesh;
-    AssetMesh pinMesh;
+	AssetMesh pinMesh;
+	// Shares the pin asset but owns a separate instance buffer, so UI previews
+	// can keep using pinMesh's identity instance without a restore upload.
+	AssetMesh pinBatchMesh;
     AssetMesh starMesh;
     AssetMesh gemMesh;
     AssetMesh runeBoomMesh;
@@ -18651,6 +18654,10 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->laneMesh.sendMeshDataToGpu(&laneMd);
     MeshData pinMd = loadMeshFromBlob(pin_mesh_data, pin_mesh_data_len);
     usr->pinMesh.sendMeshDataToGpu(&pinMd);
+    // This VAO reads pin tint from the spare bytes in each instance record.
+    // The ordinary pinMesh remains available for previews and isolated draws.
+    usr->pinBatchMesh.sendMeshDataToGpu(&pinMd);
+    usr->pinBatchMesh.useInstanceColorTint();
     MeshData starMd = loadMeshFromBlob(star_mesh_data, star_mesh_data_len);
     usr->starMesh.sendMeshDataToGpu(&starMd);
     Gem_InitIfNeeded(usr);
@@ -25857,165 +25864,159 @@ END_LINE:
                 glDisable(GL_BLEND);
             }
 
-	        usr->frameProfileGraph.mark(FrameProfileGraph::WorldBackdrop);
-	        // Pins: UV-shifted pin texture per selected house.
-	        // Base pin tile is authored in atlas column 0 at (col=0,row=7) in an 8x8 conceptual grid,
-	        // and variants are stacked downwards in the atlas; selection uses the same 1/8 V stepping
-	        // as lane variants.
-	        auto renderPlainPins = [&](const std::vector<glm::mat4> &models)
-	        {
-	            if (models.empty()) return;
-	            if (models.size() == 1)
-	            {
-	                usr->mainShader.renderRealMesh(
-	                    usr->pinMesh, models[0], usr->cameraMat, usr->perspectiveMat);
-	                return;
-	            }
-	            static thread_local std::vector<InstanceData> instances;
-	            instances.clear();
-	            instances.reserve(models.size());
-	            for (const glm::mat4 &model : models)
-	            {
-	                InstanceData instance{};
-	                instance.instRot = glm::quat_cast(glm::mat3(model));
-	                instance.textureScale = glm::vec3(1.0f);
-	                instance.positionOffset = glm::vec3(model[3]);
-	                instance.scaleOffset = glm::vec3(1.0f);
-	                instance.atlasStart = glm::vec2(0.0f);
-	                instances.push_back(instance);
-	            }
-	            std::vector<InstanceData> savedInstances;
-	            savedInstances.swap(usr->pinMesh.instanceData);
-	            usr->pinMesh.instanceData.swap(instances);
-	            usr->pinMesh.sendInstanceDataToGpu();
-	            usr->mainShader.renderRealMesh(
-	                usr->pinMesh, glm::mat4(1.0f), usr->cameraMat, usr->perspectiveMat);
-	            instances.swap(usr->pinMesh.instanceData);
-	            usr->pinMesh.instanceData.swap(savedInstances);
-	            usr->pinMesh.sendInstanceDataToGpu();
-	        };
-	        {
-	            const float cell = 1.0f / 8.0f;
-	            const int idx = glm::clamp(usr->pinTextureIdx, 0, 3);
-	            usr->mainShader.updateTextureParamsInOneGo(
-	                glm::vec3(1.0f),
-	                glm::vec2(1.0f),
-	                glm::vec2(1.0f, 1.0f + (float)idx * cell),
-	                1.0f
-	            );
-	        }
-		        if (!MiniGame_IsCountMasters(usr) &&
-                    !MiniGame_IsCrowdControl(usr))
-		        {
-                    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-                        usr->school.selectedLesson == 3)
+        usr->frameProfileGraph.mark(FrameProfileGraph::WorldBackdrop);
+        // Build only visible pins: at most 10 lane pins plus 3 live guards.
+        // Reusing this vector avoids per-frame allocation and the former
+        // upload/restore-upload pair on the shared pin mesh.
+        auto &pinInstances = usr->pinBatchMesh.instanceData;
+        pinInstances.clear();
+        pinInstances.reserve(13);
+        auto appendPinInstance = [&](const glm::mat4 &model, const glm::vec3 &tint, float mix)
+        {
+            // Pin models are rigid transforms; the shader receives their
+            // rotation and translation through the instance attributes.
+            InstanceData instance{};
+            instance.instRot = glm::quat_cast(glm::mat3(model));
+            instance.textureScale = glm::vec3(1.0f);
+            instance.positionOffset = glm::vec3(model[3]);
+            instance.scaleOffset = glm::vec3(1.0f);
+            instance.atlasStart = glm::vec2(0.0f);
+            instance.tintR = tint.r;
+            instance.tintG = tint.g;
+            instance.tintB = tint.b;
+            instance.tintMix = mix;
+            pinInstances.push_back(instance);
+        };
+
+        // Pin variants occupy adjacent 1/8-height atlas rows.
+        {
+            const float cell = 1.0f / 8.0f;
+            const int idx = glm::clamp(usr->pinTextureIdx, 0, 3);
+            usr->mainShader.updateTextureParamsInOneGo(
+                glm::vec3(1.0f),
+                glm::vec2(1.0f),
+                glm::vec2(1.0f, 1.0f + (float)idx * cell),
+                1.0f
+            );
+        }
+        // These minigames have no normal rack. School lesson 3 substitutes
+        // active target pins for that rack; inactive targets need no record.
+        if (!MiniGame_IsCountMasters(usr) && !MiniGame_IsCrowdControl(usr))
+        {
+            if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+                usr->school.selectedLesson == 3)
+            {
+                const auto &coins = usr->coinLane.getCoins();
+                pinInstances.reserve(usr->coinLane.getActiveCount());
+                for (int i = 0; i < usr->coinLane.getActiveCount(); ++i)
+                {
+                    const Coin &target = coins[i];
+                    if (target.state != CoinState::Active)
+                        continue;
+                    glm::mat4 model = glm::translate(glm::mat4(1.0f), target.position);
+                    model = glm::translate(model, glm::vec3(0.0f, -0.19f, 0.0f));
+                    appendPinInstance(model, glm::vec3(1.0f), 0.0f);
+                }
+            }
+            else
+            {
+                for (int i = 0; i < 10; ++i)
+                {
+                    const uint16_t pinBit = (uint16_t)(1u << i);
+                    const bool electrified = (usr->boltElectrifiedPinMask & pinBit) != 0u;
+                    // Electrified dead pins remain visible while the effect runs.
+                    if (usr->phy.mPinDead[i] && !electrified)
+                        continue;
+
+                    glm::mat4 model = usr->phy.physics_get_pin_matrix(i);
+                    model = glm::translate(model, glm::vec3(0.0f, -0.19f, 0.0f));
+                    const bool frozen = (usr->freezeCoatedPinMask & pinBit) != 0u;
+                    // Exactly one record per lane pin. Frozen keeps its old
+                    // precedence if both effect masks happen to be set.
+                    if (frozen)
                     {
-                        const auto &coins = usr->coinLane.getCoins();
-                        std::vector<glm::mat4> targetPinModels;
-                        targetPinModels.reserve(usr->coinLane.getActiveCount());
-                        for (int i = 0; i < usr->coinLane.getActiveCount(); i++)
-                        {
-                            const Coin &target = coins[i];
-                            if (target.state != CoinState::Active)
-                                continue;
-                            glm::mat4 pinModel = glm::translate(glm::mat4(1.0f), target.position);
-                            pinModel = glm::translate(pinModel, glm::vec3(0.0f, -0.19f, 0.0f));
-                            targetPinModels.push_back(pinModel);
-                        }
-                        renderPlainPins(targetPinModels);
-                        checkOpenGLError("school spin target pins");
+                        const float inT = ChestRender::Smooth01(usr->freezeCoatingT);
+                        appendPinInstance(model, glm::vec3(0.50f, 0.88f, 1.0f), 0.72f * inT);
+                    }
+                    else if (electrified)
+                    {
+                        const float pulse = 0.5f + 0.5f *
+                            sinf(usr->gameplayTime * 13.0f + (float)i * 0.71f);
+                        appendPinInstance(model, glm::vec3(1.0f, 0.98f, 0.88f),
+                                          0.66f + 0.28f * pulse);
                     }
                     else
                     {
-	            std::vector<glm::mat4> plainPinModels;
-	            plainPinModels.reserve(10);
-	            for (int i = 0; i < 10; i++)
-		            {
-                        const uint16_t pinBit = (uint16_t)(1u << i);
-                        if (usr->phy.mPinDead[i] && (usr->boltElectrifiedPinMask & pinBit) == 0u)
-                            continue;
-		                glm::mat4 pinModel = usr->phy.physics_get_pin_matrix(i);
-		                float halfHeight = 0.19f;
-		                pinModel = glm::translate(pinModel, glm::vec3(0.0f, -halfHeight, 0.0f));
-                            const uint16_t freezeBit = pinBit;
-                            const bool frozenPin = (usr->freezeCoatedPinMask & freezeBit) != 0u;
-                            const bool electrifiedPin = (usr->boltElectrifiedPinMask & freezeBit) != 0u;
-                            if (!frozenPin && !electrifiedPin)
-                            {
-                                plainPinModels.push_back(pinModel);
-                                continue;
-                            }
-                            if (frozenPin)
-                            {
-                                const float inT = ChestRender::Smooth01(usr->freezeCoatingT);
-                                usr->mainShader.updateColorTintMix(
-                                    glm::vec3(0.50f, 0.88f, 1.0f),
-                                    0.72f * inT,
-                                    1.0f
-                                );
-                            }
-                            else if (electrifiedPin)
-                            {
-                                const float pulse = 0.5f + 0.5f * sinf(usr->gameplayTime * 13.0f + (float)i * 0.71f);
-                                usr->mainShader.updateColorTintMix(
-                                    glm::vec3(1.0f, 0.98f, 0.88f),
-                                    0.66f + 0.28f * pulse,
-                                    1.0f
-                                );
-                            }
-			                usr->mainShader.renderRealMesh(
-			                    usr->pinMesh, pinModel, usr->cameraMat, usr->perspectiveMat
-			                );
-                            if (frozenPin || electrifiedPin)
-                                usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
-			            }
-                        renderPlainPins(plainPinModels);
-                        checkOpenGLError("pins");
-                        if (usr->boltElectrifiedPinMask != 0u)
-                        {
-                            glm::vec3 veinPins[10];
-                            for (int i = 0; i < 10; ++i)
-                                veinPins[i] = glm::vec3(usr->phy.physics_get_pin_matrix(i)[3]);
-                            usr->boltPinVeins.render(
-                                (float)deltaTime,
-                                glm::vec3(usr->phy.physics_get_ball_matrix()[3]),
-                                veinPins,
-                                usr->boltElectrifiedPinMask,
-                                usr->cameraMat,
-                                usr->perspectiveMat
-                            );
-                        }
-                        if (usr->guardPinsRuneActive)
-                        {
-                            const glm::vec3 guardPinMorphTints[4] = {
-                                glm::vec3(0.18f, 0.82f, 0.88f),
-                                glm::vec3(0.96f, 1.0f, 0.62f),
-                                glm::vec3(1.0f, 0.78f, 0.16f),
-                                glm::vec3(1.0f, 0.20f, 0.12f),
-                            };
-                            for (int i = 0; i < 3; ++i)
-                            {
-                                float tintPhase = fmodf((float)usr->guardPinsRuneT * 0.55f + (float)i * 1.333333333f, 4.0f);
-                                if (tintPhase < 0.0f)
-                                    tintPhase += 4.0f;
-                                const int tintA = glm::clamp((int)tintPhase, 0, 3);
-                                const int tintB = (tintA + 1) & 3;
-                                const float tintT = ChestRender::Smooth01(tintPhase - (float)tintA);
-                                const float pulse = 0.5f + 0.5f * sinf((float)usr->guardPinsRuneT * 1.3f + (float)i * 2.094395102f);
-                                const glm::vec3 tint = glm::mix(guardPinMorphTints[tintA], guardPinMorphTints[tintB], tintT);
-                                const bool alive = (usr->guardPinsAliveMask & (uint8_t)(1u << i)) != 0u;
-                                if (alive)
-                                {
-                                    const RuneGuardPinPose pose = usr->guardPinRenderPose[i];
-                                    usr->mainShader.updateColorTintMix(tint, glm::mix(0.26f, 0.40f, pulse), 1.0f);
-                                    usr->mainShader.renderRealMesh(
-                                        usr->pinMesh, RuneGuardPins_RenderModelFromPose(pose), usr->cameraMat, usr->perspectiveMat);
-                                }
-                            }
-                            usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
-                        }
-			        }
+                        appendPinInstance(model, glm::vec3(1.0f), 0.0f);
+                    }
                 }
+
+                if (usr->guardPinsRuneActive)
+                {
+                    // Extra guard pins join the same draw. Only live guards
+                    // get matrices and their animated tint this frame.
+                    const glm::vec3 guardTints[4] = {
+                        glm::vec3(0.18f, 0.82f, 0.88f),
+                        glm::vec3(0.96f, 1.0f, 0.62f),
+                        glm::vec3(1.0f, 0.78f, 0.16f),
+                        glm::vec3(1.0f, 0.20f, 0.12f),
+                    };
+                    for (int i = 0; i < 3; ++i)
+                    {
+                        if ((usr->guardPinsAliveMask & (uint8_t)(1u << i)) == 0u)
+                            continue;
+                        float phase = fmodf((float)usr->guardPinsRuneT * 0.55f +
+                                             (float)i * 1.333333333f, 4.0f);
+                        if (phase < 0.0f)
+                            phase += 4.0f;
+                        const int tintA = glm::clamp((int)phase, 0, 3);
+                        const int tintB = (tintA + 1) & 3;
+                        const float tintT = ChestRender::Smooth01(phase - (float)tintA);
+                        const float pulse = 0.5f + 0.5f *
+                            sinf((float)usr->guardPinsRuneT * 1.3f + (float)i * 2.094395102f);
+                        const glm::vec3 tint = glm::mix(guardTints[tintA], guardTints[tintB], tintT);
+                        appendPinInstance(
+                            RuneGuardPins_RenderModelFromPose(usr->guardPinRenderPose[i]),
+                            tint, glm::mix(0.26f, 0.40f, pulse));
+                    }
+                }
+            }
+        }
+
+        if (!pinInstances.empty())
+        {
+            // One compact upload and one instanced draw for every pin type.
+            // Restore the shader tint mode afterward, not the GPU instance
+            // buffer: this batch mesh is never used for single-pin draws.
+            usr->pinBatchMesh.sendInstanceDataToGpu();
+            usr->mainShader.updateColorTintMix(glm::vec3(1.0f), 0.0f, 1.0f);
+            usr->mainShader.updateInstanceColorTint(true);
+            usr->mainShader.renderRealMesh(
+                usr->pinBatchMesh, glm::mat4(1.0f), usr->cameraMat, usr->perspectiveMat);
+            usr->mainShader.updateInstanceColorTint(false);
+        }
+#if defined(VTX_GL_CHECK_HOT_PATH)
+        // Error queries can stall slow drivers; enable them for diagnostics.
+        checkOpenGLError("pins");
+#endif
+        // Electrical veins use a different effect renderer, so they stay
+        // separate from the pin-mesh draw and remain in the PINS timing zone.
+        if (!MiniGame_IsCountMasters(usr) && !MiniGame_IsCrowdControl(usr) &&
+            !(usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3) &&
+            usr->boltElectrifiedPinMask != 0u)
+        {
+            glm::vec3 veinPins[10];
+            for (int i = 0; i < 10; ++i)
+                veinPins[i] = glm::vec3(usr->phy.physics_get_pin_matrix(i)[3]);
+            usr->boltPinVeins.render(
+                (float)deltaTime,
+                glm::vec3(usr->phy.physics_get_ball_matrix()[3]),
+                veinPins,
+                usr->boltElectrifiedPinMask,
+                usr->cameraMat,
+                usr->perspectiveMat
+            );
+        }
 
         usr->frameProfileGraph.mark(FrameProfileGraph::WorldPins);
         // BOT avatar (Angel / Cherub) — only shown in BOT mode.

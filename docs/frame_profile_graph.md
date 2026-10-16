@@ -78,10 +78,12 @@ shop is open; the carousel keeps its indices when closed. With no preview or
 minigame decal needed, FBO should be near zero. Its prior 6.6% estimate was
 measured before this gate and is a baseline for comparison.
 
-World coins and gems are batched by mesh and transparency pass. Ordinary pins
-are batched into one draw; pins with individual tint effects still draw
-separately. The pin and bot avatar zones are timed separately so the next
-measurement can distinguish those costs. The shared mesh renderer also caches
+World coins and gems are batched by mesh and transparency pass. All visible
+lane pins, including frozen and electrified variants, and up to three live
+guard pins use one compact instance upload and one draw. Each lane pin appears
+once in the batch; its tint is carried in its instance data. Electrical veins
+remain a separate effect pass. The pin and bot avatar zones are timed
+separately so the next measurement can distinguish those costs. The shared mesh renderer also caches
 the matrix, atlas, and tint uniform locations it uses on common draw paths.
 The hot atlas update leaves OpenGL error checking available behind
 `VTX_GL_CHECK_HOT_PATH` so routine frames avoid that driver query.

@@ -1192,7 +1192,6 @@ struct UserContext
     Tween<float> auroraVibe;
     FpsCounter fpsCounter;
     FrameProfileGraph frameProfileGraph;
-    bool showFrameProfileGraph = true;
     uint64_t lastFrameTime = 0;
     TimePoint last = Clock::now();
     uint64_t totalFrames = 0;
@@ -18638,7 +18637,6 @@ void vtx::init(vtx::VertexContext *ctx)
         usr->thunder.initThunder();
         usr->explosion.initExplosion();
 	    usr->fpsCounter.initFpsCounter();
-	    usr->frameProfileGraph.init();
 	    usr->particles.init();
         usr->wings.initWings();
         usr->particles.setSnowflakeCount(usr->settings.snowflakeCount);
@@ -18809,6 +18807,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.bonusPlayClick, "bonusPlay");
     initClaytonClick(&usr->clayton.settingsCloseClick, "settingsClose");
     initClaytonClick(&usr->clayton.settingsExtraParticlesClick, "settingsExtraParticles");
+    initClaytonClick(&usr->clayton.settingsPerformanceAnalysisClick, "settingsPerformanceAnalysis");
     initClaytonClick(&usr->clayton.settingsResetCampaignClick, "settingsResetCampaign");
     initClaytonClick(&usr->clayton.settingsResetProgressClick, "settingsResetProgress");
     initClaytonClick(&usr->clayton.settingsResetConfirmYesClick, "settingsResetConfirmYes");
@@ -19256,6 +19255,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
 #endif
 
+    usr->frameProfileGraph.setEnabled(usr->settings.performanceAnalysisEnabled);
     usr->frameProfileGraph.beginFrame();
     float deltaTime = (float)usr->fpsCounter.startFrame();
     const float safeDeltaTime = std::isfinite(deltaTime) ? glm::clamp(deltaTime, 0.0f, 0.100f) : (1.0f / 60.0f);
@@ -19770,7 +19770,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_F3 && e.key.repeat == 0)
         {
-            usr->showFrameProfileGraph = !usr->showFrameProfileGraph;
+            usr->settings.performanceAnalysisEnabled = !usr->settings.performanceAnalysisEnabled;
             continue;
         }
         usr->imgui.processEvent(&e, ctx);
@@ -21181,6 +21181,10 @@ void vtx::loop(vtx::VertexContext *ctx)
     if (modalWindowActiveNow || usr->dialog.active)
         UI_DismissTransientOverlaysForDialog(usr);
 
+    // Settings can change while processing input. Discard any unfinished
+    // sample immediately when analysis is switched off this frame.
+    if (usr->frameProfileGraph.setEnabled(usr->settings.performanceAnalysisEnabled))
+        usr->frameProfileGraph.beginFrame();
     usr->frameProfileGraph.mark(FrameProfileGraph::Events);
 
     // School Lesson 4 completion: show completion story after the player closes the Oil window.
@@ -26740,43 +26744,41 @@ END_LINE:
             );
         }
         usr->frameProfileGraph.mark(FrameProfileGraph::FxSnow);
-        if (usr->settings.extraParticlesEnabled)
+        if (!MiniGame_IsCrowdControl(usr) && !usr->boomBallGone)
         {
-            if (!MiniGame_IsCrowdControl(usr))
-            {
-                float ballTraceIntensity = 0.15f;
-                if (ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr))
-                    ballTraceIntensity = glm::max(ballTraceIntensity, turnElectroBall->getPickupPulse01());
+            float ballTraceIntensity = 0.15f;
+            if (ElectroBall *turnElectroBall = CurrentTurnElectroBall(usr))
+                ballTraceIntensity = glm::max(ballTraceIntensity, turnElectroBall->getPickupPulse01());
 
-                const bool playerNosActive = usr->playerNosUsageActiveThisFrame;
-                const bool enemyNosActive = usr->enemyNosUsageActiveThisFrame;
-                const bool allowAmbientBallTraceSpawn = !(playerNosActive || enemyNosActive);
+            const bool nosActive = usr->playerNosUsageActiveThisFrame ||
+                                   usr->enemyNosUsageActiveThisFrame;
+            if (nosActive)
+                ballTraceIntensity = glm::max(ballTraceIntensity, 0.35f);
 
-                if (playerNosActive || enemyNosActive)
-                    ballTraceIntensity = glm::max(ballTraceIntensity, 0.35f);
-
-                if (!usr->boomBallGone)
-                {
-                    usr->particles.drawBallTrace(
-                        (float)deltaTime,
-                        glm::vec3(ballModel[3]),
-                        ballTraceIntensity,
-                        allowAmbientBallTraceSpawn,
-                        usr->cameraMat,
-                        usr->perspectiveMat
-                    );
-                    if (!MiniGame_IsCountMasters(usr) && !MiniGame_IsCrowdControl(usr))
-                    {
-                        usr->particles.drawSpinRings(
-                            (float)deltaTime,
-                            glm::vec3(ballModel[3]),
-                            -usr->phy.get_ball_angular_velocity().y,
-                            usr->cameraMat,
-                            usr->perspectiveMat
-                        );
-                    }
-                }
-            }
+            // NOS bursts are gameplay feedback and share this trace renderer.
+            // Extra Particles only controls the automatic ambient spawn.
+            usr->particles.drawBallTrace(
+                (float)deltaTime,
+                glm::vec3(ballModel[3]),
+                ballTraceIntensity,
+                usr->settings.extraParticlesEnabled && !nosActive,
+                usr->cameraMat,
+                usr->perspectiveMat
+            );
+        }
+        // The Saturn rings show the ball's turn, so they remain visible when
+        // optional particles are disabled. Keep the existing minigame exclusions.
+        if (!usr->boomBallGone &&
+            !MiniGame_IsCountMasters(usr) &&
+            !MiniGame_IsCrowdControl(usr))
+        {
+            usr->particles.drawSpinRings(
+                (float)deltaTime,
+                glm::vec3(ballModel[3]),
+                -usr->phy.get_ball_angular_velocity().y,
+                usr->cameraMat,
+                usr->perspectiveMat
+            );
         }
         usr->frameProfileGraph.mark(FrameProfileGraph::FxBallTrail);
         if (usr->settings.extraParticlesEnabled)
@@ -30111,7 +30113,7 @@ if (usr->shouldShowImgui)
 }
 
 usr->frameProfileGraph.mark(FrameProfileGraph::UiDraw);
-if (usr->showFrameProfileGraph)
+if (usr->settings.performanceAnalysisEnabled)
 {
     bindDefaultOpenGLFramebuffer();
     usr->frameProfileGraph.draw(

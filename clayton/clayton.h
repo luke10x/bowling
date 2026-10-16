@@ -202,6 +202,7 @@ struct Clayton
     Clayton_Click bonusPlayClick;
     Clayton_Click settingsCloseClick;
     Clayton_Click settingsExtraParticlesClick;
+    Clayton_Click settingsPerformanceAnalysisClick;
     Clayton_Click settingsResetCampaignClick;
     Clayton_Click settingsResetProgressClick;
     Clayton_Click settingsResetConfirmYesClick;

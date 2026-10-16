@@ -178,6 +178,7 @@ struct Particles
     float time = 1000.0f;
     float snowTime = 0.0f;
     float ballTraceTime = 0.0f;
+    float ballTraceLastAliveUntil = 0.0f;
     float laneDustTime = 0.0f;
     float blockSparkTime = 0.0f;
     float snowSpinRadians = 0.0f;
@@ -373,7 +374,9 @@ struct Particles
             return;
 
         ballTraceTime += deltaTime;
-        ballTraceSpawnTimer += deltaTime;
+        // Pausing ambient spawning must not accumulate a burst for when the
+        // Extra Particles setting is switched back on after NOS use.
+        ballTraceSpawnTimer = allowSpawn ? ballTraceSpawnTimer + deltaTime : 0.0f;
 
         const float clampedIntensity = glm::clamp(intensity, 0.0f, 1.0f);
         const float spawnInterval = glm::mix(0.035f, 0.010f, clampedIntensity);
@@ -389,6 +392,11 @@ struct Particles
                 spawned = true;
             }
         }
+
+        // NOS and pickup bursts still draw with ambient spawning disabled;
+        // an empty pool costs no GL work on slow devices.
+        if (!spawned && ballTraceTime >= ballTraceLastAliveUntil)
+            return;
 
         GLboolean blendWasEnabled = glIsEnabled(GL_BLEND);
         GLboolean depthWasEnabled = glIsEnabled(GL_DEPTH_TEST);
@@ -1072,6 +1080,7 @@ struct Particles
         ballTraceParticles.resize(BALL_TRACE_PARTICLES);
         ballTraceVerts.resize(BALL_TRACE_PARTICLES * 6);
         ballTraceTime = 0.0f;
+        ballTraceLastAliveUntil = 0.0f;
         ballTraceSpawnTimer = 0.0f;
         ballTraceSeed = 9876u;
         ballTraceCursor = 0;
@@ -1547,6 +1556,7 @@ struct Particles
                 initialAge = glm::max(0.0f, trail.ttl - 0.015f);
             trail.spawnTime = ballTraceTime - initialAge;
             trail.active = true;
+            ballTraceLastAliveUntil = glm::max(ballTraceLastAliveUntil, trail.spawnTime + trail.ttl);
         }
 
         if (upload)

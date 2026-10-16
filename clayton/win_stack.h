@@ -2177,6 +2177,12 @@ inline bool WindowStack::processSettingsWindowEvent(
         return true;
     }
 
+    if (isClaytonClicked(&clayton->settingsPerformanceAnalysisClick, e))
+    {
+        settings->performanceAnalysisEnabled = !settings->performanceAnalysisEnabled;
+        return true;
+    }
+
     if (isClaytonClicked(&clayton->settingsResetCampaignClick, e))
     {
         if (self)

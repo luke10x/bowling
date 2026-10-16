@@ -8,6 +8,7 @@ struct GameSettings
     int maxSnowflakes = 0;
     int snowflakeCount = 0;
     bool extraParticlesEnabled = true;
+    bool performanceAnalysisEnabled = false;
     enum WebUpdateStatus
     {
         WEB_UPDATE_UNSUPPORTED = 0,

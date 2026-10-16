@@ -106,6 +106,7 @@ struct FrameProfileGraph
     std::array<double, Count> reportTotalsMs{};
     double ticksPerMs = 1.0;
     GLuint program = 0, vao = 0, vbo = 0;
+    bool enabled = false;
 
     FrameProfileGraph()
     {
@@ -156,8 +157,27 @@ struct FrameProfileGraph
         vertices.reserve(History * Count * 6 + 6000);
     }
 
+    // Disabling drops both the visible history and the pending stderr window.
+    // Re-enabling starts a fresh measurement instead of mixing old samples in.
+    bool setEnabled(bool value)
+    {
+        if (enabled == value) return false;
+        enabled = value;
+        frames = {};
+        current.fill(0.0f);
+        vertices.clear();
+        nextFrame = recordedFrames = nextZone = 0;
+        previousTick = lastFrameEndTick = reportStartedAt = 0;
+        reportFrames = reportExtraParticlesOnFrames = reportGapSamples = 0;
+        reportGapMs = 0.0;
+        reportTotalsMs.fill(0.0);
+        if (enabled && program == 0) init();
+        return enabled;
+    }
+
     void beginFrame()
     {
+        if (!enabled) return;
         const Uint64 now = SDL_GetPerformanceCounter();
         if (lastFrameEndTick != 0)
         {
@@ -172,6 +192,7 @@ struct FrameProfileGraph
 
     void mark(Zone zone)
     {
+        if (!enabled) return;
         // Marks must be made once, in enum order. A skipped zone is recorded as zero.
         if (zone < nextZone || zone >= Count) return;
         const Uint64 now = SDL_GetPerformanceCounter();
@@ -182,6 +203,7 @@ struct FrameProfileGraph
 
     void endFrame()
     {
+        if (!enabled) return;
         mark(Present);
         frames[nextFrame] = current;
         nextFrame = (nextFrame + 1) % History;
@@ -311,7 +333,7 @@ struct FrameProfileGraph
 
     void draw(int drawableWidth, int drawableHeight, float footerClearancePx)
     {
-        if (!program || recordedFrames == 0 || drawableWidth <= 0 || drawableHeight <= 0) return;
+        if (!enabled || !program || recordedFrames == 0 || drawableWidth <= 0 || drawableHeight <= 0) return;
         vertices.clear();
         const float width = (float)drawableWidth;
         const float height = (float)drawableHeight;

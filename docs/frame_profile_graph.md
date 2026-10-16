@@ -4,9 +4,11 @@ The graph at the bottom of the game shows the last 100 **completed** frames,
 oldest on the left. Each column is a frame; each colored segment is CPU wall
 time spent between two checkpoints in `vtx::loop`. The bars use a fixed 100 ms
 scale and clip above it. The faint horizontal lines mark 16.67 ms (60 FPS),
-33.33 ms (30 FPS), and 66.67 ms (15 FPS). Press **F3** to show or hide the
-graph. It starts on and sits above the 28-pixel footer, including the FPS
-label. The clearance scales with display pixel ratio.
+33.33 ms (30 FPS), and 66.67 ms (15 FPS). Enable **Performance analysis** in
+Settings or press **F3** to start profiling. It defaults to off. While off,
+the profiler collects no samples, draws no graph, and prints no reports. The
+graph sits above the 28-pixel footer, including the FPS label. The clearance
+scales with display pixel ratio.
 
 | Color | Zone | End checkpoint in `game.cpp` |
 | --- | --- | --- |
@@ -37,7 +39,7 @@ label. The clearance scales with display pixel ratio.
 | `#A9764B` | PREP: UI preparation | Before `Clay_BeginLayout` |
 | `#6BA8CF` | LAY: UI layout | Before `Clay_EndLayout` |
 | `#E2A15A` | DRAW: UI draw | After Clay, overlays, and optional ImGui |
-| `#A6A6B0` | GRAPH: profile graph | After graph drawing, or near-zero when hidden |
+| `#A6A6B0` | GRAPH: profile graph | After graph drawing |
 | `#E5D569` | SWAP: presentation | After FPS accounting and `SDL_GL_SwapWindow` |
 
 Every zone has its own color. The bar stacks zones in fixed execution order,
@@ -59,7 +61,7 @@ Every five seconds, stderr prints each zone's color, estimate where available,
 **measured** share of loop work, and average milliseconds per frame, highest
 time first. The estimates come from the last three active-game reports before
 the latest batching changes; newly split zones have no defensible prior
-estimate. Logging continues when the graph is hidden with F3. The header
+estimate. Logging stops when Performance analysis is disabled. The header
 records how many frames had the Extra particles setting on and the average
 wall time between loop calls.
 
@@ -71,14 +73,14 @@ is one frame behind so that the SWAP segment can include the swap.
 These are CPU wall times. OpenGL calls may queue work on the GPU, and a driver
 may block in a later call or in `SDL_GL_SwapWindow`. The graph cannot assign
 GPU execution time to individual rendering sections. A tall SWAP segment may
-include presentation or synchronization wait. The F3 switch also changes the
-GRAPH zone because it skips graph drawing.
+include presentation or synchronization wait.
 
 The Settings window has an **Extra particles** checkbox matching the tracker
 cell editor controls for A/B profiling.
-Turning it off skips snow, ball trails, spin rings, sparks, lane dust, and
+Turning it off skips snow, ambient ball-trace spawning, sparks, lane dust, and
 confetti draws, plus block-card-drop spark generation and uploads. It leaves
-collectables, decals, and gameplay logic active.
+the gameplay-important Saturn spin rings and NOS trace bursts, collectables,
+decals, and gameplay logic active.
 The stderr header reports how many frames had the checkbox on during each
 five-second sample; compare samples with all frames on or all frames off.
 
@@ -98,10 +100,10 @@ the matrix, atlas, and tint uniform locations it uses on common draw paths.
 The hot atlas update leaves OpenGL error checking available behind
 `VTX_GL_CHECK_HOT_PATH` so routine frames avoid that driver query.
 
-Flying HUD rewards now use one instance batch per distinct mesh in each HUD
+Flying HUD rewards use one instance batch per distinct mesh in each HUD
 pass when multiple rewards share a mesh. Their transforms are packed into
-instance data, then the shared mesh's previous data is restored. A lone reward
-keeps the single-item draw path to avoid two buffer uploads.
+a dedicated instance buffer, so the shared mesh's one-item data needs no restore
+upload. A lone reward keeps the single-item draw path with no batch upload.
 
 DECAL keeps its 14 fixed lane-mark records on the GPU after the first draw.
 Only the aiming-line record is uploaded while it changes. Its shader uniform

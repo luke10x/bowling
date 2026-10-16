@@ -200,6 +200,36 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                     );
                 }
 
+                CLAY(
+                    CLAY_ID("SettingsPerformanceAnalysisRow"),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                .childGap = 8, .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+                )
+                {
+                    CLAY(CLAY_ID("SettingsPerformanceAnalysisControl"),
+                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                     .childGap = 12,
+                                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                     .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+                    {
+                        Clay_ElementDeclaration checkbox = CLAY_THEME_BTN_BOX;
+                        checkbox.layout.sizing = {CLAY_SIZING_FIXED(40), CLAY_SIZING_FIXED(40)};
+                        checkbox.backgroundColor = settings->performanceAnalysisEnabled
+                            ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
+                        CLAY(clayton->settingsPerformanceAnalysisClick.clayId, checkbox)
+                        {
+                            CLAY_TEXT(settings->performanceAnalysisEnabled
+                                          ? CLAY_STRING("✓") : CLAY_STRING(" "),
+                                      CLAY_TEXT_CONFIG(buttonCfg));
+                        }
+                        CLAY_TEXT(CLAY_STRING("Performance analysis"), CLAY_TEXT_CONFIG(bodyCfg));
+                    }
+                    CLAY_TEXT(
+                        CLAY_STRING("Frame graph and timing report every 5 seconds (F3)"),
+                        CLAY_TEXT_CONFIG(bodyCfg)
+                    );
+                }
+
                 Clay_ElementDeclaration resetProgressButton = CLAY_THEME_BTN_DANGER;
                 resetProgressButton.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(56)};
                 resetProgressButton.layout.padding = {.left = 14, .right = 14, .top = 0, .bottom = 0};

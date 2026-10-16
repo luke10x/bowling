@@ -1249,6 +1249,10 @@ struct UserContext
 	// can keep using pinMesh's identity instance without a restore upload.
 	AssetMesh pinBatchMesh;
     AssetMesh starMesh;
+    // World collectables and flying HUD rewards share mesh geometry, but each
+    // owns instance buffers so neither draw restores the mesh's identity data.
+    std::array<MeshInstanceBatch, 2> worldCollectableBatches;
+    std::array<MeshInstanceBatch, 8> flyingCollectableBatches;
     AssetMesh gemMesh;
     AssetMesh runeBoomMesh;
     AssetMesh runeBoltMesh;
@@ -3638,17 +3642,10 @@ static inline void RenderWorldCollectables3D(
     if (!collectableInstances.empty())
     {
         AssetMesh *collectableMesh = renderGems ? gemCollectableMesh : coinCollectableMesh;
-        // The same meshes are used by later HUD animations, so restore their
-        // previous instance data immediately after this world-space batch.
-        std::vector<InstanceData> savedInstances;
-        savedInstances.swap(collectableMesh->instanceData);
-        collectableMesh->instanceData.swap(collectableInstances);
-        collectableMesh->sendInstanceDataToGpu();
+        MeshInstanceBatch &batch = usr->worldCollectableBatches[renderGems ? 1 : 0];
+        batch.upload(*collectableMesh, collectableInstances);
         usr->mainShader.renderRealMesh(
-            *collectableMesh, glm::mat4(1.0f), usr->cameraMat, usr->perspectiveMat);
-        collectableInstances.swap(collectableMesh->instanceData);
-        collectableMesh->instanceData.swap(savedInstances);
-        collectableMesh->sendInstanceDataToGpu();
+            *collectableMesh, glm::mat4(1.0f), usr->cameraMat, usr->perspectiveMat, &batch);
     }
 
     if (pass == CollectableRenderPass::GemsAll ||
@@ -26809,6 +26806,7 @@ END_LINE:
                 &usr->runeFootballMesh,
                 &usr->everythingTexture,
                 &usr->coinLane,
+                usr->flyingCollectableBatches,
                 (float)ctx->screenWidth,
                 (float)ctx->screenHeight,
                 true, // vary
@@ -29706,6 +29704,7 @@ if (!Chest_IsCinematicActive(usr))
 	        &usr->runeFootballMesh,
 	        &usr->everythingTexture,
 	        &usr->coinLane,
+	        usr->flyingCollectableBatches,
 	        (float)ctx->screenWidth,
 	        (float)ctx->screenHeight,
 	        false, // vary

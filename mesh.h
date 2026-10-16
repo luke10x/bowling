@@ -52,6 +52,88 @@ struct AssetMesh
     void useInstanceColorTint();
 };
 
+// A second draw stream for an AssetMesh: geometry stays shared, while the
+// instance attributes live in their own VAO/VBO. The source mesh's identity
+// instance remains available for ordinary single-mesh draws.
+struct MeshInstanceBatch
+{
+    GLuint vao = 0;
+    GLuint instanceVBO = 0;
+    GLuint sourceVBO = 0;
+    GLuint sourceEBO = 0;
+    size_t capacity = 0;
+    GLsizei count = 0;
+
+    void releaseGpu();
+    void upload(const AssetMesh &source, const std::vector<InstanceData> &instances);
+};
+
+void MeshInstanceBatch::releaseGpu()
+{
+    if (vao != 0)
+        glDeleteVertexArrays(1, &vao);
+    if (instanceVBO != 0)
+        glDeleteBuffers(1, &instanceVBO);
+    vao = instanceVBO = sourceVBO = sourceEBO = 0;
+    capacity = 0;
+    count = 0;
+}
+
+void MeshInstanceBatch::upload(const AssetMesh &source, const std::vector<InstanceData> &instances)
+{
+    count = static_cast<GLsizei>(instances.size());
+    if (count == 0 || source.meshVBO == 0 || source.meshEBO == 0)
+        return;
+
+    // Rebuild only when the source geometry was recreated. VAOs retain their
+    // vertex and index buffer bindings, so each batch can keep its own VBO.
+    if (vao == 0 || sourceVBO != source.meshVBO || sourceEBO != source.meshEBO)
+    {
+        releaseGpu();
+        sourceVBO = source.meshVBO;
+        sourceEBO = source.meshEBO;
+        glGenVertexArrays(1, &vao);
+        glBindVertexArray(vao);
+        glBindBuffer(GL_ARRAY_BUFFER, sourceVBO);
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, sourceEBO);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, position));
+        glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, color));
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, texCoords));
+        glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, normal));
+        glVertexAttribIPointer(4, 4, GL_INT, sizeof(Vertex), (void *)offsetof(Vertex, bones));
+        glVertexAttribPointer(5, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void *)offsetof(Vertex, weights));
+        for (GLuint attribute = 0; attribute < 6; ++attribute)
+            glEnableVertexAttribArray(attribute);
+
+        glGenBuffers(1, &instanceVBO);
+        glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+        glVertexAttribPointer(6, 3, GL_FLOAT, GL_FALSE, sizeof(InstanceData), (void *)offsetof(InstanceData, positionOffset));
+        glVertexAttribPointer(7, 3, GL_FLOAT, GL_FALSE, sizeof(InstanceData), (void *)offsetof(InstanceData, scaleOffset));
+        glVertexAttribPointer(8, 2, GL_FLOAT, GL_FALSE, sizeof(InstanceData), (void *)offsetof(InstanceData, atlasStart));
+        glVertexAttribPointer(9, 4, GL_FLOAT, GL_FALSE, sizeof(InstanceData), (void *)offsetof(InstanceData, instRot));
+        glVertexAttribPointer(10, 3, GL_FLOAT, GL_FALSE, sizeof(InstanceData), (void *)offsetof(InstanceData, textureScale));
+        for (GLuint attribute = 6; attribute <= 10; ++attribute)
+        {
+            glEnableVertexAttribArray(attribute);
+            glVertexAttribDivisor(attribute, 1);
+        }
+        glBindVertexArray(0);
+    }
+
+    glBindBuffer(GL_ARRAY_BUFFER, instanceVBO);
+    if (instances.size() > capacity)
+    {
+        capacity = instances.size();
+        glBufferData(GL_ARRAY_BUFFER, capacity * sizeof(InstanceData), instances.data(), GL_DYNAMIC_DRAW);
+    }
+    else
+    {
+        glBufferSubData(GL_ARRAY_BUFFER, 0, instances.size() * sizeof(InstanceData), instances.data());
+    }
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    count = static_cast<GLsizei>(instances.size());
+}
+
 void AssetMesh::releaseGpu()
 {
     if (this->instanceVBO != 0)
@@ -291,7 +373,8 @@ struct ShaderProgram
         AssetMesh &realMesh,
         glm::mat4 modelMatrix,
         glm::mat4 cameraMatrix,
-        glm::mat4 projectionMatrix);
+        glm::mat4 projectionMatrix,
+        const MeshInstanceBatch *batch = nullptr);
 };
 
 const char *ShaderProgram::DEFAULT_VERTEX_SHADER =
@@ -795,7 +878,8 @@ void ShaderProgram::renderRealMesh(
     AssetMesh &assetMesh,
     glm::mat4 modelMatrix,
     glm::mat4 cameraMatrix,
-    glm::mat4 projectionMatrix)
+    glm::mat4 projectionMatrix,
+    const MeshInstanceBatch *batch)
 {
     glUseProgram(this->id);
     if (cachedRenderProgram != this->id)
@@ -827,7 +911,7 @@ void ShaderProgram::renderRealMesh(
         glm::value_ptr(cameraMatrix)                     // value
     );
 
-    glBindVertexArray(assetMesh.meshVAO);
+    glBindVertexArray(batch ? batch->vao : assetMesh.meshVAO);
 
 
     glDrawElementsInstanced(
@@ -836,7 +920,7 @@ void ShaderProgram::renderRealMesh(
         //  .indices.size(),  // Index count
         GL_UNSIGNED_INT,                    // Data type of indices array
         (void *)(0 * sizeof(unsigned int)), // Indices pointer
-        assetMesh.instanceData.size()       // Instance count
+        batch ? batch->count : static_cast<GLsizei>(assetMesh.instanceData.size())
     );
     glBindVertexArray(0);
 }

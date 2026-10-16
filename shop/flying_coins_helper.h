@@ -18,6 +18,7 @@ void renderFlyingCollectables(
     AssetMesh *runeFootballMesh,
     Texture *everythingTexture,
     CoinLane *coinLane,
+    std::array<MeshInstanceBatch, 8> &gpuBatches,
     float screenWidth,
     float screenHeight,
     bool isAbove, /* vary */
@@ -25,8 +26,8 @@ void renderFlyingCollectables(
     float pixelScale
 )
 {
-    // Flying rewards share the world meshes. Build one instance batch per
-    // distinct mesh, then restore each mesh's earlier world-render data.
+    // Flying rewards share geometry with the world meshes. Their dedicated
+    // instance buffers leave each mesh's one-item instance data untouched.
     constexpr size_t kKindCount = 8;
     const std::array<AssetMesh *, kKindCount> kindMeshes = {{
         coinMesh, gemMesh ? gemMesh : coinMesh, runeBoomMesh, runeBoltMesh,
@@ -103,13 +104,8 @@ void renderFlyingCollectables(
             mainShader->renderRealMesh(mesh, model, identity, orthoProj);
             continue;
         }
-        std::vector<InstanceData> savedInstances;
-        savedInstances.swap(mesh.instanceData);
-        mesh.instanceData.swap(batches[batchIndex]);
-        mesh.sendInstanceDataToGpu();
-        mainShader->renderRealMesh(mesh, identity, identity, orthoProj);
-        batches[batchIndex].swap(mesh.instanceData);
-        mesh.instanceData.swap(savedInstances);
-        mesh.sendInstanceDataToGpu();
+        MeshInstanceBatch &gpuBatch = gpuBatches[batchIndex];
+        gpuBatch.upload(mesh, batch);
+        mainShader->renderRealMesh(mesh, identity, identity, orthoProj, &gpuBatch);
     }
 }

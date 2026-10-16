@@ -25143,6 +25143,10 @@ swing_checks_done:
         electroBallYawSpin
     );
 
+    // These lane marks are fixed in world space. Keep their CPU records and
+    // GPU UBO entries until the decal batch is reinitialized.
+    if (!usr->decalBatch.laneMarksPrepared)
+    {
     for (int i = 0; i < 7; i++)
     {
         Decal &dot = usr->decalBatch.decals[decalIndex];
@@ -25182,6 +25186,9 @@ swing_checks_done:
         dot.uvEnd = glm::vec2(0.875, 0.875f);
         decalIndex += 1;
     }
+    usr->decalBatch.laneMarksPrepared = true;
+    }
+    decalIndex = DecalBatch::LaneMarkCount;
     if (usr->phase == UserContext::Phase::AIM)
     {
         glm::vec3 a = usr->pivotPoint;

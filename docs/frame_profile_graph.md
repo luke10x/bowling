@@ -102,3 +102,8 @@ Flying HUD rewards now use one instance batch per distinct mesh in each HUD
 pass when multiple rewards share a mesh. Their transforms are packed into
 instance data, then the shared mesh's previous data is restored. A lone reward
 keeps the single-item draw path to avoid two buffer uploads.
+
+DECAL keeps its 14 fixed lane-mark records on the GPU after the first draw.
+Only the aiming-line record is uploaded while it changes. Its shader uniform
+locations are cached, and OpenGL error polling on this hot path is available
+with `VTX_GL_CHECK_HOT_PATH`.

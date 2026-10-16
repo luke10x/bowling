@@ -36,9 +36,15 @@ static void printMat4(const char* name, const glm::mat4& m)
 }
 struct DecalBatch
 {
+    static constexpr int LaneMarkCount = 14;
     GLuint vao = 0;
     GLuint decalUBO = 0;
     GLuint decalShaderId = 0;
+    GLint projectionLocation = -1;
+    GLint viewLocation = -1;
+    GLint textureLocation = -1;
+    bool laneMarksPrepared = false;
+    bool laneMarksUploaded = false;
     Decal decals[MAX_DECALS];
 
     static const char *DECAL_VERTEX_SHADER;
@@ -47,20 +53,20 @@ struct DecalBatch
     void loadDecalBatchShader()
     {
         this->decalShaderId = vtx::createShaderProgram(DECAL_VERTEX_SHADER, DECAL_FRAGMENT_SHADER);
-            // 🔴 THIS MUST BE DONE ONCE AFTER LINK
-            GLuint blockIndex = glGetUniformBlockIndex(decalShaderId, "Decals");
-            if (blockIndex != GL_INVALID_INDEX)
-            {
-                glUniformBlockBinding(decalShaderId, blockIndex, 0);
-            }
-            else
-            {
-                std::cerr << "Uniform block Decals not found in shader!" << std::endl;
-            }
+        projectionLocation = glGetUniformLocation(decalShaderId, "u_projection");
+        viewLocation = glGetUniformLocation(decalShaderId, "u_worldToView");
+        textureLocation = glGetUniformLocation(decalShaderId, "u_diffuseTexture");
+        const GLuint blockIndex = glGetUniformBlockIndex(decalShaderId, "Decals");
+        if (blockIndex != GL_INVALID_INDEX)
+            glUniformBlockBinding(decalShaderId, blockIndex, 0);
+        else
+            std::cerr << "Uniform block Decals not found in shader!" << std::endl;
     }
 
     void initDecalBatch()
     {
+        laneMarksPrepared = false;
+        laneMarksUploaded = false;
         /* Shader */
         this->loadDecalBatchShader();
 
@@ -79,9 +85,6 @@ struct DecalBatch
             glBindBuffer(GL_ARRAY_BUFFER, 0);
         }
 
-        /* Shader */
-        loadDecalBatchShader();
-
         /* UBO */
         {
             glGenBuffers(1, &decalUBO);
@@ -95,29 +98,38 @@ struct DecalBatch
     void
     renderDecals(GLuint diffuseTextureId, const glm::mat4 &worldToView, const glm::mat4 &projection, const int howMany)
     {
-
-//         printMat4("worldToView", worldToView);
-// printMat4("projection", projection);
-// printf("howMany = %d\n", howMany);
+        if (howMany <= 0)
+            return;
         glUseProgram(decalShaderId);
 
-        /* Upload decal data */
-        glBindBuffer(GL_UNIFORM_BUFFER, decalUBO);
-        glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(Decal) * howMany, decals);
-        glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
+        // The first 14 lane marks never move. Upload them once per GL buffer;
+        // while aiming, update only the changing line after those records.
+        if (!laneMarksUploaded || howMany > LaneMarkCount)
+        {
+            glBindBuffer(GL_UNIFORM_BUFFER, decalUBO);
+            if (!laneMarksUploaded)
+            {
+                glBufferSubData(GL_UNIFORM_BUFFER, 0,
+                                sizeof(Decal) * LaneMarkCount, decals);
+                laneMarksUploaded = true;
+            }
+            if (howMany > LaneMarkCount)
+                glBufferSubData(GL_UNIFORM_BUFFER, sizeof(Decal) * LaneMarkCount,
+                                sizeof(Decal) * (howMany - LaneMarkCount),
+                                decals + LaneMarkCount);
+            glBindBuffer(GL_UNIFORM_BUFFER, 0);
+        }
 
         glUniformMatrix4fv(
-            glGetUniformLocation(decalShaderId, "u_projection"), 1, GL_FALSE,
+            projectionLocation, 1, GL_FALSE,
             glm::value_ptr(projection)
         );
 
         glUniformMatrix4fv(
-            glGetUniformLocation(decalShaderId, "u_worldToView"), 1, GL_FALSE,
+            viewLocation, 1, GL_FALSE,
             glm::value_ptr(worldToView)
         );
 
-        
 
         /* Bind UBO */
         glBindBufferBase(GL_UNIFORM_BUFFER, 0, decalUBO);
@@ -125,14 +137,16 @@ struct DecalBatch
         /* Texture */
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, diffuseTextureId);
-        glUniform1i(glGetUniformLocation(decalShaderId, "u_diffuseTexture"), 0);
+        glUniform1i(textureLocation, 0);
 
         /* Draw */
         glBindVertexArray(vao);
         glDrawArraysInstanced(GL_TRIANGLES, 0, 6, howMany);
         glBindVertexArray(0);
 
+#if defined(VTX_GL_CHECK_HOT_PATH)
         checkOpenGLError();
+#endif
     }
 };
 

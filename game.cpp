@@ -21,6 +21,11 @@
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
+
+EM_JS(void, WebPerfLogFab_SetVisible, (int enabled), {
+    if (window.setPerfLogFabVisible)
+        window.setPerfLogFabVisible(!!enabled);
+});
 #endif
 
 #if defined(__APPLE__)
@@ -19332,7 +19337,14 @@ void vtx::loop(vtx::VertexContext *ctx)
 #endif
 
     usr->sound.setAudioCallbackProfiling(usr->settings.performanceAnalysisEnabled);
+#ifdef __EMSCRIPTEN__
+    const bool profilingWasEnabledAtFrameStart = usr->frameProfileGraph.enabled;
+#endif
     usr->frameProfileGraph.setEnabled(usr->settings.performanceAnalysisEnabled);
+#ifdef __EMSCRIPTEN__
+    if (usr->frameProfileGraph.enabled != profilingWasEnabledAtFrameStart)
+        WebPerfLogFab_SetVisible(usr->frameProfileGraph.enabled);
+#endif
     usr->frameProfileGraph.beginFrame();
     // Clay recalculates the HUD edge later in this loop. Both fly passes must
     // use the same edge or a reward can be drawn twice or missed in one frame.
@@ -21303,8 +21315,15 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     // Settings can change while processing input. Discard any unfinished
     // sample immediately when analysis is switched off this frame.
+#ifdef __EMSCRIPTEN__
+    const bool profilingWasEnabled = usr->frameProfileGraph.enabled;
+#endif
     if (usr->frameProfileGraph.setEnabled(usr->settings.performanceAnalysisEnabled))
         usr->frameProfileGraph.beginFrame();
+#ifdef __EMSCRIPTEN__
+    if (usr->frameProfileGraph.enabled != profilingWasEnabled)
+        WebPerfLogFab_SetVisible(usr->frameProfileGraph.enabled);
+#endif
     usr->sound.setAudioCallbackProfiling(usr->settings.performanceAnalysisEnabled);
     usr->frameProfileGraph.mark(FrameProfileGraph::Events);
 

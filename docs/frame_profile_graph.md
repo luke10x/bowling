@@ -10,6 +10,8 @@ label on the left and a black FPS label on the right; with audio work stacked, t
 are reference budgets rather than an exact frame-rate calculation. Enable **Performance analysis** in
 Settings or press **F3** to start profiling. It defaults to off. While off,
 the profiler collects no samples, draws no graph, and prints no reports. The
+web build shows its 📋 log button only while the graph is enabled and closes the
+log panel when analysis is switched off. The
 graph sits above the 28-pixel footer, including the FPS label. The clearance
 scales with display pixel ratio.
 

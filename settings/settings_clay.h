@@ -75,6 +75,20 @@ inline Clay_String SettingsWebUpdateActionLabel(Clayton *clayton, const GameSett
         : clayton->txl(TXL_UPDATE_WEB);
 }
 
+#ifdef __EMSCRIPTEN__
+inline Clay_Color SettingsWebUpdateBusyColor()
+{
+    // Pulse the stationary button instead of inserting a spinner that changes layout.
+    const float phase = (SDL_GetTicks() % 1200) / 600.0f;
+    const float lift = 36.0f * (phase <= 1.0f ? phase : 2.0f - phase);
+    Clay_Color color = CLAY_COLOR_BTN_PRIMARY;
+    color.r += lift;
+    color.g += lift;
+    color.b += lift * 0.4f;
+    return color;
+}
+#endif
+
 inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
 {
     if (!clayton || !clayton->shouldShowSettings || !settings)
@@ -146,23 +160,46 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                     }
                 )
                 {
-                    CLAY_TEXT(SettingsWebUpdateInstalledText(clayton, settings), CLAY_TEXT_CONFIG(bodyCfg));
-                    CLAY_TEXT(SettingsWebUpdatePublishedText(clayton, settings), CLAY_TEXT_CONFIG(bodyCfg));
-                    CLAY_TEXT(SettingsWebUpdateStatusText(clayton, settings), CLAY_TEXT_CONFIG(bodyCfg));
-                    if (settings->webUpdateStatus == GameSettings::WEB_UPDATE_CHECKING ||
-                        settings->webUpdateStatus == GameSettings::WEB_UPDATE_APPLYING)
+                    const bool checking = settings->webUpdateStatus == GameSettings::WEB_UPDATE_CHECKING;
+                    const bool applying = settings->webUpdateStatus == GameSettings::WEB_UPDATE_APPLYING;
+                    CLAY(CLAY_ID("SettingsUpdateInstalledSlot"),
+                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(24)}}})
                     {
+                        CLAY_TEXT(SettingsWebUpdateInstalledText(clayton, settings), CLAY_TEXT_CONFIG(bodyCfg));
+                    }
+                    CLAY(CLAY_ID("SettingsUpdatePublishedSlot"),
+                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(24)}}})
+                    {
+                        CLAY_TEXT(SettingsWebUpdatePublishedText(clayton, settings), CLAY_TEXT_CONFIG(bodyCfg));
+                    }
+                    CLAY(CLAY_ID("SettingsUpdateStatusSlot"),
+                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(64)}}})
+                    {
+                        if (!checking && !applying && settings->webUpdateStatus != GameSettings::WEB_UPDATE_IDLE)
+                            CLAY_TEXT(SettingsWebUpdateStatusText(clayton, settings), CLAY_TEXT_CONFIG(bodyCfg));
+                    }
+                    Clay_ElementDeclaration updateButton = CLAY_THEME_BTN_PRIMARY;
+                    updateButton.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)};
+                    if (checking || applying)
+                    {
+                        updateButton.backgroundColor = SettingsWebUpdateBusyColor();
+                        CLAY(CLAY_ID("SettingsUpdateBusyButton"), updateButton)
+                        {
+                            CLAY_TEXT(clayton->txl(checking ? TXL_PWA_UPDATE_CHECKING : TXL_PWA_UPDATE_APPLYING),
+                                      CLAY_TEXT_CONFIG(buttonCfg));
+                        }
                     }
                     else if (settings->webUpdateAvailable())
                     {
-                        CLAY(clayton->settingsApplyUpdateClick.clayId, CLAY_THEME_BTN_PRIMARY)
+                        updateButton.backgroundColor = CLAY_COLOR_BTN_SUCCESS;
+                        CLAY(clayton->settingsApplyUpdateClick.clayId, updateButton)
                         {
                             CLAY_TEXT(SettingsWebUpdateActionLabel(clayton, settings), CLAY_TEXT_CONFIG(buttonCfg));
                         }
                     }
                     else
                     {
-                        CLAY(clayton->settingsCheckUpdateClick.clayId, CLAY_THEME_BTN_PRIMARY)
+                        CLAY(clayton->settingsCheckUpdateClick.clayId, updateButton)
                         {
                             CLAY_TEXT(clayton->txl(TXL_CHECK_FOR_UPDATE), CLAY_TEXT_CONFIG(buttonCfg));
                         }
@@ -172,89 +209,68 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
 
                 CLAY(
                     CLAY_ID("SettingsHighDetailsRow"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                .childGap = 8, .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                                .childGap = 12,
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                 )
                 {
-                    CLAY(CLAY_ID("SettingsHighDetailsControl"),
-                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                     .childGap = 12,
-                                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                                     .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+                    CLAY_TEXT(clayton->txl(TXL_HIGH_DETAILS), CLAY_TEXT_CONFIG(bodyCfg));
+                    CLAY(CLAY_ID("SettingsHighDetailsSpacer"),
+                         {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
+                    Clay_ElementDeclaration checkbox = CLAY_THEME_BTN_BOX;
+                    checkbox.backgroundColor = settings->highDetailsEnabled
+                        ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
+                    CLAY(clayton->settingsHighDetailsClick.clayId, checkbox)
                     {
-                        Clay_ElementDeclaration checkbox = CLAY_THEME_BTN_BOX;
-                        checkbox.layout.sizing = {CLAY_SIZING_FIXED(40), CLAY_SIZING_FIXED(40)};
-                        checkbox.backgroundColor = settings->highDetailsEnabled
-                            ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
-                        CLAY(clayton->settingsHighDetailsClick.clayId, checkbox)
-                        {
-                            CLAY_TEXT(settings->highDetailsEnabled
-                                          ? CLAY_STRING("✓") : CLAY_STRING(" "),
-                                      CLAY_TEXT_CONFIG(buttonCfg));
-                        }
-                        CLAY_TEXT(clayton->txl(TXL_HIGH_DETAILS), CLAY_TEXT_CONFIG(bodyCfg));
+                        CLAY_TEXT(settings->highDetailsEnabled
+                                      ? CLAY_STRING("✓") : CLAY_STRING(" "),
+                                  CLAY_TEXT_CONFIG(buttonCfg));
                     }
-                    CLAY_TEXT(
-                        clayton->txl(TXL_HIGH_DETAILS_HELP),
-                        CLAY_TEXT_CONFIG(bodyCfg)
-                    );
                 }
 
                 CLAY(
                     CLAY_ID("SettingsPatchedYmfmRow"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                .childGap = 8, .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                                .childGap = 12,
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                 )
                 {
-                    CLAY(CLAY_ID("SettingsPatchedYmfmControl"),
-                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                     .childGap = 12,
-                                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                                     .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+                    CLAY_TEXT(clayton->txl(TXL_PATCHED_YMFM), CLAY_TEXT_CONFIG(bodyCfg));
+                    CLAY(CLAY_ID("SettingsPatchedYmfmSpacer"),
+                         {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
+                    Clay_ElementDeclaration checkbox = CLAY_THEME_BTN_BOX;
+                    checkbox.backgroundColor = settings->patchedYmfmEnabled
+                        ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
+                    CLAY(clayton->settingsPatchedYmfmClick.clayId, checkbox)
                     {
-                        Clay_ElementDeclaration checkbox = CLAY_THEME_BTN_BOX;
-                        checkbox.layout.sizing = {CLAY_SIZING_FIXED(40), CLAY_SIZING_FIXED(40)};
-                        checkbox.backgroundColor = settings->patchedYmfmEnabled
-                            ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
-                        CLAY(clayton->settingsPatchedYmfmClick.clayId, checkbox)
-                        {
-                            CLAY_TEXT(settings->patchedYmfmEnabled
-                                          ? CLAY_STRING("✓") : CLAY_STRING(" "),
-                                      CLAY_TEXT_CONFIG(buttonCfg));
-                        }
-                        CLAY_TEXT(clayton->txl(TXL_PATCHED_YMFM), CLAY_TEXT_CONFIG(bodyCfg));
+                        CLAY_TEXT(settings->patchedYmfmEnabled
+                                      ? CLAY_STRING("✓") : CLAY_STRING(" "),
+                                  CLAY_TEXT_CONFIG(buttonCfg));
                     }
-                    CLAY_TEXT(clayton->txl(TXL_PATCHED_YMFM_HELP), CLAY_TEXT_CONFIG(bodyCfg));
                 }
 
                 CLAY(
                     CLAY_ID("SettingsPerformanceAnalysisRow"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                .childGap = 8, .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                                .childGap = 12,
+                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
                 )
                 {
-                    CLAY(CLAY_ID("SettingsPerformanceAnalysisControl"),
-                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                     .childGap = 12,
-                                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                                     .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+                    CLAY_TEXT(clayton->txl(TXL_PERFORMANCE_ANALYSIS), CLAY_TEXT_CONFIG(bodyCfg));
+                    CLAY(CLAY_ID("SettingsPerformanceAnalysisSpacer"),
+                         {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
+                    Clay_ElementDeclaration checkbox = CLAY_THEME_BTN_BOX;
+                    checkbox.backgroundColor = settings->performanceAnalysisEnabled
+                        ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
+                    CLAY(clayton->settingsPerformanceAnalysisClick.clayId, checkbox)
                     {
-                        Clay_ElementDeclaration checkbox = CLAY_THEME_BTN_BOX;
-                        checkbox.layout.sizing = {CLAY_SIZING_FIXED(40), CLAY_SIZING_FIXED(40)};
-                        checkbox.backgroundColor = settings->performanceAnalysisEnabled
-                            ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
-                        CLAY(clayton->settingsPerformanceAnalysisClick.clayId, checkbox)
-                        {
-                            CLAY_TEXT(settings->performanceAnalysisEnabled
-                                          ? CLAY_STRING("✓") : CLAY_STRING(" "),
-                                      CLAY_TEXT_CONFIG(buttonCfg));
-                        }
-                        CLAY_TEXT(clayton->txl(TXL_PERFORMANCE_ANALYSIS), CLAY_TEXT_CONFIG(bodyCfg));
+                        CLAY_TEXT(settings->performanceAnalysisEnabled
+                                      ? CLAY_STRING("✓") : CLAY_STRING(" "),
+                                  CLAY_TEXT_CONFIG(buttonCfg));
                     }
-                    CLAY_TEXT(
-                        clayton->txl(TXL_PERFORMANCE_ANALYSIS_HELP),
-                        CLAY_TEXT_CONFIG(bodyCfg)
-                    );
                 }
 
                 Clay_ElementDeclaration resetProgressButton = CLAY_THEME_BTN_DANGER;

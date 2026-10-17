@@ -1989,7 +1989,7 @@ inline bool WindowStack::processMenuWindowEvent(WindowStack *self, Clayton *clay
         self->windowStackPopTopWindow_();
         return true;
     }
-    if (isClaytonClicked(&clayton->menuRenameClick, e))
+    if (clayton->secretMenuUnlock.unlocked && isClaytonClicked(&clayton->menuRenameClick, e))
     {
         self->menuRenameRequested = true;
         self->windowStackPopTopWindow_();
@@ -2177,13 +2177,13 @@ inline bool WindowStack::processSettingsWindowEvent(
         return true;
     }
 
-    if (isClaytonClicked(&clayton->settingsPatchedYmfmClick, e))
+    if (clayton->secretMenuUnlock.unlocked && isClaytonClicked(&clayton->settingsPatchedYmfmClick, e))
     {
         settings->patchedYmfmEnabled = !settings->patchedYmfmEnabled;
         return true;
     }
 
-    if (isClaytonClicked(&clayton->settingsPerformanceAnalysisClick, e))
+    if (clayton->secretMenuUnlock.unlocked && isClaytonClicked(&clayton->settingsPerformanceAnalysisClick, e))
     {
         settings->performanceAnalysisEnabled = !settings->performanceAnalysisEnabled;
         return true;

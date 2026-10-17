@@ -118,9 +118,12 @@ inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool, bool show
                     CLAY_TEXT(clayton->txl(TXL_CREDITS), CLAY_TEXT_CONFIG(buttonFontCfg));
                 }
 
-                CLAY(clayton->menuRenameClick.clayId, CLAY_THEME_BTN_HUD)
+                if (clayton->secretMenuUnlock.unlocked)
                 {
-                    CLAY_TEXT(clayton->txl(TXL_RENAME), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    CLAY(clayton->menuRenameClick.clayId, CLAY_THEME_BTN_HUD)
+                    {
+                        CLAY_TEXT(clayton->txl(TXL_RENAME), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    }
                 }
             }
         }

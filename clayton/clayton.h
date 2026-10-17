@@ -19,6 +19,7 @@
 #include "../tegel/txl_runtime.h"
 #include "./clayton_click.h"
 #include "clayarena.h"
+#include "../secret_menu_unlock.h"
 
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
@@ -91,6 +92,7 @@ struct Clayton
     bool shouldShowHouses = false;
     bool shouldShowBotSelect = false;
     bool shouldShowSettings = false;
+    SecretMenuUnlock secretMenuUnlock;
     const char *newGameTitle = "TRY AGAIN";
     const char *newGameDetail = "";
     const char *newGameButtonLabel = "TRY AGAIN";

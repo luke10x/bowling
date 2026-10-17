@@ -3095,6 +3095,45 @@ static inline Clay_ElementId BallChargeHudId()
     return CLAY_ID("BallChargeHud");
 }
 
+static inline SecretMenuUnlock::Area SecretMenu_HudAreaAt(const UserContext *usr, float x, float y)
+{
+    if (!usr || usr->windowStack.count > 0 || usr->dialog.active ||
+        usr->appInactiveOverlayActive ||
+        usr->gameMode == UserContext::GameMode::TRACKER ||
+        usr->gameMode == UserContext::GameMode::SCHOOL ||
+        usr->gameMode == UserContext::GameMode::MINIGAME ||
+        MiniGame_IsActive(usr))
+        return SecretMenuUnlock::Other;
+
+    auto hits = [&](Clay_ElementId id) -> bool
+    {
+        const Clay_ElementData element = Clay_GetElementData(id);
+        const Clay_BoundingBox box = element.boundingBox;
+        return element.found && box.width > 0.0f && box.height > 0.0f &&
+            x >= box.x && x <= box.x + box.width &&
+            y >= box.y && y <= box.y + box.height;
+    };
+    if (hits(BallChargeHudId())) return SecretMenuUnlock::Energy;
+    if (hits(CLAY_ID("PlaceOfGameTime"))) return SecretMenuUnlock::Timer;
+    if (hits(CLAY_ID("PlaceOfMoney"))) return SecretMenuUnlock::Money;
+    return SecretMenuUnlock::Other;
+}
+
+static inline void SecretMenu_ProcessPointer(UserContext *usr, float x, float y,
+                                             bool down, bool touch, uint64_t pointer,
+                                             bool primaryButton)
+{
+    if (!usr || usr->clayton.secretMenuUnlock.unlocked) return;
+    auto &gesture = usr->clayton.secretMenuUnlock;
+    const SecretMenuUnlock::Area area = primaryButton
+        ? SecretMenu_HudAreaAt(usr, x, y) : SecretMenuUnlock::Other;
+    const uint64_t nowMs = SDL_GetTicks64();
+    if (down)
+        gesture.pointerDown(area, touch, pointer, nowMs);
+    else
+        gesture.pointerUp(area, touch, pointer, nowMs);
+}
+
 static inline Clay_ElementId CrowdControlHudId()
 {
     return CLAY_ID("CrowdControlHud");
@@ -3132,7 +3171,9 @@ static inline bool EventHitsAnyHudOpenButton(UserContext *usr, const SDL_Event &
         usr->gameMode != UserContext::GameMode::SCHOOL &&
         usr->gameMode != UserContext::GameMode::MINIGAME;
     if (mainHudRowVisible &&
-        (hits(usr->menuButton.clayId) ||
+        ((Clay_GetElementData(CLAY_ID("PlaceOfGameTime")).found && hits(CLAY_ID("PlaceOfGameTime"))) ||
+         (Clay_GetElementData(CLAY_ID("PlaceOfMoney")).found && hits(CLAY_ID("PlaceOfMoney"))) ||
+         hits(usr->menuButton.clayId) ||
          hits(usr->soundButton.clayId) ||
          hits(usr->oilButton.clayId) ||
          (usr->playerRoute == PlayerRoute::FREESTYLE && hits(usr->hiScoreButton.clayId)) ||
@@ -19729,6 +19770,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             // Convert normalized touch position to window pixels
             int x = (int)(e.tfinger.x * winW);
             int y = (int)(e.tfinger.y * winH);
+            SecretMenu_ProcessPointer(usr, x * touchToLayoutScale, y * touchToLayoutScale,
+                                      true, true, (uint64_t)e.tfinger.fingerId, true);
             if (Tracker_HandleRawEditorPianoTouch(usr, e, (float)x * touchToLayoutScale, (float)y * touchToLayoutScale))
             {
                 s_ignoreNativeMouseUntil = SDL_GetTicks64() + 700;
@@ -19765,6 +19808,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             int x = (int)(e.tfinger.x * winW);
             int y = (int)(e.tfinger.y * winH);
+            SecretMenu_ProcessPointer(usr, x * touchToLayoutScale, y * touchToLayoutScale,
+                                      false, true, (uint64_t)e.tfinger.fingerId, true);
             if (Tracker_HandleRawEditorPianoTouch(usr, e, (float)x * touchToLayoutScale, (float)y * touchToLayoutScale))
             {
                 s_ignoreNativeMouseUntil = SDL_GetTicks64() + 700;
@@ -19873,7 +19918,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
         }
 
-        if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_F3 && e.key.repeat == 0)
+        if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_F3 && e.key.repeat == 0 &&
+            usr->clayton.secretMenuUnlock.unlocked)
         {
             usr->settings.performanceAnalysisEnabled = !usr->settings.performanceAnalysisEnabled;
             continue;
@@ -19891,12 +19937,38 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
 #endif
 
+#if !defined(__EMSCRIPTEN__) && !TARGET_OS_IOS && !TARGET_IPHONE_SIMULATOR
+        if (e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP)
+        {
+            int touchWindowW = 1, touchWindowH = 1;
+            SDL_GetWindowSize(ctx->sdlWindow, &touchWindowW, &touchWindowH);
+            SecretMenu_ProcessPointer(usr, e.tfinger.x * touchWindowW * pixelRatio,
+                                      e.tfinger.y * touchWindowH * pixelRatio,
+                                      e.type == SDL_FINGERDOWN, true,
+                                      (uint64_t)e.tfinger.fingerId, true);
+        }
+#endif
+
+        // Touch has already been counted from its raw finger events above.
+        // Ignore SDL's synthetic touch mouse events here to avoid double taps.
+        if ((e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP) &&
+            e.button.which != SDL_TOUCH_MOUSEID)
+        {
+            SecretMenu_ProcessPointer(usr, e.button.x * pixelRatio, e.button.y * pixelRatio,
+                                      e.type == SDL_MOUSEBUTTONDOWN, false,
+                                      (uint64_t)e.button.which, e.button.button == SDL_BUTTON_LEFT);
+        }
+
         if (handle_resize_sdl(ctx, e))
         {
             shouldHandleResize = true;
         }
         if (e.type == SDL_WINDOWEVENT)
         {
+    if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST ||
+        e.window.event == SDL_WINDOWEVENT_HIDDEN ||
+        e.window.event == SDL_WINDOWEVENT_MINIMIZED)
+        usr->clayton.secretMenuUnlock.cancel();
     switch (e.window.event)
     {
     case SDL_WINDOWEVENT_FOCUS_LOST:
@@ -20985,8 +21057,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             continue;
         }
 
-        // HUD window-open buttons are Clay UI; prevent pointer-down click-through into gameplay
-        // (Clay clicks fire on mouse-up, but gameplay reacts on mouse-down).
+        // HUD buttons and passive indicators are Clay UI; prevent pointer-down
+        // click-through into gameplay (Clay clicks fire on mouse-up).
         {
             const bool isPointerEvent =
                 (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||

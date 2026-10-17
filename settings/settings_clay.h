@@ -229,47 +229,50 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                     }
                 }
 
-                CLAY(
-                    CLAY_ID("SettingsPatchedYmfmRow"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
-                                .childGap = 12,
-                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-                )
+                if (clayton->secretMenuUnlock.unlocked)
                 {
-                    CLAY_TEXT(clayton->txl(TXL_PATCHED_YMFM), CLAY_TEXT_CONFIG(bodyCfg));
-                    CLAY(CLAY_ID("SettingsPatchedYmfmSpacer"),
-                         {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
-                    Clay_ElementDeclaration checkbox = CLAY_THEME_BTN_BOX;
-                    checkbox.backgroundColor = settings->patchedYmfmEnabled
-                        ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
-                    CLAY(clayton->settingsPatchedYmfmClick.clayId, checkbox)
+                    CLAY(
+                        CLAY_ID("SettingsPatchedYmfmRow"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                                    .childGap = 12,
+                                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                    )
                     {
-                        CLAY_TEXT(settings->patchedYmfmEnabled
-                                      ? CLAY_STRING("✓") : CLAY_STRING(" "),
-                                  CLAY_TEXT_CONFIG(buttonCfg));
+                        CLAY_TEXT(clayton->txl(TXL_PATCHED_YMFM), CLAY_TEXT_CONFIG(bodyCfg));
+                        CLAY(CLAY_ID("SettingsPatchedYmfmSpacer"),
+                             {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
+                        Clay_ElementDeclaration checkbox = CLAY_THEME_BTN_BOX;
+                        checkbox.backgroundColor = settings->patchedYmfmEnabled
+                            ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
+                        CLAY(clayton->settingsPatchedYmfmClick.clayId, checkbox)
+                        {
+                            CLAY_TEXT(settings->patchedYmfmEnabled
+                                          ? CLAY_STRING("✓") : CLAY_STRING(" "),
+                                      CLAY_TEXT_CONFIG(buttonCfg));
+                        }
                     }
-                }
 
-                CLAY(
-                    CLAY_ID("SettingsPerformanceAnalysisRow"),
-                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
-                                .childGap = 12,
-                                .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-                                .layoutDirection = CLAY_LEFT_TO_RIGHT}}
-                )
-                {
-                    CLAY_TEXT(clayton->txl(TXL_PERFORMANCE_ANALYSIS), CLAY_TEXT_CONFIG(bodyCfg));
-                    CLAY(CLAY_ID("SettingsPerformanceAnalysisSpacer"),
-                         {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
-                    Clay_ElementDeclaration checkbox = CLAY_THEME_BTN_BOX;
-                    checkbox.backgroundColor = settings->performanceAnalysisEnabled
-                        ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
-                    CLAY(clayton->settingsPerformanceAnalysisClick.clayId, checkbox)
+                    CLAY(
+                        CLAY_ID("SettingsPerformanceAnalysisRow"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
+                                    .childGap = 12,
+                                    .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT}}
+                    )
                     {
-                        CLAY_TEXT(settings->performanceAnalysisEnabled
-                                      ? CLAY_STRING("✓") : CLAY_STRING(" "),
-                                  CLAY_TEXT_CONFIG(buttonCfg));
+                        CLAY_TEXT(clayton->txl(TXL_PERFORMANCE_ANALYSIS), CLAY_TEXT_CONFIG(bodyCfg));
+                        CLAY(CLAY_ID("SettingsPerformanceAnalysisSpacer"),
+                             {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
+                        Clay_ElementDeclaration checkbox = CLAY_THEME_BTN_BOX;
+                        checkbox.backgroundColor = settings->performanceAnalysisEnabled
+                            ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
+                        CLAY(clayton->settingsPerformanceAnalysisClick.clayId, checkbox)
+                        {
+                            CLAY_TEXT(settings->performanceAnalysisEnabled
+                                          ? CLAY_STRING("✓") : CLAY_STRING(" "),
+                                      CLAY_TEXT_CONFIG(buttonCfg));
+                        }
                     }
                 }
 

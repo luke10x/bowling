@@ -38,16 +38,14 @@ TEST_CASE("Score and reward results remain visible until the player chooses an a
     CHECK_FALSE(stack.playAgainRequested);
 }
 
-TEST_CASE("Skipping an empty Retry prompt preserves other pending windows and actions")
+TEST_CASE("Skipping an empty Retry prompt preserves other pending windows")
 {
     WindowStack stack{};
     stack.windowStackInit();
     stack.windowStackPushLocalHiscoreWindow();
-    stack.bonusPlayRequested = true;
     stack.windowStackPushNewGameWindow(/*hasResults=*/false);
 
     CHECK(stack.playAgainRequested);
-    CHECK(stack.bonusPlayRequested);
     REQUIRE(stack.count == 1);
     CHECK(stack.kinds[stack.count - 1] == WindowKind_LocalHiscore);
 }

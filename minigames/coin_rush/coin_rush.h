@@ -10,21 +10,6 @@ enum class MiniGameKind : uint8_t
     CROWD_CONTROL = 3,
 };
 
-static inline MiniGameKind MiniGame_BonusForCampaignVictory(
-    int levelNumber,
-    bool defeatedMalachOrBetter,
-    bool defeatedDogOrBetter,
-    bool defeatedBeakOrBetter = false)
-{
-    if (levelNumber <= 1 || !defeatedMalachOrBetter)
-        return MiniGameKind::NONE;
-    if (levelNumber >= 13)
-        return MiniGameKind::NONE;
-    if (defeatedBeakOrBetter)
-        return MiniGameKind::CROWD_CONTROL;
-    return defeatedDogOrBetter ? MiniGameKind::COUNT_MASTERS : MiniGameKind::COIN_RUSH;
-}
-
 struct MiniGameCoinRush
 {
     static inline constexpr int SLOT_COUNT = 7;

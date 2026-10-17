@@ -1003,9 +1003,7 @@ struct UserContext
     uint32_t unlockedHouseMask = 0;
     uint32_t unlockedBotMask = 0;
     bool pendingFreestyleResultWindow = false;
-    MiniGameKind pendingMiniGameKind = MiniGameKind::NONE;
     MiniGameKind activeMiniGameKind = MiniGameKind::NONE;
-    bool pendingBonusChoiceWindow = false;
     int crowdControlBonusClaims = 0;
     bool crowdControlBallWonThisCampaign = false;
     int crowdControlPrizeIndex = 0;
@@ -10135,20 +10133,16 @@ static inline CampaignBiome Visual_CampaignLevelBiome(const UserContext *usr)
 
 static inline bool Campaign_IsCurrentBiomeIce(const UserContext *usr)
 {
-    if (usr && Campaign_VisualBiomeSourceForState(
-            usr->pendingMiniGameKind != MiniGameKind::NONE,
-            MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource)
+    if (usr && Campaign_VisualBiomeSourceForState(MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::MiniGameSource)
         return usr->miniGameSourceBiome == CampaignBiome::ICE;
     return usr && usr->playerRoute == PlayerRoute::CAMPAIGN &&
            Visual_CampaignLevelBiome(usr) == CampaignBiome::ICE;
 }
 
-static inline bool Visual_UsesBonusSourceBiome(const UserContext *usr, CampaignBiome biome)
+static inline bool Visual_UsesMiniGameSourceBiome(const UserContext *usr, CampaignBiome biome)
 {
     return usr &&
-           Campaign_VisualBiomeSourceForState(
-               usr->pendingMiniGameKind != MiniGameKind::NONE,
-               MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource &&
+           Campaign_VisualBiomeSourceForState(MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::MiniGameSource &&
            usr->miniGameSourceBiome == biome;
 }
 
@@ -10163,8 +10157,8 @@ static inline bool Visual_ShouldUseSuburbiaBackdrop(const UserContext *usr)
 {
     if (!usr)
         return false;
-    if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource)
-        return Visual_UsesBonusSourceBiome(usr, CampaignBiome::SUBURBIA);
+    if (Campaign_VisualBiomeSourceForState(MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::MiniGameSource)
+        return Visual_UsesMiniGameSourceBiome(usr, CampaignBiome::SUBURBIA);
     if (usr->campaignOverrideActive)
         return usr->campaignOverrideBiome == CampaignBiome::SUBURBIA;
     return usr->playerRoute == PlayerRoute::CAMPAIGN &&
@@ -10175,8 +10169,8 @@ static inline bool Visual_ShouldUseRuinsBackdrop(const UserContext *usr)
 {
     if (!usr)
         return false;
-    if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource)
-        return Visual_UsesBonusSourceBiome(usr, CampaignBiome::RUINS_CITY);
+    if (Campaign_VisualBiomeSourceForState(MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::MiniGameSource)
+        return Visual_UsesMiniGameSourceBiome(usr, CampaignBiome::RUINS_CITY);
     if (usr->campaignOverrideActive)
         return usr->campaignOverrideBiome == CampaignBiome::RUINS_CITY;
     return usr->playerRoute == PlayerRoute::CAMPAIGN &&
@@ -10200,15 +10194,15 @@ static inline bool Visual_ShouldUseForestBackdrop(const UserContext *usr)
 static inline bool Visual_ShouldUseJungleBackdrop(const UserContext *usr)
 {
     if (!usr) return false;
-    if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource) return Visual_UsesBonusSourceBiome(usr, CampaignBiome::JUNGLE);
+    if (Campaign_VisualBiomeSourceForState(MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::MiniGameSource) return Visual_UsesMiniGameSourceBiome(usr, CampaignBiome::JUNGLE);
     if (usr->campaignOverrideActive) return usr->campaignOverrideBiome == CampaignBiome::JUNGLE;
     return usr->playerRoute == PlayerRoute::CAMPAIGN && Visual_CampaignLevelBiome(usr) == CampaignBiome::JUNGLE;
 }
 static inline bool Visual_ShouldUseWindFarmBackdrop(const UserContext *usr)
 {
     if (!usr) return false;
-    if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource)
-        return Visual_UsesBonusSourceBiome(usr, CampaignBiome::WIND_FARM);
+    if (Campaign_VisualBiomeSourceForState(MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::MiniGameSource)
+        return Visual_UsesMiniGameSourceBiome(usr, CampaignBiome::WIND_FARM);
     return usr->playerRoute == PlayerRoute::CAMPAIGN && Visual_CampaignLevelBiome(usr) == CampaignBiome::WIND_FARM;
 }
 
@@ -10222,7 +10216,7 @@ static inline bool Visual_ShouldUseDesertBackdrop(const UserContext *usr)
 static inline bool Visual_ShouldUseRedDesertBackdrop(const UserContext *usr)
 {
     if (!usr) return false;
-    if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource) return Visual_UsesBonusSourceBiome(usr, CampaignBiome::RED_DESERT);
+    if (Campaign_VisualBiomeSourceForState(MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::MiniGameSource) return Visual_UsesMiniGameSourceBiome(usr, CampaignBiome::RED_DESERT);
     if (usr->campaignOverrideActive) return usr->campaignOverrideBiome == CampaignBiome::RED_DESERT;
     return usr->playerRoute == PlayerRoute::CAMPAIGN && Visual_CampaignLevelBiome(usr) == CampaignBiome::RED_DESERT;
 }
@@ -10231,8 +10225,8 @@ static inline bool Visual_ShouldUseGreyDesertBackdrop(const UserContext *usr)
 {
     if (!usr)
         return false;
-    if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource)
-        return Visual_UsesBonusSourceBiome(usr, CampaignBiome::GREY_DESERT);
+    if (Campaign_VisualBiomeSourceForState(MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::MiniGameSource)
+        return Visual_UsesMiniGameSourceBiome(usr, CampaignBiome::GREY_DESERT);
     if (usr->campaignOverrideActive)
         return usr->campaignOverrideBiome == CampaignBiome::GREY_DESERT;
     return usr->playerRoute == PlayerRoute::CAMPAIGN &&
@@ -10243,8 +10237,8 @@ static inline bool Visual_ShouldUseAshlandBackdrop(const UserContext *usr)
 {
     if (!usr)
         return false;
-    if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource)
-        return Visual_UsesBonusSourceBiome(usr, CampaignBiome::ASHLAND);
+    if (Campaign_VisualBiomeSourceForState(MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::MiniGameSource)
+        return Visual_UsesMiniGameSourceBiome(usr, CampaignBiome::ASHLAND);
     if (usr->campaignOverrideActive)
         return usr->campaignOverrideBiome == CampaignBiome::ASHLAND;
     return usr->playerRoute == PlayerRoute::CAMPAIGN &&
@@ -10255,8 +10249,8 @@ static inline bool Visual_ShouldUseGasFactoryBackdrop(const UserContext *usr)
 {
     if (!usr)
         return false;
-    if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource)
-        return Visual_UsesBonusSourceBiome(usr, CampaignBiome::GAS_FACTORY);
+    if (Campaign_VisualBiomeSourceForState(MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::MiniGameSource)
+        return Visual_UsesMiniGameSourceBiome(usr, CampaignBiome::GAS_FACTORY);
     if (usr->campaignOverrideActive)
         return usr->campaignOverrideBiome == CampaignBiome::GAS_FACTORY;
     return usr->playerRoute == PlayerRoute::CAMPAIGN &&
@@ -10267,8 +10261,8 @@ static inline bool Visual_ShouldUseCrystalCavernBackdrop(const UserContext *usr)
 {
     if (!usr)
         return false;
-    if (Campaign_VisualBiomeSourceForState(usr->pendingMiniGameKind != MiniGameKind::NONE, MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::BonusSource)
-        return Visual_UsesBonusSourceBiome(usr, CampaignBiome::CRYSTAL_CAVERN);
+    if (Campaign_VisualBiomeSourceForState(MiniGame_IsActive(usr)) == CampaignVisualBiomeSource::MiniGameSource)
+        return Visual_UsesMiniGameSourceBiome(usr, CampaignBiome::CRYSTAL_CAVERN);
     if (usr->campaignOverrideActive)
         return usr->campaignOverrideBiome == CampaignBiome::CRYSTAL_CAVERN;
     return usr->playerRoute == PlayerRoute::CAMPAIGN &&
@@ -11610,7 +11604,6 @@ static inline void Campaign_ResumeCompletedSummaryFlow(UserContext *usr)
         uint32_t(SDL_GetTicks()) ^
         uint32_t((usr->campaignLevelIndex + 17) * 2654435761u) ^
         uint32_t(usr->campaignClearTime * 1000.0f);
-    usr->pendingBonusChoiceWindow = false;
     usr->phase = UserContext::Phase::RESULT;
     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
 }
@@ -13226,7 +13219,6 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
         return;
 
     usr->activeMiniGameKind = kind;
-    usr->pendingMiniGameKind = MiniGameKind::NONE;
     usr->miniGameSourceBiome = sourceBiome;
     usr->gameMode = UserContext::GameMode::MINIGAME;
     usr->turnOwner = UserContext::TurnOwner::PLAYER;
@@ -13238,7 +13230,7 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
     ResultWindow_ResetRoundEarnings(usr);
     usr->miniGameCoinsEarnedLastRun = 0;
     usr->miniGameElapsed = 0.0f;
-    // A bonus run starts with fresh lane state, not a re-oil confirmation.
+    // A minigame run starts with fresh lane state, not a re-oil confirmation.
     usr->reoilLaneBlinkPending = false;
     usr->reoilLaneBlinkRemainingS = 0.0f;
     UI_ResetBannersForNewRoll(usr, "MINIGAME_BEGIN");
@@ -13311,58 +13303,7 @@ static inline void MiniGame_Begin(UserContext *usr, MiniGameKind kind, CampaignB
     usr->sound.nextSongForLevelTransition();
 }
 
-static inline MiniGameKind Campaign_BonusMiniGameForVictory(const CampaignLevelConfig &cfg)
-{
-    const int opponent = (int)cfg.opponent;
-    return MiniGame_BonusForCampaignVictory(
-        cfg.levelNumber,
-        opponent >= (int)CampaignOpponent::MALACH,
-        opponent >= (int)CampaignOpponent::DOG,
-        opponent >= (int)CampaignOpponent::BEAK
-    );
-}
-
-static inline void MiniGame_QueueCampaignVictoryBonus(
-    UserContext *usr,
-    CampaignBiome sourceBiome,
-    MiniGameKind kind)
-{
-    if (!usr || kind == MiniGameKind::NONE)
-        return;
-    usr->pendingMiniGameKind = kind;
-    usr->miniGameSourceBiome = sourceBiome;
-    usr->miniGameCoinsEarnedLastRun = 0;
-    usr->pendingBonusChoiceWindow = true;
-}
-
-static inline void MiniGame_StartQueued(UserContext *usr)
-{
-    if (!usr || usr->pendingMiniGameKind == MiniGameKind::NONE)
-        return;
-
-    usr->miniGameStandalone = false;
-    usr->pendingBonusChoiceWindow = false;
-    MiniGame_Begin(usr, usr->pendingMiniGameKind, usr->miniGameSourceBiome);
-}
-
 static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetStoryKick, bool recordAttempt);
-
-static inline void MiniGame_PushAcceptBonusWindow(UserContext *usr)
-{
-    if (!usr || usr->pendingMiniGameKind == MiniGameKind::NONE)
-        return;
-
-    char title[64];
-    char detail[160];
-    std::snprintf(title, sizeof(title), "%s", Txl_Get(usr->language, TXL_BONUS_ROUND));
-    std::snprintf(detail, sizeof(detail), Txl_Get(usr->language, TXL_BONUS_PROMPT_FMT), "");
-    usr->windowStack.windowStackPushAcceptBonusWindow(
-        title,
-        detail,
-        Txl_Get(usr->language, TXL_YES)
-    );
-    usr->pendingBonusChoiceWindow = false;
-}
 
 static inline void MiniGame_StartStandalone(UserContext *usr, MiniGameKind kind);
 
@@ -13415,9 +13356,7 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     Campaign_ClearFinaleStateForLevelSetup(usr->campaignEndgameAwaitingResultDismissal);
     usr->pendingCampaignCoachStoryId = 0;
     usr->pendingCampaignRuneLessonStoryId = 0;
-    usr->pendingMiniGameKind = MiniGameKind::NONE;
     usr->activeMiniGameKind = MiniGameKind::NONE;
-    usr->pendingBonusChoiceWindow = false;
     usr->miniGameStandalone = false;
     usr->miniGameCoinsEarnedLastRun = 0;
     // Level setup must never inherit a confirmation flash from the prior lane.
@@ -13468,22 +13407,6 @@ static inline void Campaign_AdvanceIfWon(UserContext *usr, const CampaignLevelCo
         return;
 
     Campaign_RecordWinForCurrentLevel(usr);
-    const int levelIdx = glm::clamp(cfg.levelNumber, 1, kCampaignLevelCount) - 1;
-    const MiniGameKind bonusKind = Campaign_BonusMiniGameForVictory(cfg);
-    if (Campaign_ShouldOfferLevelBonus(
-            cfg.levelNumber,
-            kCampaignLevelCount,
-            bonusKind != MiniGameKind::NONE,
-            usr->campaignLevelBonusGranted[levelIdx],
-            usr->campaignLevelWins[levelIdx]))
-    {
-        // Award bonuses only for the first campaign win of this level. The
-        // persisted marker also protects interrupted saves; together they
-        // prevent replaying a completed level from farming a second bonus.
-        usr->campaignLevelBonusGranted[levelIdx] = true;
-        Campaign_SaveLevelResults(usr);
-        MiniGame_QueueCampaignVictoryBonus(usr, cfg.biome, bonusKind);
-    }
     usr->carousel.bank += (float)glm::max(0, cfg.rewardBank);
     if (kCampaignBallRewardsEnabled && cfg.unlockBallId >= 0)
         UnlockMask_AddBall(usr, cfg.unlockBallId);
@@ -18911,7 +18834,6 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.minigameCoinRushClick, "minigameCoinRush");
     initClaytonClick(&usr->clayton.minigameCountMastersClick, "minigameCountMasters");
     initClaytonClick(&usr->clayton.minigameCrowdControlClick, "minigameCrowdControl");
-    initClaytonClick(&usr->clayton.bonusPlayClick, "bonusPlay");
     initClaytonClick(&usr->clayton.settingsCloseClick, "settingsClose");
     initClaytonClick(&usr->clayton.settingsHighDetailsClick, "settingsHighDetails");
     initClaytonClick(&usr->clayton.settingsPatchedYmfmClick, "settingsPatchedYmfm");
@@ -19430,7 +19352,9 @@ void vtx::loop(vtx::VertexContext *ctx)
     Tracker_ApplyRealtimeLfoToSound(usr);
     const bool trackerOnlyMode =
         usr->gameMode == UserContext::GameMode::TRACKER && usr->tracker.active;
-    usr->clayton.minigamesMenuUnlocked = Cheats_ShouldUnlockMinigames(usr);
+    usr->clayton.minigamesMenuUnlocked = usr->clayton.secretMenuUnlock.canOpenMinigames(
+        Cheats_ShouldUnlockMinigames(usr)
+    );
     usr->hudToastTime = glm::max(0.0f, usr->hudToastTime - (float)deltaTime);
     usr->deltaTimeLoan = deltaTime;
     usr->gameplayDeltaTimeLoan = deltaTime;
@@ -19461,8 +19385,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         !usr->pendingCampaignEndgameSummaryWindow &&
         !usr->pendingCampaignPostgameChoiceDialog &&
         !usr->pendingCampaignBotResultWindow &&
-        !usr->pendingBonusChoiceWindow &&
-        usr->pendingMiniGameKind == MiniGameKind::NONE &&
         !MiniGame_IsActive(usr) &&
         usr->gameMode != UserContext::GameMode::SCHOOL &&
         usr->gameMode != UserContext::GameMode::MINIGAME &&
@@ -19560,7 +19482,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (usr->phase == UserContext::Phase::RESULT)
         {
             if (usr->pendingCampaignEndgameSummaryWindow &&
-                usr->pendingMiniGameKind == MiniGameKind::NONE &&
                 !MiniGame_IsActive(usr) &&
                 !usr->dialog.active &&
                 usr->windowStack.count == 0)
@@ -20355,19 +20276,22 @@ void vtx::loop(vtx::VertexContext *ctx)
                 {
                     usr->windowStack.minigameCoinRushRequested = false;
                     SelectorFlow_Cancel(usr);
-                    MiniGame_StartStandalone(usr, MiniGameKind::COIN_RUSH);
+                    if (usr->clayton.minigamesMenuUnlocked)
+                        MiniGame_StartStandalone(usr, MiniGameKind::COIN_RUSH);
                 }
                 if (usr->windowStack.minigameCountMastersRequested)
                 {
                     usr->windowStack.minigameCountMastersRequested = false;
                     SelectorFlow_Cancel(usr);
-                    MiniGame_StartStandalone(usr, MiniGameKind::COUNT_MASTERS);
+                    if (usr->clayton.minigamesMenuUnlocked)
+                        MiniGame_StartStandalone(usr, MiniGameKind::COUNT_MASTERS);
                 }
                 if (usr->windowStack.minigameCrowdControlRequested)
                 {
                     usr->windowStack.minigameCrowdControlRequested = false;
                     SelectorFlow_Cancel(usr);
-                    MiniGame_StartStandalone(usr, MiniGameKind::CROWD_CONTROL);
+                    if (usr->clayton.minigamesMenuUnlocked)
+                        MiniGame_StartStandalone(usr, MiniGameKind::CROWD_CONTROL);
                 }
                 if (usr->windowStack.menuDeviceShareRequested)
                 {
@@ -21568,7 +21492,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                             ))
                         {
                             // The completion dialogue precedes results. "Later"
-                            // reveals those results before any bonus or next level.
+                            // reveals those results before the next level.
                             usr->windowStack.windowStackPushNewGameWindow(usr->clayton.newGameIsResult);
                         }
                     }
@@ -22008,12 +21932,6 @@ void vtx::loop(vtx::VertexContext *ctx)
             return;
         }
 
-        if (usr->pendingMiniGameKind != MiniGameKind::NONE)
-        {
-            MiniGame_PushAcceptBonusWindow(usr);
-            return;
-        }
-
         const bool returningFromAnyMiniGame = MiniGame_IsActive(usr);
         const bool returningFromStandaloneMiniGame = usr->miniGameStandalone && MiniGame_IsActive(usr);
         if (MiniGame_IsActive(usr))
@@ -22094,7 +22012,6 @@ void vtx::loop(vtx::VertexContext *ctx)
         const bool standaloneMiniGameResult = MiniGame_IsActive(usr) && usr->miniGameStandalone;
         if (!usr->pendingModeChange &&
             !standaloneMiniGameResult &&
-            usr->pendingMiniGameKind == MiniGameKind::NONE &&
             usr->ballShop.restockPromptPending)
         {
             usr->shopRestockResumeAfterShop = false;
@@ -22128,7 +22045,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             return false;
         usr->campaignEndStoryShopAdvancePending = false;
         // This shop was offered by the pre-result completion dialogue.
-        // Reveal the deferred results before offering the bonus or advancing.
+        // Reveal the deferred results before advancing.
         usr->windowStack.windowStackPushNewGameWindow(usr->clayton.newGameIsResult);
         return true;
     };
@@ -22267,18 +22184,6 @@ void vtx::loop(vtx::VertexContext *ctx)
             Campaign_SetResultWindowLabels(usr, usr->clayton.newGameVictory);
     }
 
-    if (usr->windowStack.bonusPlayRequested)
-    {
-        usr->windowStack.bonusPlayRequested = false;
-        if (usr->pendingMiniGameKind == MiniGameKind::CROWD_CONTROL)
-        {
-            usr->crowdControlBonusClaims = glm::max(0, usr->crowdControlBonusClaims) + 1;
-            Progress_SaveCrowdControlCampaignState(usr);
-        }
-        MiniGame_StartQueued(usr);
-        usr->phase = UserContext::Phase::IDLE;
-        PhysicsResetForMode(usr, /*reviveAll=*/true);
-    }
     if (usr->windowStack.miniGameExitRequested)
     {
         usr->windowStack.miniGameExitRequested = false;
@@ -22329,8 +22234,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 usr->campaignLevelIndex, usr->campaignPlayedLevelIndex, true
             );
             Campaign_SaveCurrentLevel(usr);
-            // Setup discards the queued bonus and restores this chapter's
-            // opponent, lane, tools, and intro without undoing earned rewards.
+            // Restore this chapter's opponent, lane, tools, and intro without
+            // undoing earned rewards.
             Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
         }
         else
@@ -23984,8 +23889,7 @@ swing_checks_done:
                                             }
                                             Campaign_SavePostgameStats(usr);
                                         }
-                                        // A chapter's victory dialogue precedes results,
-                                        // even when the optional bonus is already queued.
+                                        // A chapter's victory dialogue precedes results.
                                         const bool showBowlingResult = !clearedFullCampaign &&
                                             !Campaign_HasVictoryEndStory(
                                                 usr->playerRoute == PlayerRoute::CAMPAIGN,

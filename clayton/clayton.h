@@ -201,7 +201,6 @@ struct Clayton
     Clayton_Click minigameCoinRushClick;
     Clayton_Click minigameCountMastersClick;
     Clayton_Click minigameCrowdControlClick;
-    Clayton_Click bonusPlayClick;
     Clayton_Click settingsCloseClick;
     Clayton_Click settingsHighDetailsClick;
     Clayton_Click settingsPatchedYmfmClick;

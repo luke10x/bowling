@@ -21,7 +21,7 @@ enum class CampaignFinaleFlow
 enum class CampaignVisualBiomeSource
 {
     CurrentCampaignLevel = 0,
-    BonusSource = 1,
+    MiniGameSource = 1,
 };
 
 enum class CampaignResetScope
@@ -71,14 +71,13 @@ static inline int Campaign_ResultLevelForAction(
 static inline bool Campaign_ShouldRepeatResultLevel(
     bool repeatRequested,
     bool campaignLevel,
-    bool bonusActive,
+    bool miniGameActive,
     bool finaleGreetingPending)
 {
-    return repeatRequested && campaignLevel && !bonusActive && !finaleGreetingPending;
+    return repeatRequested && campaignLevel && !miniGameActive && !finaleGreetingPending;
 }
 
-// Ordinary chapter dialogue belongs before match results, not after the
-// bonus. A queued bonus is deliberately not a blocker: it follows results.
+// Ordinary chapter dialogue belongs before match results.
 static inline bool Campaign_HasVictoryEndStory(
     bool campaignLevel,
     bool playerWon,
@@ -91,11 +90,11 @@ static inline bool Campaign_HasVictoryEndStory(
 
 static inline bool Campaign_CanOpenEndStoryBeforeResults(
     int pendingStoryId,
-    bool bonusActive,
+    bool miniGameActive,
     bool dialogActive,
     bool windowOpen)
 {
-    return pendingStoryId != 0 && !bonusActive && !dialogActive && !windowOpen;
+    return pendingStoryId != 0 && !miniGameActive && !dialogActive && !windowOpen;
 }
 
 static inline CampaignResultActions Campaign_ResultActionsForState(
@@ -125,7 +124,7 @@ static inline bool Campaign_ShouldResumeAfterResultShopExit(
 
 // The optional shop offered by a campaign end-story precedes match results.
 // Buying, closing the shop, or choosing "Later" resumes the deferred winning
-// result screen; its Next action then offers the bonus or starts a chapter.
+// result screen; its Next action starts the next chapter.
 static inline bool Campaign_ShouldAdvanceAfterEndStoryShopDecision(
     bool campaignLevel,
     bool playerWon,
@@ -134,30 +133,13 @@ static inline bool Campaign_ShouldAdvanceAfterEndStoryShopDecision(
     return campaignLevel && playerWon && !finaleGreetingPending;
 }
 
-// Campaign progress advances as soon as a level is won, but its optional bonus
-// round must retain the completed level's environment while its choice modal is
-// visible and while the round is active.
+// A standalone minigame keeps the environment selected when it was launched.
 static inline CampaignVisualBiomeSource Campaign_VisualBiomeSourceForState(
-    bool bonusQueued,
-    bool bonusActive)
+    bool miniGameActive)
 {
-    return bonusQueued || bonusActive
-        ? CampaignVisualBiomeSource::BonusSource
+    return miniGameActive
+        ? CampaignVisualBiomeSource::MiniGameSource
         : CampaignVisualBiomeSource::CurrentCampaignLevel;
-}
-
-static inline bool Campaign_ShouldOfferLevelBonus(
-    int levelNumber,
-    int finalLevelNumber,
-    bool bonusConfigured,
-    bool alreadyGranted,
-    int winsAfterThisResult = 1)
-{
-    return levelNumber > 0 &&
-        levelNumber < finalLevelNumber &&
-        bonusConfigured &&
-        !alreadyGranted &&
-        winsAfterThisResult <= 1;
 }
 
 static inline CampaignFinaleFlow Campaign_FinalResultFlowForState(

@@ -91,25 +91,20 @@ struct StoryChoiceOption {
 
 A normal campaign victory opens the completed level's dialogue before match
 results. For example, winning Level 2 first shows story 3102, then its results,
-the optional bonus offer and bonus results, and finally Level 3's introduction
-(story 3003). A queued bonus must not block the completion dialogue; it begins
-only after the player continues from match results.
+and finally Level 3's introduction (story 3003).
 
 The result modal is deferred while the dialogue owns the screen. Its story ID
-is consumed once, so it is not repeated after the bonus. School and shop choices
+is consumed once, so it is not repeated after the results. School and shop choices
 retain their existing detours. The first final-level clear keeps its separate
 celebration/result/greeting sequence.
 
-Bonuses are offered only on a level's first win, with a persisted grant marker
-also preventing duplicate offers after interrupted saves. Replayed victories
-still show the completion dialogue and results even when no bonus is queued.
-The current bonus offer has only a Yes action; there is no decline button.
+Minigames are launched only from the Minigames menu. That menu requires the
+secret HUD sequence and the GAMES code. Campaign wins never offer a minigame.
 
 Repeat on a campaign result restarts the chapter actually played, even though
 a victory has already advanced saved progress to the next chapter. Next follows
-the normal bonus/next-chapter path. Repeat keeps recorded wins and rewards,
-discards the queued bonus, and does not make an already-granted bonus available
-again. Final-level replays repeat Level 13 rather than subtracting a level.
+the next chapter. Repeat keeps recorded wins and rewards. Final-level replays
+repeat Level 13 rather than subtracting a level.
 
 Level 1 victory uses story 20 followed by choice 21 when school is unfinished,
 or story 22 when school is complete. Both victory messages describe an unseen

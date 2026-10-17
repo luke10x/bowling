@@ -13,10 +13,14 @@ int main()
 {
     using Area = SecretMenuUnlock::Area;
     SecretMenuUnlock gesture;
+    assert(!gesture.canOpenMinigames(false));
+    assert(!gesture.canOpenMinigames(true));
     assert(!click(gesture, Area::Energy, 100, 120));
     assert(!click(gesture, Area::Timer, 600, 620, true, 42));
     assert(click(gesture, Area::Money, 2000, 2120)); // Exactly two seconds after Energy.
     assert(gesture.unlocked);
+    assert(!gesture.canOpenMinigames(false));
+    assert(gesture.canOpenMinigames(true));
 
     gesture = {};
     assert(!click(gesture, Area::Energy, 100, 120));

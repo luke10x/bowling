@@ -16,6 +16,11 @@ struct SecretMenuUnlock
     uint64_t pressedPointer = 0;
     bool pressedWasTouch = false;
 
+    bool canOpenMinigames(bool gamesCodeUnlocked) const
+    {
+        return unlocked && gamesCodeUnlocked;
+    }
+
     void cancel()
     {
         progress = 0;

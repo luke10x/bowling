@@ -56,7 +56,7 @@ static inline bool Cheats_ShouldShowImgui(const UserContext *usr)
 
 static inline bool Cheats_ShouldUnlockMinigames(const UserContext *usr)
 {
-    return usr && (usr->cheatMinigamesUnlocked || Cheats_MatchesCaseInsensitive(usr, "GAMES"));
+    return usr && usr->cheatMinigamesUnlocked;
 }
 
 static inline void Cheats_ApplyEndOfRound(UserContext *usr)

@@ -64,19 +64,6 @@ TEST_CASE("Coin and flying reward pools cover configured game bursts")
         REQUIRE(lane.spawnFlyAnimation(glm::vec2(0.0f), glm::vec2(1.0f)));
 }
 
-TEST_CASE("Campaign victories pick story bonus minigames by defeated opponent tier")
-{
-    CHECK(MiniGame_BonusForCampaignVictory(1, false, false) == MiniGameKind::NONE);
-    CHECK(MiniGame_BonusForCampaignVictory(1, true, false) == MiniGameKind::NONE);
-    CHECK(MiniGame_BonusForCampaignVictory(2, true, false) == MiniGameKind::COIN_RUSH);
-    CHECK(MiniGame_BonusForCampaignVictory(5, true, false) == MiniGameKind::COIN_RUSH);
-    CHECK(MiniGame_BonusForCampaignVictory(6, true, true) == MiniGameKind::COUNT_MASTERS);
-    CHECK(MiniGame_BonusForCampaignVictory(8, true, true) == MiniGameKind::COUNT_MASTERS);
-    CHECK(MiniGame_BonusForCampaignVictory(9, true, true, true) == MiniGameKind::CROWD_CONTROL);
-    CHECK(MiniGame_BonusForCampaignVictory(12, true, true, true) == MiniGameKind::CROWD_CONTROL);
-    CHECK(MiniGame_BonusForCampaignVictory(13, true, true, true) == MiniGameKind::NONE);
-}
-
 TEST_CASE("Crowd Control starts paused and fires only after first input")
 {
     CrowdControlState state = {};

@@ -13,14 +13,17 @@ the profiler collects no samples, draws no graph, and prints no reports. The
 graph sits above the 28-pixel footer, including the FPS label. The clearance
 scales with display pixel ratio.
 
-Five segments at the bottom of each frame's stacked bar split SDL audio
-callback work completed since the previous frame sample: **MGEN** (white) times
-`generate_buffer` for music and fading music; **MUS** (white) is their remaining
-work; **SGEN** (white) times `generate_buffer` for SFX; **SFX** (light gray) is its
+Five segments split SDL audio callback work completed since the previous frame
+sample: **MGEN** (bright white) times `generate_buffer` for music and fading
+music; **MUS** (white) is their remaining work; **SGEN** (bright red) times
+`generate_buffer` for SFX; **SFX** (light gray) is its
 remaining work; and **AUD** (darker gray) is the remaining callback work, including
 clearing and silence paths. The five segments together replace the old AUDIO
 total. Most frames may have no audio segments; if several callbacks complete
-between frame samples, their times are combined in that column. Each part
+between frame samples, their times are combined in that column and the profiler
+logs the callback count to stderr immediately. This count covers callbacks
+completed since the previous frame sample, including time between loop calls;
+multiple callbacks alone do not establish an underrun. Each part
 participates in the ranked legend and five-second stderr table. A red horizontal guide shows the
 expected callback interval in milliseconds, calculated as `1000 × obtained
 buffer frames / obtained sample rate`; for example, 4096 frames at 44.1 kHz
@@ -67,12 +70,13 @@ Performance analysis stops callback timing and clears its samples.
 | `#E5D569` | SWAP: presentation | After FPS accounting and `SDL_GL_SwapWindow` |
 | `#FFFFFF` | MGEN: music chip generation | `generate_buffer` during music and fading music |
 | `#FFFFFF` | MUS: remaining music work | Song events, volume, oscilloscope, and fade mixing |
-| `#FFFFFF` | SGEN: SFX chip generation | `generate_buffer` during SFX mixing |
+| `#FF3030` | SGEN: SFX chip generation | `generate_buffer` during SFX mixing |
 | `#DEDEDE` | SFX: remaining effects work | SFX events, volume, and mixing into output |
 | `#B5B5B5` | AUD: other callback work | Clearing, checks, and silence paths |
 
-Zone colors are assigned independently; MGEN, MUS, and SGEN share white. The bar stacks
-MGEN, MUS, SGEN, SFX, and AUD first, then loop zones in fixed execution order from bottom to top.
+Zone colors are assigned independently. The bar stacks MUS, SFX, and AUD at
+the bottom, then loop zones in fixed execution order, then MGEN and SGEN at
+the top. The white MGEN and red SGEN segments occupy separate intervals.
 The legend ranks all 34 zones by total time in the rolling
 100-frame history: `01` is the largest bottleneck, and entries can move as
 their costs change. The five-second stderr table independently ranks zones

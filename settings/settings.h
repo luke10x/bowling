@@ -8,7 +8,7 @@ struct GameSettings
     int maxSnowflakes = 0;
     int snowflakeCount = 0;
     bool highDetailsEnabled = true;
-    bool patchedYmfmEnabled = false;
+    bool patchedYmfmEnabled = true;
     bool performanceAnalysisEnabled = false;
     enum WebUpdateStatus
     {

@@ -11880,8 +11880,8 @@ static inline void Progress_ResetFull(UserContext *usr)
     usr->schoolExitLocked = false;
     usr->storage.setChar(Storage::SCHOOL_DONE, "0", 1);
     usr->settings.highDetailsEnabled = true;
-    usr->settings.patchedYmfmEnabled = false;
-    xfm_set_patched_ymfm(false);
+    usr->settings.patchedYmfmEnabled = true;
+    xfm_set_patched_ymfm(true);
     usr->settings.performanceAnalysisEnabled = false;
     usr->audioBufferUserSelected = false;
     usr->sound.requestedBufferSize = DEFAULT_AUDIO_BUFFER_SIZE;
@@ -20303,7 +20303,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         : CampaignResetScope::CampaignOnly;
                     const bool restartAudioForFactorySettings = resetScope == CampaignResetScope::Factory &&
                         (usr->sound.requestedBufferSize != DEFAULT_AUDIO_BUFFER_SIZE ||
-                         usr->settings.patchedYmfmEnabled) &&
+                         !usr->settings.patchedYmfmEnabled) &&
                         !usr->sound.audioDisabled;
                     if (resetScope == CampaignResetScope::Factory)
                         Progress_ResetFull(usr);

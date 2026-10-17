@@ -198,7 +198,7 @@ struct Storage
         "2048",  // AUDIO_BUFFER_SIZE
         "0",     // AUDIO_BUFFER_MANUAL
         "1",     // HIGH_DETAILS
-        "0"      // PATCHED_YMFM
+        "1"      // PATCHED_YMFM
     };
     static_assert(sizeof(keyNames) / sizeof(keyNames[0]) == KEY_COUNT,
                   "Every storage enum needs a persistent key name.");

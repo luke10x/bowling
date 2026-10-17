@@ -93,7 +93,7 @@ struct FrameProfileGraph
         {"SWAP",  "Present/swap",        -1.0f, 0xE5D569},
         {"MGEN",  "Music chip generate", -1.0f, 0xFFFFFF},
         {"MUS",   "Music other work",    -1.0f, 0xFFFFFF},
-        {"SGEN",  "SFX chip generate",   -1.0f, 0xFFFFFF},
+        {"SGEN",  "SFX chip generate",   -1.0f, 0xFF3030},
         {"SFX",   "SFX other work",      -1.0f, 0xDEDEDE},
         {"AUD",   "Audio other work",    -1.0f, 0xB5B5B5}
     }};
@@ -246,6 +246,10 @@ struct FrameProfileGraph
         frames[nextFrame] = current;
         reportAudioMs += (double)audioTicks / ticksPerMs;
         reportAudioCallbacks += audioCallbackCount;
+        if (audioCallbackCount > 1)
+            std::fprintf(stderr,
+                         "Frame profile: %u audio callbacks completed since the previous frame sample (%.3f ms callback work)\n",
+                         audioCallbackCount, (double)audioTicks / ticksPerMs);
         for (unsigned i = 0; i < sampleCount; ++i)
             reportAudioMaxMs = std::max(reportAudioMaxMs,
                                         (double)callbackTicks[i] / ticksPerMs);
@@ -284,7 +288,7 @@ struct FrameProfileGraph
                      reportHighDetailsOnFrames, reportFrames,
                      reportGapSamples > 0 ? reportGapMs / reportGapSamples : 0.0,
                      reportGapSamples);
-        std::fprintf(stderr, "AUDIO callback: %.3f ms/frame, %.3f ms/call average, %.3f ms maximum, %u calls (five audio segments at bottom; may overlap loop work on native)\n",
+        std::fprintf(stderr, "AUDIO callback: %.3f ms/frame, %.3f ms/call average, %.3f ms maximum, %u calls (MGEN/SGEN at top; may overlap loop work on native)\n",
                      reportFrames > 0 ? reportAudioMs / reportFrames : 0.0,
                      reportAudioCallbacks > 0 ? reportAudioMs / reportAudioCallbacks : 0.0,
                      reportAudioMaxMs,
@@ -418,11 +422,14 @@ struct FrameProfileGraph
             const float left = x0 + (x1 - x0) * col / History;
             const float right = x0 + (x1 - x0) * (col + 1) / History;
             float total = 0.0f;
-            // Audio is sampled after the loop, but draw its five zones
-            // first so they stay together at the bottom of every frame bar.
+            // Keep the remaining audio work at the bottom. Put chip generation
+            // last so the white MGEN and red SGEN bands sit at the top.
+            constexpr std::array<Zone, 3> bottomAudio = {{AudioMusic, AudioSfx, AudioOther}};
             for (int drawIndex = 0; drawIndex < Count; ++drawIndex)
             {
-                const int zone = drawIndex < 5 ? AudioMusicGenerate + drawIndex : drawIndex - 5;
+                const int zone = drawIndex < 3 ? bottomAudio[drawIndex]
+                    : drawIndex < Count - 2 ? drawIndex - 3
+                    : drawIndex == Count - 2 ? AudioMusicGenerate : AudioSfxGenerate;
                 const float from = std::min(total, chartScaleMs);
                 const float zoneMs = frames[index][zone];
                 recentTotalsMs[zone] += zoneMs;

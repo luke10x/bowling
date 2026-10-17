@@ -6,19 +6,22 @@ time spent between two checkpoints in `vtx::loop`. The bars normally use a
 100 ms scale and clip above it; the scale expands when necessary to show the
 audio deadline. The horizontal timing guides mark 16.67 ms (60 FPS),
 33.33 ms (30 FPS), and 66.67 ms (15 FPS). Each guide has a black millisecond
-label on the left and a black FPS label on the right; with AUDIO stacked, these
+label on the left and a black FPS label on the right; with audio work stacked, these
 are reference budgets rather than an exact frame-rate calculation. Enable **Performance analysis** in
 Settings or press **F3** to start profiling. It defaults to off. While off,
 the profiler collects no samples, draws no graph, and prints no reports. The
 graph sits above the 28-pixel footer, including the FPS label. The clearance
 scales with display pixel ratio.
 
-**AUDIO** is the white segment at the bottom of each frame's stacked bar. It
-contains the total time in SDL audio callbacks completed since the previous
-frame sample, including music, SFX, and silence paths. Most frames may have
-no white segment; if several callbacks complete between frame samples, their
-durations are combined in that column. AUDIO also participates in the ranked
-legend and the five-second stderr table. A red horizontal guide shows the
+Five segments at the bottom of each frame's stacked bar split SDL audio
+callback work completed since the previous frame sample: **MGEN** (white) times
+`generate_buffer` for music and fading music; **MUS** (white) is their remaining
+work; **SGEN** (white) times `generate_buffer` for SFX; **SFX** (light gray) is its
+remaining work; and **AUD** (darker gray) is the remaining callback work, including
+clearing and silence paths. The five segments together replace the old AUDIO
+total. Most frames may have no audio segments; if several callbacks complete
+between frame samples, their times are combined in that column. Each part
+participates in the ranked legend and five-second stderr table. A red horizontal guide shows the
 expected callback interval in milliseconds, calculated as `1000 × obtained
 buffer frames / obtained sample rate`; for example, 4096 frames at 44.1 kHz
 puts `AUDIO 92.9 MS` on the graph. The guide disappears when no audio device is
@@ -27,7 +30,7 @@ main thread, not proof of an underrun: actual callback scheduling and already
 buffered sound also matter. The report separately prints
 callback count, average and maximum time per callback. On native builds,
 audio may run concurrently with the game loop, so the stacked total is
-combined CPU work rather than elapsed frame time. The white segment measures
+combined CPU work rather than elapsed frame time. The light segments measure
 callback execution time, not how late a callback started. Disabling
 Performance analysis stops callback timing and clears its samples.
 
@@ -62,10 +65,15 @@ Performance analysis stops callback timing and clears its samples.
 | `#E2A15A` | DRAW: UI draw | After Clay, overlays, and optional ImGui |
 | `#A6A6B0` | GRAPH: profile graph | After graph drawing |
 | `#E5D569` | SWAP: presentation | After FPS accounting and `SDL_GL_SwapWindow` |
-| `#FFFFFF` | AUDIO: SDL callback | Completed callback work sampled after swap |
+| `#FFFFFF` | MGEN: music chip generation | `generate_buffer` during music and fading music |
+| `#FFFFFF` | MUS: remaining music work | Song events, volume, oscilloscope, and fade mixing |
+| `#FFFFFF` | SGEN: SFX chip generation | `generate_buffer` during SFX mixing |
+| `#DEDEDE` | SFX: remaining effects work | SFX events, volume, and mixing into output |
+| `#B5B5B5` | AUD: other callback work | Clearing, checks, and silence paths |
 
-Every zone has its own color. The bar stacks AUDIO first, then loop zones in
-fixed execution order from bottom to top. The legend ranks all 30 zones by total time in the rolling
+Zone colors are assigned independently; MGEN, MUS, and SGEN share white. The bar stacks
+MGEN, MUS, SGEN, SFX, and AUD first, then loop zones in fixed execution order from bottom to top.
+The legend ranks all 34 zones by total time in the rolling
 100-frame history: `01` is the largest bottleneck, and entries can move as
 their costs change. The five-second stderr table independently ranks zones
 by time in that reporting interval. Its rank can differ from the live legend.
@@ -84,7 +92,7 @@ Every five seconds, stderr prints each zone's color, estimate where available,
 time first. The estimates come from the last three active-game reports before
 the latest batching changes; newly split zones have no defensible prior
 estimate. Logging stops when Performance analysis is disabled. The header
-records how many frames had the Extra particles setting on and the average
+records how many frames had the High details setting on and the average
 wall time between loop calls.
 
 `FrameProfileGraph::mark` closes the named zone and starts the next. Its
@@ -97,7 +105,7 @@ may block in a later call or in `SDL_GL_SwapWindow`. The graph cannot assign
 GPU execution time to individual rendering sections. A tall SWAP segment may
 include presentation or synchronization wait.
 
-The Settings window has an **Extra particles** checkbox matching the tracker
+The Settings window has a **High details** checkbox matching the tracker
 cell editor controls for A/B profiling.
 Turning it off skips snow, ambient ball-trace spawning, sparks, lane dust, and
 confetti draws, plus block-card-drop spark generation and uploads. It leaves
@@ -105,6 +113,10 @@ the gameplay-important Saturn spin rings and NOS trace bursts, collectables,
 decals, and gameplay logic active.
 The stderr header reports how many frames had the checkbox on during each
 five-second sample; compare samples with all frames on or all frames off.
+High details defaults to on and is saved across launches. The buffer size in
+Sound Settings is also saved; a manual choice takes priority over the startup
+auto selection. Factory reset restores High details and the 2048-frame buffer.
+Performance analysis is session only and starts off on every launch.
 
 FBO includes ball shop, bot, house, campaign detail, oil map, and story portrait
 previews, plus minigame decal labels. Ball shop previews run only while the

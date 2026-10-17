@@ -25,7 +25,7 @@ Notes:
 - The old launch storyboard path broke `ibtool` with `iOS 26.2 Platform Not Installed`; the working setup has no `LaunchScreen.storyboard`, matching the older note below.
 - The iOS target needs `GLM_ENABLE_EXPERIMENTAL` before GLM headers because current game code uses GLM GTX headers.
 - Clay should come from `build/_deps/clay-src`; do not point iOS header search paths at an external `../clay` checkout.
-- The modern sound stack needs `../eggsfm` and `../my-ym2612-plugin/build/_deps/ymfm-src/src` headers, plus `xfm_impl.cpp`, `sounds.cpp`, and ymfm implementation sources compiled into the iOS unity entry point.
+- The modern sound stack needs `../eggsfm` and `../ymfm/src` headers, plus `xfm_impl.cpp`, `sounds.cpp`, and ymfm implementation sources compiled into the iOS unity entry point.
 - The revived unsigned build produces `build/ios/DerivedData/Build/Products/Debug-iphoneos/ios-project.app/ios-project` as a Mach-O arm64 executable with `MinimumOSVersion = 13.0`.
 
 ## 2026-01-09, Fri

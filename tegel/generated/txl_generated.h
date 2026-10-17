@@ -103,6 +103,12 @@ enum TxlKey
     TXL_ATTEMPTS_FMT,
     TXL_RANGE_FMT,
     TXL_GAME_SETTINGS_TITLE,
+    TXL_HIGH_DETAILS,
+    TXL_HIGH_DETAILS_HELP,
+    TXL_PATCHED_YMFM,
+    TXL_PATCHED_YMFM_HELP,
+    TXL_PERFORMANCE_ANALYSIS,
+    TXL_PERFORMANCE_ANALYSIS_HELP,
     TXL_RESET_PROGRESS,
     TXL_RESET_CAMPAIGN,
     TXL_RESET_PROGRESS_HELP,
@@ -220,7 +226,7 @@ enum TxlKey
     TXL_BONUS_ROUND,
     TXL_TUTORIAL_FMT,
     TXL_COMPLETION_TIME_FMT,
-    TXL_AUDIO_BUFFER_INCREASED,
+    TXL_AUDIO_BUFFER_INCREASED_FMT,
     TXL_SPIN_TO_HOOK,
     TXL_DROP_HERE_TO_USE,
     TXL_CANNOT_USE_NOW,
@@ -545,6 +551,12 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "Attempts: %d",
     "Range: %d-%d",
     "Game Settings",
+    "High details",
+    "Extra visual detail and decorative effects",
+    "Patched YMFM",
+    "Use the experimental faster FM synthesizer; restarts audio",
+    "Performance analysis",
+    "Frame graph and timing report every 5 seconds (F3)",
     "FACTORY RESET",
     "RESET CAMPAIGN",
     "Campaign reset clears campaign state, including level records, balls, unlocks, and runes. Factory reset also clears application settings.",
@@ -662,7 +674,7 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "BONUS ROUND",
     "LESSON %d",
     "COMPLETION TIME %s",
-    "Audio buffer increased to 4096 due to performance",
+    "Audio buffer increased to %d for performance",
     "spin to hook",
     "DROP HERE\nTO USE",
     "CANNOT USE\nIT NOW",
@@ -886,7 +898,7 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "Ezekiel",
 };
 
-static constexpr const char *g_txl_chars_en_us = "MENUCheatsnr igLumpAPIGVSRTWOQBKY/cDvkdlJoH-Fy.wb?f:%qx'!0(),>ė12Zz3456789X\n;$+j";
+static constexpr const char *g_txl_chars_en_us = "MENUCheatsnr igLumpAPIGVSRTWOQBKY/cDvkdlJoH-Fy.wb?f:%qx'!0()z;53,>ė12Z46789X\n$+j";
 
 static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "MENIU",
@@ -988,6 +1000,12 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Bandymai: %d",
     "Diapazonas: %d–%d",
     "Žaidimo nustatymai",
+    "Daugiau detalių",
+    "Papildomos vaizdo detalės ir dekoratyvūs efektai",
+    "Pataisytas YMFM",
+    "Naudoti eksperimentinį spartesnį FM sintezatorių; garsas paleidžiamas iš naujo",
+    "Našumo analizė",
+    "Kadrų grafikas ir laiko ataskaita kas 5 sek. (F3)",
     "GAMYKLINIS RESETAS",
     "NAUJA KAMPANIJA",
     "Nauja kampanija ištrina progresą, įskaitant lygių įrašus, auksą, kamuolius, atrakinimus ir runas. Gamyklinis atstatymas išvalo VISKĄ.",
@@ -1105,7 +1123,7 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "BONUSAS",
     "PRAKTIKA %d",
     "BAIGIMO LAIKAS %s",
-    "Garso buferis padidintas iki 4096 dėl našumo",
+    "Dėl našumo garso buferis padidintas iki %d",
     "Padaryk suktuką",
     "NUMESK ČIA\nNAUDOTI",
     "DABAR\nNEGALIMA",
@@ -1329,7 +1347,7 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Ezekielis",
 };
 
-static constexpr const char *g_txl_chars_lt_lt = "MENIUČytai įprkąKlbmnjAPJOSLYGRDĖTĄŠĮVŽegodsužųvB!ę?š.ėĘ,:%čZfzcū/0()–->wHCxh123Ų45Ū6789F\n$+—„“;\"";
+static constexpr const char *g_txl_chars_lt_lt = "MENIUČytai įprkąKlbmnjAPJOSLYGRDĖTĄŠĮVŽegodsužųvB!ę?š.ėĘ,:%čZfzcū/0()–F;53->wHCxh12Ų4Ū6789\n$+—„“\"";
 
 static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "メニュー",
@@ -1431,6 +1449,12 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "試行回数: %d",
     "範囲: %d～%d",
     "ゲーム設定",
+    "高画質",
+    "画面の装飾と追加の視覚効果",
+    "改良版YMFM",
+    "実験的な高速FM音源を使用します（音声を再起動）",
+    "性能解析",
+    "フレームグラフと計測結果を5秒ごとに表示（F3）",
     "初期化",
     "キャンペーンをやり直す",
     "キャンペーンをリセットすると、\nレベル記録、ボール、解除、ルーンを含む\nキャンペーン状態が消去されます。\n初期化ではアプリ設定も消去されます。",
@@ -1548,7 +1572,7 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "ボーナス",
     "レッスン%d",
     "クリア時間 %s",
-    "負荷対策で音声バッファを4096に変更",
+    "負荷対策で音声バッファを%dに変更",
     "回して曲げる",
     "ここへ\nドロップ",
     "今は\n使えません",
@@ -1772,7 +1796,7 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "エゼキエル",
 };
 
-static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語キャンペレベルをやり直す勝利敗北中断スコアクリ時間戻るもう一度プイなし練習デバ共有ゲム設定ラッカジミ選択英国日本サウド曲オボショハフタナエネギが足ません。ェ集めてださいグ続けか？このよそ「ィ」押画面に対戦相手切替え現在使用所持今ぐ購入: %sであは空ロ合格セ品質変更.モ緊急停止SDLァ音楽量状態マ情報最大ダ減衰滑再d/資金不れ済みたっ良！ポ近全0f上回（1）ヤ-初記録試数範囲～期化と、\n解除含む消去新確認PWAブ読込ビ公開>接後き適版ザapeKl基礎OnGmrtogVywHu宝箱CiMxEJhc効果べ内蔵制作テ投げ皆感謝転(k)軽重ピ番ろ引放右移動左残進況前取目標ノ点2ゼ登場風力発電3砂漠警告4ガ氷5硝子郊外6犬78木材ゾ森林9謁見洞窟ちば工白墓地灰色街車輪廃墟牛パ荒火炎ズ極河吹雪星ず雲宇宙虚ホUFツ雷巨人根世界樹影深淵ヌ路特異潮ケヴ負荷策声個必要爆散滅生存凍結備配置起能稲妻強失危険防衛敵攻撃球打破壊得意妨害跳ね速追加口酬物群衆遊び終了差計獲次挑補充始完$+途：守護者到達出天該当値削決迷魂門来符文尽百道尋つ運わぬ修受届おご拒狙導求冴姿ら先ぶ触卒業端反応噛ど方向的部倒塗半分三二ほ響ぼ央保離線側事苦立眼下眠望戸誇高才救罪偽奪揺軌穏覆跡乾野渇ふぎ塞油乳香潤清焼真裂隙傷横改避板覚降光刃雨痛返砕蓄鳴与代価宿激逃熱耐寒約束落身崩万支留胎逸冷割町ひ窓ゴ歩別領務域平和教知片裁待厳携会呼彼商訪ぞ性店誰張己正収穫晶隠越秘盗黄燃吸満惜走抜陰鉱山々枝予成伐緑命阻役末女底闇迎疫病胸ゆ刻暗座ソ輝慈悲祈じ掘明渡閉熟機関養炉称何秤載迫壁法災翼貸煙昇塔答据古債帰閃悪死静魔私?ė";
+static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語キャンペレベルをやり直す勝利敗北中断スコアクリ時間戻るもう一度プイなし練習デバ共有ゲム設定ラッカジミ選択英国日本サウド曲オボショハフタナエネギが足ません。ェ集めてださいグ続けか？このよそ「ィ」押画面に対戦相手切替え現在使用所持今ぐ購入: %sであは空ロ合格セ品質変更.モ緊急停止SDLァ音楽量状態マ情報最大ダ減衰滑再d/資金不れ済みたっ良！ポ近全0f上回（1）ヤ-初記録試数範囲～高装飾と追加視覚効果改版YMF実験的速源声起動性能解析計測結5秒ご表示3期化、\n除含む消去新確認PWAブ読込ビ公開>接後き適ザapeKl基礎OnGmrtogVywHu宝箱CixEJhcべ内蔵制作テ投げ皆感謝転(k)軽重ピ番ろ引放右移左残進況前取目標ノ点2ゼ登場風力発電砂漠警告4ガ氷硝子郊外6犬78木材ゾ森林9謁見洞窟ちば工白墓地灰色街車輪廃墟牛パ荒火炎ズ極河吹雪星ず雲宇宙虚ホUツ雷巨人根世界樹影深淵ヌ路特異潮ケヴ負荷策個必要爆散滅生存凍備配置稲妻強失危険防衛敵攻撃球打破壊得意妨害跳ね口酬物群衆遊び終了差獲次挑補充始完$+途：守護者到達出天該当値削決迷魂門来符文尽百道尋つ運わぬ修受届お拒狙導求冴姿ら先ぶ触卒業端反応噛ど方向部倒塗半分三二ほ響ぼ央保離線側事苦立眼下眠望戸誇才救罪偽奪揺軌穏覆跡乾野渇ふぎ塞油乳香潤清焼真裂隙傷横避板降光刃雨痛返砕蓄鳴与代価宿激逃熱耐寒約束落身崩万支留胎逸冷割町ひ窓ゴ歩別領務域平和教知片裁待厳携会呼彼商訪ぞ店誰張己正収穫晶隠越秘盗黄燃吸満惜走抜陰鉱山々枝予成伐緑命阻役末女底闇迎疫病胸ゆ刻暗座ソ輝慈悲祈じ掘明渡閉熟機関養炉称何秤載迫壁法災翼貸煙昇塔答据古債帰閃悪死静魔私?ė";
 
 static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "菜单",
@@ -1874,6 +1898,12 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "尝试次数：%d",
     "范围：%d-%d",
     "游戏设置",
+    "高细节",
+    "更多画面细节和装饰特效",
+    "改进版 YMFM",
+    "使用实验性高速 FM 合成器；音频将重新启动",
+    "性能分析",
+    "帧耗时图及每5秒一次的计时报告（F3）",
     "恢复出厂设置",
     "重开战役",
     "重开战役会清除战役状态，包括关卡记录、球、解锁和符文。\n恢复出厂设置还会清除应用设置。",
@@ -1991,7 +2021,7 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "奖励局",
     "课程 %d",
     "通关时间 %s",
-    "性能偏低，音频缓冲已调至4096",
+    "性能偏低，音频缓冲已调至%d",
     "旋转可弯球",
     "拖到这里\n使用",
     "现在\n不能用",
@@ -2215,5 +2245,5 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "以西结",
 };
 
-static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言战役关卡重开胜利失败退出最高分通时间返回玩始无练习设备共享游戏置音轨编辑制名小选择English中文立陶宛日声歌曲油道球库商店自由赛再试一次奖励能量不足。拾取宝石你想继续打保龄吗？欢迎来到这款点击“准”以聚焦画面天使对手切换当前用存即购买已：%个没有形象为空未解锁过后正在频模式.合成器闭急停SDL 缓冲乐状态图信息大带衰减滑度推力新上d/余额暂刚的数进入错局！超了近期0f排行榜（）家还，第吧尝范围-恢复厂会清除包括记录、和符\n应检查更PWA加载网站安装构建发布…是可>离线请连接络法服务只页支持计程序美术apeK角色基础型OGmrtoVywHu箱C动MxJc所效均内追踪特别感谢每位测并多投人课瞄质给旋与全路1公斤轻转咬普稀史诗传说目标把尽向拉现放右移左剩先耗掉里碑达2西结风电场3沙漠警告4玻璃冰5霓虹郊区6狗7金字塔8木材地森林9水晶觐见洞窟喙煤气工白墓园灰城市之轮废墟牛烬荒原强烈焰滚火钩炼狱怒凤凰升霜寒意极漂川暴雪王星尘云宇宙虚黑UF氙光藤蔓雷橡泰坦根世界树暗影深渊归零者子奇潮汐礁海妖维神谕性偏低调至弯拖少需要爆炸蒸扛闪瓶冻巡逻部署激活骷髅命住补块砖混凝土获得枚币但险防守敌方攻让变狠破障三阻挡刻弹起它快栏添口故事刺师群控确定否下步货将完$+途卫生首领级门总输码启氮架看稍删认碍迷魂今研及百寻细莫侥幸欺心愿堂修骄误汝且稳如闯求曾吾身颇精显凡技艺那段终默然注视久亦此消本被讲都己改几颗而毕业也必须很好或端算随恭喜反像样参响屏幕做就朝某倒才条约半二长覆盖着满明些馆窗我们何往任跟走从袋另侧亮吃经乃落藏于其若引磨傲骨掷收眼底资助拯救罪妄早占据锋芒循既漫温旧痕渴灼遍壅塞负乳香涂抹涤烧直撞便两旁隙留伤弧免困却干燥润待受苦碎雨般痛予片速机眠圆环施唤醒舍审令迸鸣损创称价裂毁炽焚断避霆热浪飞脚许诺夺万物依凭灵境孕育处皆难谨疏忽仍预座倾扇越蛾摩彼岸掌疆职责伯绝非太平碰篇钮裁教导等严酷召容迟他各同秉按赴艰谁孽竟理化尚踏沉积苏窃黄燃抽份板骤穿辛携阴矿井拥斩枝叶逐真伐青绿居拦撒弗末护索染瘟疫渐凋净写罗耀因怜悯祈交封熟养炉又盗私秤笼罩外众盈送知降果翼浓烟颓矜答判债恶诸唯独亡历寂静遂拒魔?ė";
+static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言战役关卡重开胜利失败退出最高分通时间返回玩始无练习设备共享游戏置音轨编辑制名小选择English中文立陶宛日声歌曲油道球库商店自由赛再试一次奖励能量不足。拾取宝石你想继续打保龄吗？欢迎来到这款点击“准”以聚焦画面天使对手切换当前用存即购买已：%个没有形象为空未解锁过后正在频模式.合成器闭急停SDL 缓冲乐状态图信息大带衰减滑度推力新上d/余额暂刚的数进入错局！超了近期0f排行榜（）家还，第吧尝范围-细节更多和装饰特效改版YMF实验性速；将启动析帧耗及每5秒计报告3恢复厂会清除包括记录、符\n应检查PWA加载网站安构建发布…是可>离线请连接络法服务只页支持程序美术apeK角色基础型OGmrtoVywHu箱CxJc所均内追踪别感谢位测并投人课瞄质给旋与全路1公斤轻转咬普稀史诗传说目标把尽向拉现放右移左剩先掉里碑达2西结风电场沙漠警4玻璃冰霓虹郊区6狗7金字塔8木材地森林9水晶觐见洞窟喙煤气工白墓园灰城市之轮废墟牛烬荒原强烈焰滚火钩炼狱怒凤凰升霜寒意极漂川暴雪王星尘云宇宙虚黑U氙光藤蔓雷橡泰坦根世界树暗影深渊归零者子奇潮汐礁海妖维神谕偏低调至弯拖少需要爆炸蒸扛闪瓶冻巡逻部署激活骷髅命住补块砖混凝土获得枚币但险防守敌方攻让变狠破障三阻挡刻弹起它快栏添口故事刺师群控确定否下步货完$+途卫生首领级门总输码氮架看稍删认碍迷魂今研百寻莫侥幸欺心愿堂修骄误汝且稳如闯求曾吾身颇精显凡技艺那段终默然注视久亦此消本被讲都己几颗而毕业也必须很好或端算随恭喜反像样参响屏幕做就朝某倒才条约半二长覆盖着满明些馆窗我们何往任跟走从袋另侧亮吃经乃落藏于其若引磨傲骨掷收眼底资助拯救罪妄早占据锋芒循既漫温旧痕渴灼遍壅塞负乳香涂抹涤烧直撞便两旁隙留伤弧免困却干燥润待受苦碎雨般痛予片机眠圆环施唤醒舍审令迸鸣损创称价裂毁炽焚断避霆热浪飞脚许诺夺万物依凭灵境孕育处皆难谨疏忽仍预座倾扇越蛾摩彼岸掌疆职责伯绝非太平碰篇钮裁教导等严酷召容迟他各同秉按赴艰谁孽竟理化尚踏沉积苏窃黄燃抽份板骤穿辛携阴矿井拥斩枝叶逐真伐青绿居拦撒弗末护索染瘟疫渐凋净写罗耀因怜悯祈交封熟养炉又盗私秤笼罩外众盈送知降果翼浓烟颓矜答判债恶诸唯独亡历寂静遂拒魔?ė";
 

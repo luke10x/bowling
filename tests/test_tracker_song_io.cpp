@@ -7,10 +7,11 @@
 
 #define CLAY_IMPLEMENTATION
 #include "../eggsfm/xfm_api.h"
-#include "../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_misc.cpp"
-#include "../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_adpcm.cpp"
-#include "../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_ssg.cpp"
-#include "../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_opn.cpp"
+#include "../ymfm/src/ymfm_misc.cpp"
+#include "../ymfm/src/ymfm_adpcm.cpp"
+#include "../ymfm/src/ymfm_ssg.cpp"
+#include "../ymfm/src/ymfm_opn.cpp"
+#include "../eggsfm/xfm_patched_ym3438.cpp"
 #include "../eggsfm/xfm_impl.cpp"
 #include "../sounds/sounds.cpp"
 #include "../clayton/keypad.h"
@@ -25,7 +26,92 @@ void SDL_LockAudioDevice(SDL_AudioDeviceID) {}
 void SDL_UnlockAudioDevice(SDL_AudioDeviceID) {}
 const char *SDL_GetError(void) { return "stub"; }
 Uint64 SDL_GetTicks64(void) { return 0; }
+Uint64 SDL_GetPerformanceCounter(void) { return 0; }
 void SDL_Log(const char *, ...) {}
+}
+
+TEST_CASE("Patched YM3438 matches upstream PCM and keeps tracker scope working")
+{
+    XfmChipOpn upstream(false);
+    XfmChipOpn patched(true);
+    xfm_patch_opn patch {};
+    for (int op = 0; op < 4; ++op) {
+        patch.op[op].MUL = 1;
+        patch.op[op].AR = 31;
+        patch.op[op].DR = 4;
+        patch.op[op].SL = 4;
+        patch.op[op].RR = 8;
+    }
+    patch.ALG = 7;
+    upstream.load_patch(patch, 0);
+    patched.load_patch(patch, 0);
+    upstream.set_frequency(0, 440.0);
+    patched.set_frequency(0, 440.0);
+    upstream.key_on(0);
+    patched.key_on(0);
+
+    int16_t normal[512 * 2] = {};
+    int16_t fast[512 * 2] = {};
+    int16_t scope[512 * 2] = {};
+    int16_t* scopes[6] = {scope};
+    upstream.generate_buffer(normal, 512, 44100);
+    patched.generate_buffer(fast, 512, 44100);
+    CHECK(std::memcmp(normal, fast, sizeof(normal)) == 0);
+
+    upstream.generate_buffer(normal, 512, 44100, scopes);
+    patched.generate_buffer(fast, 512, 44100);
+    CHECK(std::memcmp(normal, fast, sizeof(normal)) == 0);
+    bool scope_active = false;
+    for (int16_t sample : scope) scope_active |= sample != 0;
+    CHECK(scope_active);
+}
+
+TEST_CASE("Patched YM3438 matches upstream across algorithms and voice counts")
+{
+    xfm_patch_opn patch {};
+    for (int op = 0; op < 4; ++op) {
+        patch.op[op].MUL = 1 + op;
+        patch.op[op].TL = 8 + op * 11;
+        patch.op[op].AR = 31;
+        patch.op[op].DR = 5 + op;
+        patch.op[op].SL = 4;
+        patch.op[op].RR = 8;
+    }
+    for (int algorithm = 0; algorithm < 8; ++algorithm) {
+        for (int voices = 1; voices <= 6; ++voices) {
+            XfmChipOpn upstream(false);
+            XfmChipOpn patched(true);
+            patch.ALG = algorithm;
+            for (int ch = 0; ch < voices; ++ch) {
+                upstream.load_patch(patch, ch);
+                patched.load_patch(patch, ch);
+                upstream.set_frequency(ch, 220.0 + ch * 37.0);
+                patched.set_frequency(ch, 220.0 + ch * 37.0);
+                upstream.key_on(ch);
+                patched.key_on(ch);
+            }
+            int16_t normal[256 * 2] = {};
+            int16_t fast[256 * 2] = {};
+            upstream.generate_buffer(normal, 256, 44100);
+            patched.generate_buffer(fast, 256, 44100);
+            CHECK(std::memcmp(normal, fast, sizeof(normal)) == 0);
+        }
+    }
+}
+
+TEST_CASE("New XFM modules follow the selected YMFM backend")
+{
+    xfm_set_patched_ymfm(true);
+    xfm_module* patched = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(patched != nullptr);
+    CHECK(patched->chip->use_patched);
+    xfm_module_destroy(patched);
+
+    xfm_set_patched_ymfm(false);
+    xfm_module* upstream = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(upstream != nullptr);
+    CHECK_FALSE(upstream->chip->use_patched);
+    xfm_module_destroy(upstream);
 }
 
 TEST_CASE("Tracker grid note audition uses cell note with inherited instrument and volume")

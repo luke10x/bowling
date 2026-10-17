@@ -375,7 +375,7 @@ struct Particles
 
         ballTraceTime += deltaTime;
         // Pausing ambient spawning must not accumulate a burst for when the
-        // Extra Particles setting is switched back on after NOS use.
+        // High Details is switched back on after NOS use.
         ballTraceSpawnTimer = allowSpawn ? ballTraceSpawnTimer + deltaTime : 0.0f;
 
         const float clampedIntensity = glm::clamp(intensity, 0.0f, 1.0f);

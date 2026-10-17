@@ -6,6 +6,7 @@
 #include <array>
 #include <algorithm>
 #include "./../../eggsfm/xfm_api.h"
+#include "audio_buffer_policy.h"
 
 // #include <clay.h>
 // #include "../clayton/clayton_click.h"
@@ -18,8 +19,6 @@
 // -----------------------------------------------------------------------------
 // Audio buffer size configuration
 // -----------------------------------------------------------------------------
-
-static const int DEFAULT_AUDIO_BUFFER_SIZE = 2048;
 
 // Forward declaration to break circular dependency with sounds.h
 struct GameSoundSystem;
@@ -39,6 +38,7 @@ struct SoundSettings
     // UI state
     bool activated;
     bool midiPanicRequested = false;
+    bool bufferSelectionMade = false;
 
 
     // Labels for buttons
@@ -126,6 +126,10 @@ struct GameSoundSystem
     // Keep profiling opt-in and transfer completed callback work atomically.
     std::atomic<bool> profileAudioCallback{false};
     std::atomic<Uint64> audioCallbackTicks{0};
+    std::atomic<Uint64> audioMusicTicks{0};
+    std::atomic<Uint64> audioSfxTicks{0};
+    std::atomic<Uint64> audioMusicGenerateTicks{0};
+    std::atomic<Uint64> audioSfxGenerateTicks{0};
     std::atomic<unsigned> audioCallbackCount{0};
     static constexpr unsigned AudioProfileQueueSize = 256;
     static constexpr unsigned AudioProfileDrainLimit = AudioProfileQueueSize;
@@ -136,6 +140,10 @@ struct GameSoundSystem
     struct AudioCallbackProfile
     {
         Uint64 totalTicks = 0;
+        Uint64 musicTicks = 0;
+        Uint64 sfxTicks = 0;
+        Uint64 musicGenerateTicks = 0;
+        Uint64 sfxGenerateTicks = 0;
         unsigned count = 0;
         std::array<Uint64, AudioProfileDrainLimit> durations{};
         unsigned durationCount = 0;
@@ -146,6 +154,10 @@ struct GameSoundSystem
         if (profileAudioCallback.exchange(enabled, std::memory_order_relaxed) != enabled)
         {
             audioCallbackTicks.exchange(0, std::memory_order_relaxed);
+            audioMusicTicks.exchange(0, std::memory_order_relaxed);
+            audioSfxTicks.exchange(0, std::memory_order_relaxed);
+            audioMusicGenerateTicks.exchange(0, std::memory_order_relaxed);
+            audioSfxGenerateTicks.exchange(0, std::memory_order_relaxed);
             audioCallbackCount.exchange(0, std::memory_order_relaxed);
             audioCallbackReadIndex = audioCallbackPublished.load(std::memory_order_acquire);
         }
@@ -155,6 +167,10 @@ struct GameSoundSystem
     {
         AudioCallbackProfile result;
         result.totalTicks = audioCallbackTicks.exchange(0, std::memory_order_relaxed);
+        result.musicTicks = audioMusicTicks.exchange(0, std::memory_order_relaxed);
+        result.sfxTicks = audioSfxTicks.exchange(0, std::memory_order_relaxed);
+        result.musicGenerateTicks = audioMusicGenerateTicks.exchange(0, std::memory_order_relaxed);
+        result.sfxGenerateTicks = audioSfxGenerateTicks.exchange(0, std::memory_order_relaxed);
         result.count = audioCallbackCount.exchange(0, std::memory_order_relaxed);
         const Uint64 published = audioCallbackPublished.load(std::memory_order_acquire);
         const Uint64 first = published - std::min<Uint64>(
@@ -439,21 +455,6 @@ inline bool Sound_MusicActiveForBrowserSuspend(const GameSoundSystem &snd)
 inline int Sound_PreferredAudioSampleRate(const GameSoundSystem &snd)
 {
     return snd.obtainedSampleRate > 0 ? snd.obtainedSampleRate : snd.sampleRate;
-}
-
-inline int Sound_ClampAudioBufferSize(int samples)
-{
-    switch (samples)
-    {
-    case 512:
-    case 1024:
-    case 2048:
-    case 4096:
-    case 8192:
-        return samples;
-    default:
-        return DEFAULT_AUDIO_BUFFER_SIZE;
-    }
 }
 
 inline void initSoundSettings(SoundSettings* self, GameSoundSystem* soundSystem);

@@ -167,13 +167,14 @@ assets:
 # Phase 2: Build and run WAV exporter
 wav-exporter: build/macos/bin/game-wav-exporter
 
-CXXFLAGS += -I../my-ym2612-plugin/build/_deps/ymfm-src/src
+CXXFLAGS += -I../ymfm/src
 
 LDLIBS += -L./build/macos/usr/lib
-LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_misc.cpp
-LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_adpcm.cpp
-LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_ssg.cpp
-LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_opn.cpp
+LDLIBS += $(PWD)/../ymfm/src/ymfm_misc.cpp
+LDLIBS += $(PWD)/../ymfm/src/ymfm_adpcm.cpp
+LDLIBS += $(PWD)/../ymfm/src/ymfm_ssg.cpp
+LDLIBS += $(PWD)/../ymfm/src/ymfm_opn.cpp
+LDLIBS += $(PWD)/../eggsfm/xfm_patched_ym3438.cpp
 build/macos/bin/game-wav-exporter: game-wav-exporter.cpp sounds/songs_data.h
 	mkdir -p build/macos/bin
 	$(CXX) -std=c++20 -O2 -I. -I./3rdparty/glm -I./3rdparty/SDL/include \

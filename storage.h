@@ -108,6 +108,10 @@ struct Storage
         CROWD_CONTROL_PRIZE_INDEX,
         CROWD_CONTROL_PRIZE_WON_MASK,
         CROWD_CONTROL_CAMPAIGN_RESULT,
+        AUDIO_BUFFER_SIZE,
+        AUDIO_BUFFER_MANUAL,
+        HIGH_DETAILS,
+        PATCHED_YMFM,
         KEY_COUNT
     };
 
@@ -147,7 +151,11 @@ struct Storage
         "crowd_control_ball_won",
         "crowd_control_prize_index",
         "crowd_control_prize_won_mask",
-        "crowd_control_campaign_result"
+        "crowd_control_campaign_result",
+        "audio_buffer_size",
+        "audio_buffer_manual",
+        "high_details",
+        "patched_ymfm"
     };
 
     static constexpr const char *defaultValues[] = {
@@ -186,7 +194,11 @@ struct Storage
         "0",     // CROWD_CONTROL_BALL_WON
         "0",     // CROWD_CONTROL_PRIZE_INDEX
         "0",     // CROWD_CONTROL_PRIZE_WON_MASK
-        "0"      // CROWD_CONTROL_CAMPAIGN_RESULT
+        "0",     // CROWD_CONTROL_CAMPAIGN_RESULT
+        "2048",  // AUDIO_BUFFER_SIZE
+        "0",     // AUDIO_BUFFER_MANUAL
+        "1",     // HIGH_DETAILS
+        "0"      // PATCHED_YMFM
     };
     static_assert(sizeof(keyNames) / sizeof(keyNames[0]) == KEY_COUNT,
                   "Every storage enum needs a persistent key name.");

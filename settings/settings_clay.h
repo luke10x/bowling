@@ -171,12 +171,12 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
 #endif
 
                 CLAY(
-                    CLAY_ID("SettingsExtraParticlesRow"),
+                    CLAY_ID("SettingsHighDetailsRow"),
                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                                 .childGap = 8, .layoutDirection = CLAY_TOP_TO_BOTTOM}}
                 )
                 {
-                    CLAY(CLAY_ID("SettingsExtraParticlesControl"),
+                    CLAY(CLAY_ID("SettingsHighDetailsControl"),
                          {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                                      .childGap = 12,
                                      .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
@@ -184,20 +184,47 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                     {
                         Clay_ElementDeclaration checkbox = CLAY_THEME_BTN_BOX;
                         checkbox.layout.sizing = {CLAY_SIZING_FIXED(40), CLAY_SIZING_FIXED(40)};
-                        checkbox.backgroundColor = settings->extraParticlesEnabled
+                        checkbox.backgroundColor = settings->highDetailsEnabled
                             ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
-                        CLAY(clayton->settingsExtraParticlesClick.clayId, checkbox)
+                        CLAY(clayton->settingsHighDetailsClick.clayId, checkbox)
                         {
-                            CLAY_TEXT(settings->extraParticlesEnabled
+                            CLAY_TEXT(settings->highDetailsEnabled
                                           ? CLAY_STRING("✓") : CLAY_STRING(" "),
                                       CLAY_TEXT_CONFIG(buttonCfg));
                         }
-                        CLAY_TEXT(CLAY_STRING("Extra particles"), CLAY_TEXT_CONFIG(bodyCfg));
+                        CLAY_TEXT(clayton->txl(TXL_HIGH_DETAILS), CLAY_TEXT_CONFIG(bodyCfg));
                     }
                     CLAY_TEXT(
-                        CLAY_STRING("Snow, trails, sparks, dust and confetti"),
+                        clayton->txl(TXL_HIGH_DETAILS_HELP),
                         CLAY_TEXT_CONFIG(bodyCfg)
                     );
+                }
+
+                CLAY(
+                    CLAY_ID("SettingsPatchedYmfmRow"),
+                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                .childGap = 8, .layoutDirection = CLAY_TOP_TO_BOTTOM}}
+                )
+                {
+                    CLAY(CLAY_ID("SettingsPatchedYmfmControl"),
+                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                     .childGap = 12,
+                                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                                     .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+                    {
+                        Clay_ElementDeclaration checkbox = CLAY_THEME_BTN_BOX;
+                        checkbox.layout.sizing = {CLAY_SIZING_FIXED(40), CLAY_SIZING_FIXED(40)};
+                        checkbox.backgroundColor = settings->patchedYmfmEnabled
+                            ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
+                        CLAY(clayton->settingsPatchedYmfmClick.clayId, checkbox)
+                        {
+                            CLAY_TEXT(settings->patchedYmfmEnabled
+                                          ? CLAY_STRING("✓") : CLAY_STRING(" "),
+                                      CLAY_TEXT_CONFIG(buttonCfg));
+                        }
+                        CLAY_TEXT(clayton->txl(TXL_PATCHED_YMFM), CLAY_TEXT_CONFIG(bodyCfg));
+                    }
+                    CLAY_TEXT(clayton->txl(TXL_PATCHED_YMFM_HELP), CLAY_TEXT_CONFIG(bodyCfg));
                 }
 
                 CLAY(
@@ -222,10 +249,10 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                                           ? CLAY_STRING("✓") : CLAY_STRING(" "),
                                       CLAY_TEXT_CONFIG(buttonCfg));
                         }
-                        CLAY_TEXT(CLAY_STRING("Performance analysis"), CLAY_TEXT_CONFIG(bodyCfg));
+                        CLAY_TEXT(clayton->txl(TXL_PERFORMANCE_ANALYSIS), CLAY_TEXT_CONFIG(bodyCfg));
                     }
                     CLAY_TEXT(
-                        CLAY_STRING("Frame graph and timing report every 5 seconds (F3)"),
+                        clayton->txl(TXL_PERFORMANCE_ANALYSIS_HELP),
                         CLAY_TEXT_CONFIG(bodyCfg)
                     );
                 }

@@ -23,10 +23,11 @@
 #include "../../sidecar.h"
 #include "../../sidecar.cpp"
 
-#include "../../../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_misc.cpp"
-#include "../../../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_adpcm.cpp"
-#include "../../../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_ssg.cpp"
-#include "../../../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_opn.cpp"
+#include "../../../ymfm/src/ymfm_misc.cpp"
+#include "../../../ymfm/src/ymfm_adpcm.cpp"
+#include "../../../ymfm/src/ymfm_ssg.cpp"
+#include "../../../ymfm/src/ymfm_opn.cpp"
+#include "../../../eggsfm/xfm_patched_ym3438.cpp"
 #include "../../../eggsfm/xfm_impl.cpp"
 #include "../../sounds/sounds.cpp"
 

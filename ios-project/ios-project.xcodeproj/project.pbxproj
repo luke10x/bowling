@@ -13618,7 +13618,7 @@
 					"$(PROJECT_DIR)/../3rdparty/imgui",
 					"$(PROJECT_DIR)/../3rdparty/JoltPhysics",
 					"$(PROJECT_DIR)/../../eggsfm",
-					"$(PROJECT_DIR)/../../my-ym2612-plugin/build/_deps/ymfm-src/src",
+					"$(PROJECT_DIR)/../../ymfm/src",
 				);
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -13727,7 +13727,7 @@
 					"$(PROJECT_DIR)/../build/ios/usr/include/SDL2",
 					"$(PROJECT_DIR)/../3rdparty/glm",
 					"$(PROJECT_DIR)/../../eggsfm",
-					"$(PROJECT_DIR)/../../my-ym2612-plugin/build/_deps/ymfm-src/src",
+					"$(PROJECT_DIR)/../../ymfm/src",
 				);
 			};
 			name = Debug;

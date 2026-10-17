@@ -2171,9 +2171,15 @@ inline bool WindowStack::processSettingsWindowEvent(
         return true;
     }
 
-    if (isClaytonClicked(&clayton->settingsExtraParticlesClick, e))
+    if (isClaytonClicked(&clayton->settingsHighDetailsClick, e))
     {
-        settings->extraParticlesEnabled = !settings->extraParticlesEnabled;
+        settings->highDetailsEnabled = !settings->highDetailsEnabled;
+        return true;
+    }
+
+    if (isClaytonClicked(&clayton->settingsPatchedYmfmClick, e))
+    {
+        settings->patchedYmfmEnabled = !settings->patchedYmfmEnabled;
         return true;
     }
 

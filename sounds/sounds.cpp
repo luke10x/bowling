@@ -1077,6 +1077,8 @@ void GameSoundSystem::startRestart(const char* songPattern)
     // Audio callback (mix both modules)
     // ------------------------------------------------------------------------
 
+static uint64_t soundProfileCounter() { return (uint64_t)SDL_GetPerformanceCounter(); }
+
 static void my_audio_callback(void* userdata, Uint8* stream, int len)
 {
     GameSoundSystem* self = (GameSoundSystem*)userdata;
@@ -1085,20 +1087,37 @@ static void my_audio_callback(void* userdata, Uint8* stream, int len)
         std::memset(stream, 0, len);
         return;
     }
-    // The scope includes silence paths and every mixer pass. No clock read or
-    // sample write occurs when performance analysis is off.
+    // The scope includes silence paths and every mixer pass. No profiler clock
+    // read or sample write occurs when performance analysis is off.
     struct CallbackProfileScope
     {
         GameSoundSystem *sound;
         Uint64 start;
+        Uint64 musicTicks = 0;
+        Uint64 sfxTicks = 0;
+        Uint64 musicGenerateTicks = 0;
+        Uint64 sfxGenerateTicks = 0;
         explicit CallbackProfileScope(GameSoundSystem *s) : sound(s),
             start(s->profileAudioCallback.load(std::memory_order_relaxed)
                       ? SDL_GetPerformanceCounter() : 0) {}
+        Uint64 beginSection() const { return start ? SDL_GetPerformanceCounter() : 0; }
+        void endMusic(Uint64 sectionStart)
+        {
+            if (sectionStart) musicTicks += SDL_GetPerformanceCounter() - sectionStart;
+        }
+        void endSfx(Uint64 sectionStart)
+        {
+            if (sectionStart) sfxTicks += SDL_GetPerformanceCounter() - sectionStart;
+        }
         ~CallbackProfileScope()
         {
             if (!start || !sound->profileAudioCallback.load(std::memory_order_relaxed)) return;
             const Uint64 duration = SDL_GetPerformanceCounter() - start;
             sound->audioCallbackTicks.fetch_add(duration, std::memory_order_relaxed);
+            sound->audioMusicTicks.fetch_add(musicTicks, std::memory_order_relaxed);
+            sound->audioSfxTicks.fetch_add(sfxTicks, std::memory_order_relaxed);
+            sound->audioMusicGenerateTicks.fetch_add(musicGenerateTicks, std::memory_order_relaxed);
+            sound->audioSfxGenerateTicks.fetch_add(sfxGenerateTicks, std::memory_order_relaxed);
             sound->audioCallbackCount.fetch_add(1, std::memory_order_relaxed);
             const Uint64 index = sound->audioCallbackPublished.load(std::memory_order_relaxed);
             sound->audioCallbackDurations[index % GameSoundSystem::AudioProfileQueueSize].store(
@@ -1143,6 +1162,7 @@ static void my_audio_callback(void* userdata, Uint8* stream, int len)
     // Mix music (song only - more efficient!)
     if (self->musicModule)
     {
+        const Uint64 sectionStart = profile.beginSection();
         static constexpr int OSC_CAPTURE_MAX_FRAMES = 8192;
         static int16_t oscChannelBuffers[TRACKER_OSC_CHANNELS][OSC_CAPTURE_MAX_FRAMES * 2];
         int16_t *oscPtrs[TRACKER_OSC_CHANNELS] = {};
@@ -1157,17 +1177,23 @@ static void my_audio_callback(void* userdata, Uint8* stream, int len)
                 self->musicModule->oscilloscope_channel_buffers[ch] = oscPtrs[ch];
             }
         }
-        xfm_mix_song(self->musicModule, out, frames);
+        if (sectionStart)
+            xfm_mix_song_profiled(self->musicModule, out, frames,
+                                  &profile.musicGenerateTicks, soundProfileCounter);
+        else
+            xfm_mix_song(self->musicModule, out, frames);
         if (captureOsc)
         {
             for (int ch = 0; ch < TRACKER_OSC_CHANNELS; ch++)
                 self->musicModule->oscilloscope_channel_buffers[ch] = nullptr;
             soundCaptureOscilloscope(self, oscPtrs, frames);
         }
+        profile.endMusic(sectionStart);
     }
 
     if (self->fadingMusicModule && self->fadingMusicFramesRemaining > 0)
     {
+        const Uint64 sectionStart = profile.beginSection();
         static int16_t fadeBuf[4096 * 2];
         int framesMixed = 0;
         while (framesMixed < frames && self->fadingMusicFramesRemaining > 0)
@@ -1179,7 +1205,11 @@ static void my_audio_callback(void* userdata, Uint8* stream, int len)
                     : 0.0f;
             xfm_module_set_volume(self->fadingMusicModule, self->musicVolume * std::clamp(fade01, 0.0f, 1.0f));
             std::memset(fadeBuf, 0, chunkFrames * 2 * sizeof(int16_t));
-            xfm_mix_song(self->fadingMusicModule, fadeBuf, chunkFrames);
+            if (sectionStart)
+                xfm_mix_song_profiled(self->fadingMusicModule, fadeBuf, chunkFrames,
+                                      &profile.musicGenerateTicks, soundProfileCounter);
+            else
+                xfm_mix_song(self->fadingMusicModule, fadeBuf, chunkFrames);
             int16_t *dst = out + framesMixed * 2;
             for (int i = 0; i < chunkFrames * 2; i++)
             {
@@ -1196,27 +1226,37 @@ static void my_audio_callback(void* userdata, Uint8* stream, int len)
             xfm_module_set_volume(self->fadingMusicModule, 0.0f);
             soundSilenceSongModule(self->fadingMusicModule);
         }
+        profile.endMusic(sectionStart);
     }
 
     // Mix SFX into temp buffer then add (SFX only - more efficient!)
     if (self->sfxModule)
     {
-        // CRITICAL: Cap frames to prevent buffer overflow.
-        // SDL may request more frames than expected on some platforms.
-        int mix_frames = frames;
-        if (mix_frames > 4096) mix_frames = 4096;
-        
+        const Uint64 sectionStart = profile.beginSection();
+        // Mix the entire SDL callback. At 8192 frames, truncating SFX to 4096
+        // made long effects disappear for the second half of every buffer.
         static int16_t sfxBuf[4096 * 2];
-        std::memset(sfxBuf, 0, mix_frames * 2 * sizeof(int16_t));
-        xfm_mix_sfx(self->sfxModule, sfxBuf, mix_frames);
-
-        for (int i = 0; i < mix_frames * 2; i++)
+        for (int frameOffset = 0; frameOffset < frames; )
         {
-            int32_t mixed = (int32_t)out[i] + sfxBuf[i];
-            if (mixed > 32767) mixed = 32767;
-            if (mixed < -32768) mixed = -32768;
-            out[i] = (int16_t)mixed;
+            const int chunkFrames = std::min(4096, frames - frameOffset);
+            std::memset(sfxBuf, 0, chunkFrames * 2 * sizeof(int16_t));
+            if (sectionStart)
+                xfm_mix_sfx_profiled(self->sfxModule, sfxBuf, chunkFrames,
+                                     &profile.sfxGenerateTicks, soundProfileCounter);
+            else
+                xfm_mix_sfx(self->sfxModule, sfxBuf, chunkFrames);
+
+            int16_t *dst = out + frameOffset * 2;
+            for (int i = 0; i < chunkFrames * 2; i++)
+            {
+                int32_t mixed = (int32_t)dst[i] + sfxBuf[i];
+                if (mixed > 32767) mixed = 32767;
+                if (mixed < -32768) mixed = -32768;
+                dst[i] = (int16_t)mixed;
+            }
+            frameOffset += chunkFrames;
         }
+        profile.endSfx(sectionStart);
     }
 }
 

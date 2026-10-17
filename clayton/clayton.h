@@ -201,7 +201,8 @@ struct Clayton
     Clayton_Click minigameCrowdControlClick;
     Clayton_Click bonusPlayClick;
     Clayton_Click settingsCloseClick;
-    Clayton_Click settingsExtraParticlesClick;
+    Clayton_Click settingsHighDetailsClick;
+    Clayton_Click settingsPatchedYmfmClick;
     Clayton_Click settingsPerformanceAnalysisClick;
     Clayton_Click settingsResetCampaignClick;
     Clayton_Click settingsResetProgressClick;

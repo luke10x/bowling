@@ -134,22 +134,13 @@ Risk:
 - Can change compatibility or expose assumptions in the renderer. This should be
   tested separately from audio changes.
 
-### Avoid Generating SFX Chip When Truly Idle
+### Sparse SFX Channel Clocking
 
-The gameplay path often uses SFX heavily, so this is not the main gameplay win.
-Still, when no SFX voices are active, the callback can skip generating the SFX
-chip and skip the SFX mix/add pass.
-
-Expected effect:
-
-- Saves CPU in menus, quiet gameplay moments, and between SFX bursts.
-- Little effect during active gameplay if SFX are almost always playing.
-
-Suggested shape:
-
-- Add an `xfm_sfx_has_active()` query or expose an active voice count.
-- In the audio callback, skip `xfm_mix_sfx()` and clear/avoid the temp SFX
-  buffer when no SFX voices are active.
+Follow [the patched SFX channel clocking guide](../../eggsfm/docs/sparse-sfx-channel-clocking.md)
+for the specific code changes, idle-state predicate, and PCM parity tests.
+This belongs only in eggsfm's local patched backend; upstream YMFM remains the
+reference. XFM's voice-active flags alone are not a safe indication of chip
+silence because released notes can have audible tails.
 
 ### Binary Song / SFX Data
 

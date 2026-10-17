@@ -1564,6 +1564,7 @@ struct UserContext
     float audioPerformanceMonitorStart = 0.0f;
     bool audioPerformanceMonitorComplete = false;
     bool audioPerformanceRestartApplied = false;
+    bool audioBufferUserSelected = false;
 
     // Click handlers
     // Clayton_Click buyClicks[];
@@ -3926,7 +3927,7 @@ static inline void RenderBlockCardDropAnimation(UserContext *usr, float deltaTim
     {
         const glm::vec3 from = anim.previousTrailPointsValid ? anim.previousTrailPoints[i] : edgePoints[i];
         const glm::vec3 to = edgePoints[i];
-        if (usr->settings.extraParticlesEnabled)
+        if (usr->settings.highDetailsEnabled)
         {
             const glm::vec3 segment = to - from;
             const float segmentLen = glm::length(segment);
@@ -3948,7 +3949,7 @@ static inline void RenderBlockCardDropAnimation(UserContext *usr, float deltaTim
         anim.previousTrailPoints[i] = edgePoints[i];
     }
     anim.previousTrailPointsValid = true;
-    if (usr->settings.extraParticlesEnabled)
+    if (usr->settings.highDetailsEnabled)
         usr->particles.uploadPendingBlockSparks();
 
     const BlockConfiguration &config = configs[size_t(anim.variantIndex)];
@@ -11878,6 +11879,13 @@ static inline void Progress_ResetFull(UserContext *usr)
     usr->schoolDone = false;
     usr->schoolExitLocked = false;
     usr->storage.setChar(Storage::SCHOOL_DONE, "0", 1);
+    usr->settings.highDetailsEnabled = true;
+    usr->settings.patchedYmfmEnabled = false;
+    xfm_set_patched_ymfm(false);
+    usr->settings.performanceAnalysisEnabled = false;
+    usr->audioBufferUserSelected = false;
+    usr->sound.requestedBufferSize = DEFAULT_AUDIO_BUFFER_SIZE;
+    usr->sound.settings.bufferSize = DEFAULT_AUDIO_BUFFER_SIZE;
 }
 
 static inline const HouseCatalogItem *House_FindById(int id)
@@ -18859,7 +18867,8 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.minigameCrowdControlClick, "minigameCrowdControl");
     initClaytonClick(&usr->clayton.bonusPlayClick, "bonusPlay");
     initClaytonClick(&usr->clayton.settingsCloseClick, "settingsClose");
-    initClaytonClick(&usr->clayton.settingsExtraParticlesClick, "settingsExtraParticles");
+    initClaytonClick(&usr->clayton.settingsHighDetailsClick, "settingsHighDetails");
+    initClaytonClick(&usr->clayton.settingsPatchedYmfmClick, "settingsPatchedYmfm");
     initClaytonClick(&usr->clayton.settingsPerformanceAnalysisClick, "settingsPerformanceAnalysis");
     initClaytonClick(&usr->clayton.settingsResetCampaignClick, "settingsResetCampaign");
     initClaytonClick(&usr->clayton.settingsResetProgressClick, "settingsResetProgress");
@@ -18889,6 +18898,20 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->totalFrames = 0;
     usr->dialog.language = usr->language;
     usr->storage.storageInit("10x", "bowling");
+    {
+        char saved[32] = {};
+        if (usr->storage.getChar(Storage::AUDIO_BUFFER_SIZE, saved, sizeof(saved)) > 0)
+            usr->sound.requestedBufferSize = Sound_ClampAudioBufferSize(atoi(saved));
+        if (usr->storage.getChar(Storage::AUDIO_BUFFER_MANUAL, saved, sizeof(saved)) > 0)
+            usr->audioBufferUserSelected = saved[0] == '1';
+        if (usr->storage.getChar(Storage::HIGH_DETAILS, saved, sizeof(saved)) > 0)
+            usr->settings.highDetailsEnabled = saved[0] != '0';
+        if (usr->storage.getChar(Storage::PATCHED_YMFM, saved, sizeof(saved)) > 0)
+            usr->settings.patchedYmfmEnabled = saved[0] == '1';
+        xfm_set_patched_ymfm(usr->settings.patchedYmfmEnabled);
+        // Profiling is intentionally session only and begins disabled.
+        usr->settings.performanceAnalysisEnabled = false;
+    }
     usr->username_len = usr->storage.getChar(Storage::USERNAME, usr->username, 20);
     {
         char tmp[128] = {};
@@ -19554,16 +19577,29 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 usr->audioPerformanceMonitorComplete = true;
                 if (!usr->audioPerformanceRestartApplied &&
-                    !usr->sound.audioDisabled &&
-                    Sound_ClampAudioBufferSize(usr->sound.requestedBufferSize) < 4096 &&
-                    usr->fpsCounter.fps < 20.0f)
+                    !usr->audioBufferUserSelected &&
+                    !usr->sound.audioDisabled)
                 {
-                    usr->audioPerformanceRestartApplied = true;
-                    usr->sound.requestedBufferSize = 4096;
-                    usr->sound.settings.bufferSize = 4096;
-                    usr->sound.restartSoundSystem();
-                    UI_ShowHudToast(usr, Txl_Get(usr->language, TXL_AUDIO_BUFFER_INCREASED), 3.0f);
-                    printf("[SoundPerformance] Low FPS %.2f; restarting audio with 4096 sample buffer\n", usr->fpsCounter.fps);
+                    const int currentBuffer = Sound_ClampAudioBufferSize(usr->sound.requestedBufferSize);
+                    const int sampleRate = Sound_PreferredAudioSampleRate(usr->sound);
+                    const int chosenBuffer = Sound_ChooseStartupAudioBufferSize(
+                        usr->fpsCounter.fps, sampleRate, currentBuffer);
+                    if (chosenBuffer > currentBuffer)
+                    {
+                        usr->audioPerformanceRestartApplied = true;
+                        usr->sound.requestedBufferSize = chosenBuffer;
+                        usr->sound.settings.bufferSize = chosenBuffer;
+                        char savedBuffer[16];
+                        std::snprintf(savedBuffer, sizeof(savedBuffer), "%d", chosenBuffer);
+                        usr->storage.setChar(Storage::AUDIO_BUFFER_SIZE, savedBuffer, std::strlen(savedBuffer));
+                        usr->sound.restartSoundSystem();
+                        char bufferToast[128];
+                        std::snprintf(bufferToast, sizeof(bufferToast),
+                                      Txl_Get(usr->language, TXL_AUDIO_BUFFER_INCREASED_FMT), chosenBuffer);
+                        UI_ShowHudToast(usr, bufferToast, 3.0f);
+                        printf("[SoundPerformance] Startup FPS %.2f at %d Hz: buffer %d -> %d (20%% margin)\n",
+                               usr->fpsCounter.fps, sampleRate, currentBuffer, chosenBuffer);
+                    }
                 }
             }
         }
@@ -19928,7 +19964,9 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             continue;
         }
-	        if (usr->windowStack.processActiveWindowEvent(
+	        const bool highDetailsBeforeEvent = usr->settings.highDetailsEnabled;
+        const bool patchedYmfmBeforeEvent = usr->settings.patchedYmfmEnabled;
+		        if (usr->windowStack.processActiveWindowEvent(
 	                &usr->clayton,
 	                &usr->keypad,
                     &usr->numKeypad,
@@ -19945,7 +19983,26 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                &usr->shouldShowShop,
 	                e
 	            ))
-	        {
+		        {
+                if (usr->sound.settings.bufferSelectionMade)
+                {
+                    usr->sound.settings.bufferSelectionMade = false;
+                    char savedBuffer[16];
+                    std::snprintf(savedBuffer, sizeof(savedBuffer), "%d", usr->sound.requestedBufferSize);
+                    usr->storage.setChar(Storage::AUDIO_BUFFER_SIZE, savedBuffer, std::strlen(savedBuffer));
+                    usr->storage.setChar(Storage::AUDIO_BUFFER_MANUAL, "1", 1);
+                    usr->audioBufferUserSelected = true;
+                }
+                if (usr->settings.highDetailsEnabled != highDetailsBeforeEvent)
+                    usr->storage.setChar(Storage::HIGH_DETAILS,
+                                         usr->settings.highDetailsEnabled ? "1" : "0", 1);
+                if (usr->settings.patchedYmfmEnabled != patchedYmfmBeforeEvent)
+                {
+                    usr->storage.setChar(Storage::PATCHED_YMFM,
+                                         usr->settings.patchedYmfmEnabled ? "1" : "0", 1);
+                    xfm_set_patched_ymfm(usr->settings.patchedYmfmEnabled);
+                    usr->sound.restartSoundSystem();
+                }
                 if (usr->sound.settings.midiPanicRequested)
                 {
                     usr->sound.settings.midiPanicRequested = false;
@@ -20244,6 +20301,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                     const CampaignResetScope resetScope = usr->windowStack.settingsResetProgressConfirmRequested
                         ? CampaignResetScope::Factory
                         : CampaignResetScope::CampaignOnly;
+                    const bool restartAudioForFactorySettings = resetScope == CampaignResetScope::Factory &&
+                        (usr->sound.requestedBufferSize != DEFAULT_AUDIO_BUFFER_SIZE ||
+                         usr->settings.patchedYmfmEnabled) &&
+                        !usr->sound.audioDisabled;
                     if (resetScope == CampaignResetScope::Factory)
                         Progress_ResetFull(usr);
                     else
@@ -20254,6 +20315,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                     }
                     usr->windowStack.settingsResetProgressConfirmRequested = false;
                     Campaign_StartFreshRunAfterReset(usr);
+                    if (restartAudioForFactorySettings)
+                        usr->sound.restartSoundSystem();
                 }
                 if (usr->windowStack.campaignEndgameClosedRequested)
                 {
@@ -26761,7 +26824,7 @@ END_LINE:
         glDisable(GL_CULL_FACE);
         const float snowSpinDeltaRadians = usr->phy.get_ball_angular_velocity().y * (float)deltaTime;
         usr->particles.setSnowflakeCount(usr->settings.snowflakeCount);
-        if (usr->settings.extraParticlesEnabled)
+        if (usr->settings.highDetailsEnabled)
         {
             usr->particles.drawSnow(
                 (float)deltaTime,
@@ -26783,12 +26846,12 @@ END_LINE:
                 ballTraceIntensity = glm::max(ballTraceIntensity, 0.35f);
 
             // NOS bursts are gameplay feedback and share this trace renderer.
-            // Extra Particles only controls the automatic ambient spawn.
+            // High Details only controls the automatic ambient spawn here.
             usr->particles.drawBallTrace(
                 (float)deltaTime,
                 glm::vec3(ballModel[3]),
                 ballTraceIntensity,
-                usr->settings.extraParticlesEnabled && !nosActive,
+                usr->settings.highDetailsEnabled && !nosActive,
                 usr->cameraMat,
                 usr->perspectiveMat
             );
@@ -26808,7 +26871,7 @@ END_LINE:
             );
         }
         usr->frameProfileGraph.mark(FrameProfileGraph::FxBallTrail);
-        if (usr->settings.extraParticlesEnabled)
+        if (usr->settings.highDetailsEnabled)
         {
             if (!MiniGame_IsCrowdControl(usr))
             {
@@ -30161,11 +30224,13 @@ usr->frameProfileGraph.mark(FrameProfileGraph::ProfileGraphDraw);
 usr->fpsCounter.endFrame();
 
 SDL_GL_SwapWindow(ctx->sdlWindow);
-usr->frameProfileGraph.extraParticlesEnabled = usr->settings.extraParticlesEnabled;
+usr->frameProfileGraph.highDetailsEnabled = usr->settings.highDetailsEnabled;
 if (usr->frameProfileGraph.enabled)
 {
     const auto audioProfile = usr->sound.takeAudioCallbackProfile();
-    usr->frameProfileGraph.endFrame(audioProfile.totalTicks, audioProfile.count,
+    usr->frameProfileGraph.endFrame(audioProfile.totalTicks, audioProfile.musicTicks,
+                                    audioProfile.sfxTicks, audioProfile.musicGenerateTicks,
+                                    audioProfile.sfxGenerateTicks, audioProfile.count,
                                     audioProfile.durations.data(), audioProfile.durationCount);
 }
 

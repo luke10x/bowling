@@ -42,7 +42,11 @@ struct FrameProfileGraph
         UiDraw,
         ProfileGraphDraw,
         Present,
-        Audio,
+        AudioMusicGenerate,
+        AudioMusic,
+        AudioSfxGenerate,
+        AudioSfx,
+        AudioOther,
         Count
     };
 
@@ -87,7 +91,11 @@ struct FrameProfileGraph
         {"DRAW",  "UI draw",             7.2f, 0xE2A15A},
         {"GRAPH", "Profile graph",      -1.0f, 0xA6A6B0},
         {"SWAP",  "Present/swap",        -1.0f, 0xE5D569},
-        {"AUDIO", "SDL audio callback",  -1.0f, 0xFFFFFF}
+        {"MGEN",  "Music chip generate", -1.0f, 0xFFFFFF},
+        {"MUS",   "Music other work",    -1.0f, 0xFFFFFF},
+        {"SGEN",  "SFX chip generate",   -1.0f, 0xFFFFFF},
+        {"SFX",   "SFX other work",      -1.0f, 0xDEDEDE},
+        {"AUD",   "Audio other work",    -1.0f, 0xB5B5B5}
     }};
 
     struct Vertex { float x, y, r, g, b, a; };
@@ -102,10 +110,10 @@ struct FrameProfileGraph
     Uint64 lastFrameEndTick = 0;
     Uint64 reportStartedAt = 0;
     int reportFrames = 0;
-    int reportExtraParticlesOnFrames = 0;
+    int reportHighDetailsOnFrames = 0;
     int reportGapSamples = 0;
     double reportGapMs = 0.0;
-    bool extraParticlesEnabled = true;
+    bool highDetailsEnabled = true;
     std::array<double, Count> reportTotalsMs{};
     double reportAudioMs = 0.0;
     double reportAudioMaxMs = 0.0;
@@ -181,7 +189,7 @@ struct FrameProfileGraph
         vertices.clear();
         nextFrame = recordedFrames = nextZone = 0;
         previousTick = lastFrameEndTick = reportStartedAt = 0;
-        reportFrames = reportExtraParticlesOnFrames = reportGapSamples = 0;
+        reportFrames = reportHighDetailsOnFrames = reportGapSamples = 0;
         reportGapMs = 0.0;
         reportTotalsMs.fill(0.0);
         reportAudioMs = 0.0;
@@ -217,14 +225,24 @@ struct FrameProfileGraph
         nextZone = zone + 1;
     }
 
-    void endFrame(Uint64 audioTicks, unsigned audioCallbackCount,
+    void endFrame(Uint64 audioTicks, Uint64 musicTicks, Uint64 sfxTicks,
+                  Uint64 musicGenerateTicks, Uint64 sfxGenerateTicks,
+                  unsigned audioCallbackCount,
                   const Uint64 *callbackTicks, unsigned sampleCount)
     {
         if (!enabled) return;
         mark(Present);
-        // Attribute completed callbacks since the previous sample to this
-        // frame. AUDIO is the final fixed-order stack segment, not a mark.
-        current[Audio] = (float)((double)audioTicks / ticksPerMs);
+        // Attribute completed callback work since the previous frame sample.
+        // Keep chip generation exclusive of the remainder of each mixer branch.
+        musicGenerateTicks = std::min(musicGenerateTicks, musicTicks);
+        sfxGenerateTicks = std::min(sfxGenerateTicks, sfxTicks);
+        current[AudioMusicGenerate] = (float)((double)musicGenerateTicks / ticksPerMs);
+        current[AudioMusic] = (float)((double)(musicTicks - musicGenerateTicks) / ticksPerMs);
+        current[AudioSfxGenerate] = (float)((double)sfxGenerateTicks / ticksPerMs);
+        current[AudioSfx] = (float)((double)(sfxTicks - sfxGenerateTicks) / ticksPerMs);
+        const Uint64 measuredMixTicks = musicTicks + sfxTicks;
+        current[AudioOther] = (float)((double)(audioTicks > measuredMixTicks
+            ? audioTicks - measuredMixTicks : 0) / ticksPerMs);
         frames[nextFrame] = current;
         reportAudioMs += (double)audioTicks / ticksPerMs;
         reportAudioCallbacks += audioCallbackCount;
@@ -236,7 +254,7 @@ struct FrameProfileGraph
         for (int zone = 0; zone < Count; ++zone)
             reportTotalsMs[zone] += current[zone];
         ++reportFrames;
-        if (extraParticlesEnabled) ++reportExtraParticlesOnFrames;
+        if (highDetailsEnabled) ++reportHighDetailsOnFrames;
         const Uint64 now = SDL_GetPerformanceCounter();
         const double elapsedMs = (double)(now - reportStartedAt) / ticksPerMs;
         if (elapsedMs >= 5000.0)
@@ -247,7 +265,7 @@ struct FrameProfileGraph
             reportAudioMaxMs = 0.0;
             reportAudioCallbacks = 0;
             reportFrames = 0;
-            reportExtraParticlesOnFrames = 0;
+            reportHighDetailsOnFrames = 0;
             reportGapSamples = 0;
             reportGapMs = 0.0;
             reportStartedAt = SDL_GetPerformanceCounter();
@@ -262,11 +280,11 @@ struct FrameProfileGraph
         std::fprintf(stderr, "\nFrame profile: %.1fs, %d frames, %.1f FPS\n",
                      elapsedMs / 1000.0, reportFrames,
                      reportFrames * 1000.0 / elapsedMs);
-        std::fprintf(stderr, "Extra particles: on %d/%d frames; between-loop gap: %.3f ms/frame (%d samples)\n",
-                     reportExtraParticlesOnFrames, reportFrames,
+        std::fprintf(stderr, "High details: on %d/%d frames; between-loop gap: %.3f ms/frame (%d samples)\n",
+                     reportHighDetailsOnFrames, reportFrames,
                      reportGapSamples > 0 ? reportGapMs / reportGapSamples : 0.0,
                      reportGapSamples);
-        std::fprintf(stderr, "AUDIO callback: %.3f ms/frame, %.3f ms/call average, %.3f ms maximum, %u calls (white bottom segment; may overlap loop work on native)\n",
+        std::fprintf(stderr, "AUDIO callback: %.3f ms/frame, %.3f ms/call average, %.3f ms maximum, %u calls (five audio segments at bottom; may overlap loop work on native)\n",
                      reportFrames > 0 ? reportAudioMs / reportFrames : 0.0,
                      reportAudioCallbacks > 0 ? reportAudioMs / reportAudioCallbacks : 0.0,
                      reportAudioMaxMs,
@@ -400,11 +418,11 @@ struct FrameProfileGraph
             const float left = x0 + (x1 - x0) * col / History;
             const float right = x0 + (x1 - x0) * (col + 1) / History;
             float total = 0.0f;
-            // AUDIO is sampled after the loop, but draw it first so its white
-            // segment stays at the bottom of every stacked frame column.
+            // Audio is sampled after the loop, but draw its five zones
+            // first so they stay together at the bottom of every frame bar.
             for (int drawIndex = 0; drawIndex < Count; ++drawIndex)
             {
-                const int zone = drawIndex == 0 ? Audio : drawIndex - 1;
+                const int zone = drawIndex < 5 ? AudioMusicGenerate + drawIndex : drawIndex - 5;
                 const float from = std::min(total, chartScaleMs);
                 const float zoneMs = frames[index][zone];
                 recentTotalsMs[zone] += zoneMs;

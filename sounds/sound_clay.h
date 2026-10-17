@@ -7,6 +7,7 @@ inline void initSoundSettings(Clayton *clayton, SoundSettings *soundSettingsStat
 {
     soundSettingsState->soundSystem = soundSystem;
     soundSettingsState->midiPanicRequested = false;
+    soundSettingsState->bufferSelectionMade = false;
     // self->activated = false;
 
     // Initialize from sound system - read ACTUAL current values
@@ -329,10 +330,9 @@ inline void buildSoundSettingsWindowClay(Clayton *clayton, SoundSettings *self)
                         }
                     )
                     {
-                        const int bufferOptions[5] = {512, 1024, 2048, 4096, 8192};
                         for (int i = 0; i < 5; i++)
                         {
-                            Clay_Color btnColor = (self->bufferSize == bufferOptions[i])
+                            Clay_Color btnColor = (self->bufferSize == SOUND_AUDIO_BUFFER_SIZES[i])
                                 ? Clay_Color{100, 200, 100, 255}
                                 : Clay_Color{80, 80, 120, 255};
 
@@ -715,12 +715,12 @@ inline bool processSoundSettingsEvent(Clayton *clayton, SoundSettings *soundSett
         }
     }
 
-    const int bufferOptions[5] = {512, 1024, 2048, 4096, 8192};
     for (int i = 0; i < 5; i++)
     {
         if (isClaytonClicked(&clayton->bufferClicks[i], event))
         {
-            soundSettingsClay->bufferSize = bufferOptions[i];
+            soundSettingsClay->bufferSize = SOUND_AUDIO_BUFFER_SIZES[i];
+            soundSettingsClay->bufferSelectionMade = true;
             applySoundSettings(soundSettingsClay);
             handled = true;
         }

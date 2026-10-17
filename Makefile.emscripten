@@ -36,11 +36,11 @@ $(PWA_LOGO_OUTPUT): $(PWA_LOGO) Makefile.emscripten
 	@mkdir -p $(dir $@)
 	cp $< $@
 
-$(PWA_ICON_192): $(PWA_LOGO) Makefile.emscripten
+$(PWA_ICON_192): $(PWA_LOGO)
 	@mkdir -p $(dir $@)
 	$(INKSCAPE) $< --export-area-page --export-type=png --export-width=192 --export-height=192 --export-background-opacity=0 --export-filename="$@"
 
-$(PWA_ICON_512): $(PWA_LOGO) Makefile.emscripten
+$(PWA_ICON_512): $(PWA_LOGO)
 	@mkdir -p $(dir $@)
 	$(INKSCAPE) $< --export-area-page --export-type=png --export-width=512 --export-height=512 --export-background-opacity=0 --export-filename="$@"
 
@@ -155,14 +155,15 @@ export EM_CACHE=$(EM_CACHE_DIR)
 CXXFLAGS += -I./build/_deps/clay-src
 CXXFLAGS += -I./build/_deps/stb-src
 CXXFLAGS += -I./3rdparty/JoltPhysics
-CXXFLAGS += -I../my-ym2612-plugin/build/_deps/ymfm-src/src
+CXXFLAGS += -I../ymfm/src
 CXXFLAGS += -I./3rdparty/glm
 CXXFLAGS += $(JOLT_DEFINES)
 
-LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_misc.cpp
-LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_adpcm.cpp
-LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_ssg.cpp
-LDLIBS += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_opn.cpp
+LDLIBS += $(PWD)/../ymfm/src/ymfm_misc.cpp
+LDLIBS += $(PWD)/../ymfm/src/ymfm_adpcm.cpp
+LDLIBS += $(PWD)/../ymfm/src/ymfm_ssg.cpp
+LDLIBS += $(PWD)/../ymfm/src/ymfm_opn.cpp
+LDLIBS += $(PWD)/../eggsfm/xfm_patched_ym3438.cpp
 LDLIBS += $(PWD)/../eggsfm/xfm_impl.cpp
 LDLIBS += $(PWD)/sounds/sounds.cpp
 

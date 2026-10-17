@@ -134,7 +134,7 @@ CXXFLAGS += -I./build/_deps/stb-src
 CXXFLAGS += -I./3rdparty/SDL/include
 CXXFLAGS += -I./3rdparty/glm
 CXXFLAGS += -I./3rdparty/JoltPhysics
-CXXFLAGS += -I../my-ym2612-plugin/build/_deps/ymfm-src/src
+CXXFLAGS += -I../ymfm/src
 CXXFLAGS += -DJPH_PROFILE_ENABLED=1
 CXXFLAGS += -DJPH_DEBUG_RENDERER=1
 CXXFLAGS += -DJPH_OBJECT_STREAM=1
@@ -168,10 +168,11 @@ LDLIBS += -lJolt
 LDLIBS += $(PWD)/build/macos/usr/lib/libJolt.a
 LDLIBS += $(IMGUI_LIB)
 
-LDLIBS2 += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_misc.cpp
-LDLIBS2 += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_adpcm.cpp
-LDLIBS2 += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_ssg.cpp
-LDLIBS2 += $(PWD)/../my-ym2612-plugin/build/_deps/ymfm-src/src/ymfm_opn.cpp
+LDLIBS2 += $(PWD)/../ymfm/src/ymfm_misc.cpp
+LDLIBS2 += $(PWD)/../ymfm/src/ymfm_adpcm.cpp
+LDLIBS2 += $(PWD)/../ymfm/src/ymfm_ssg.cpp
+LDLIBS2 += $(PWD)/../ymfm/src/ymfm_opn.cpp
+LDLIBS2 += $(PWD)/../eggsfm/xfm_patched_ym3438.cpp
 LDLIBS2 += $(PWD)/../eggsfm/xfm_impl.cpp
 LDLIBS2 += $(PWD)/./sounds/sounds.cpp
 
@@ -295,7 +296,7 @@ doctest:
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_campaign_record.cpp -o tests/test_campaign_record && tests/test_campaign_record
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_story_progression.cpp -o tests/test_story_progression && tests/test_story_progression
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_numkeypad.cpp -o tests/test_numkeypad && tests/test_numkeypad
-	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include -I../eggsfm -I../my-ym2612-plugin/build/_deps/ymfm-src/src tests/test_tracker_song_io.cpp -o tests/test_tracker_song_io && tests/test_tracker_song_io
+	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include -I../eggsfm -I../ymfm/src tests/test_tracker_song_io.cpp -o tests/test_tracker_song_io && tests/test_tracker_song_io
 
 
 .PHONY: assman

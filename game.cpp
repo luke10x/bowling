@@ -3059,7 +3059,7 @@ static inline bool PointHitsClayButton(float pointerX, float pointerY, Clay_Elem
            pointerY >= box.y && pointerY <= (box.y + box.height);
 }
 
-static inline bool EventHitsClayButton(const SDL_Event &e, Clay_ElementId id)
+static inline bool EventHitsClayButton(const SDL_Event &e, Clay_ElementId id, float pointerToLayoutScale)
 {
     float pointerX = 0.0f;
     float pointerY = 0.0f;
@@ -3085,7 +3085,8 @@ static inline bool EventHitsClayButton(const SDL_Event &e, Clay_ElementId id)
     if (!hasPointerPos)
         return false;
 
-    return PointHitsClayButton(pointerX, pointerY, id);
+    return PointHitsClayButton(pointerX * pointerToLayoutScale,
+                               pointerY * pointerToLayoutScale, id);
 }
 
 static inline Clay_ElementId BallChargeHudId()
@@ -3142,14 +3143,14 @@ static inline Clay_ElementId MiniGameHudId()
     return CLAY_ID("MiniGameHud");
 }
 
-static inline bool EventHitsAnyHudOpenButton(UserContext *usr, const SDL_Event &e)
+static inline bool EventHitsAnyHudOpenButton(UserContext *usr, const SDL_Event &e, float pointerToLayoutScale)
 {
     if (!usr)
         return false;
 
     auto hits = [&](Clay_ElementId id) -> bool
     {
-        return Clay_PointerOver(id) || EventHitsClayButton(e, id);
+        return Clay_PointerOver(id) || EventHitsClayButton(e, id, pointerToLayoutScale);
     };
 
     if (usr->gameMode != UserContext::GameMode::TRACKER && !MiniGame_IsActive(usr) && hits(BallChargeHudId()))
@@ -19864,6 +19865,25 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
 #endif
 
+        // Clay bounds are in layout points. Android SDL mouse coordinates are
+        // physical pixels, so UI handlers that compare event coordinates with
+        // Clay bounds receive a layout-space copy. Gameplay keeps the raw event.
+        SDL_Event layoutEvent = e;
+#if defined(__ANDROID__) || defined(ANDROID)
+        if (e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP)
+        {
+            layoutEvent.button.x = (int)std::lround(e.button.x * pixelRatio);
+            layoutEvent.button.y = (int)std::lround(e.button.y * pixelRatio);
+        }
+        else if (e.type == SDL_MOUSEMOTION)
+        {
+            layoutEvent.motion.x = (int)std::lround(e.motion.x * pixelRatio);
+            layoutEvent.motion.y = (int)std::lround(e.motion.y * pixelRatio);
+            layoutEvent.motion.xrel = (int)std::lround(e.motion.xrel * pixelRatio);
+            layoutEvent.motion.yrel = (int)std::lround(e.motion.yrel * pixelRatio);
+        }
+#endif
+
 #if !defined(__EMSCRIPTEN__) && !TARGET_OS_IOS && !TARGET_IPHONE_SIMULATOR
         if (e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP)
         {
@@ -19954,7 +19974,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         if (usr->gameMode == UserContext::GameMode::TRACKER &&
             usr->tracker.active &&
-            Tracker_HandleOscilloscopeEvent(&usr->tracker, &usr->clayton, e))
+            Tracker_HandleOscilloscopeEvent(&usr->tracker, &usr->clayton, layoutEvent))
         {
             continue;
         }
@@ -19991,8 +20011,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                     &usr->tracker,
                     &usr->school.massSlider,
                     &usr->settings,
-	                &usr->shouldShowShop,
-	                e
+                    &usr->shouldShowShop,
+	                layoutEvent
 	            ))
 		        {
                 if (usr->sound.settings.bufferSelectionMade)
@@ -20461,7 +20481,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         if (usr->gameMode == UserContext::GameMode::TRACKER)
         {
-            if (usr->tracker.active && Tracker_HandleEvent(&usr->tracker, &usr->clayton, e))
+            if (usr->tracker.active && Tracker_HandleEvent(&usr->tracker, &usr->clayton, layoutEvent))
             {
                 if (usr->tracker.editorWindowRequested)
                 {
@@ -20586,7 +20606,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     SDL_SetRelativeMouseMode(SDL_FALSE);
                 }
 
-                if (usr->dialog.processEvent(&usr->clayton, e))
+                if (usr->dialog.processEvent(&usr->clayton, layoutEvent))
                 {
                     if (usr->dialog.closeRequested)
                     {
@@ -20631,8 +20651,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (e.type == SDL_MOUSEBUTTONUP)
                 {
                     shouldCloseChestSummary =
-                        EventHitsClayButton(e, ChestSummaryContinueId()) ||
-                        EventHitsClayButton(e, ChestSummaryCloseId());
+                        EventHitsClayButton(e, ChestSummaryContinueId(), pixelRatio) ||
+                        EventHitsClayButton(e, ChestSummaryCloseId(), pixelRatio);
                 }
                 else if (e.type == SDL_FINGERUP)
                 {
@@ -20720,12 +20740,12 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         if (e.type == SDL_MOUSEBUTTONDOWN)
         {
-            if (!EventHitsAnyHudOpenButton(usr, e))
+            if (!EventHitsAnyHudOpenButton(usr, e, pixelRatio))
                 mouseClicked = true; // will see this later
         }
         if (e.type == SDL_FINGERDOWN)
         {
-            if (!EventHitsAnyHudOpenButton(usr, e))
+            if (!EventHitsAnyHudOpenButton(usr, e, pixelRatio))
                 mouseClicked = true; // will see this later
         }
 
@@ -20744,7 +20764,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
         }
 
-        if (Runes_AreAllowedInCurrentMode(usr) && RuneFab_HandleEvent(usr, e))
+        if (Runes_AreAllowedInCurrentMode(usr) && RuneFab_HandleEvent(usr, layoutEvent))
         {
             SDL_SetRelativeMouseMode(SDL_FALSE);
             continue;
@@ -20756,7 +20776,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
         if (!MiniGame_IsActive(usr) &&
             isPointerEventForCharge &&
-            (Clay_PointerOver(BallChargeHudId()) || EventHitsClayButton(e, BallChargeHudId())))
+            (Clay_PointerOver(BallChargeHudId()) || EventHitsClayButton(e, BallChargeHudId(), pixelRatio)))
         {
             // Passive HUD meter: absorb the pointer so it never drags/throws the ball,
             // but do not perform an action on click.
@@ -20768,7 +20788,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             const bool isUpEv = (e.type == SDL_MOUSEBUTTONUP);
             const bool isMoveEv = (e.type == SDL_MOUSEMOTION);
             const bool overNos = Clay_PointerOver(usr->nosButton.clayId) ||
-                                 EventHitsClayButton(e, usr->nosButton.clayId);
+                                 EventHitsClayButton(e, usr->nosButton.clayId, pixelRatio);
             if (usr->nosHeldMouse)
             {
                 if ((isMoveEv && !overNos) || isUpEv)
@@ -20931,7 +20951,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             if (School_ClayHandleEvent(
                     &usr->school,
-                    e,
+                    layoutEvent,
                     /*currentGameModeIsSchool=*/1,
                     &desiredLesson,
                     &exitRequested,
@@ -20961,7 +20981,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             }
         }
         const bool oilButtonHit = Clay_PointerOver(usr->oilButton.clayId) ||
-                                  EventHitsClayButton(e, usr->oilButton.clayId);
+                                  EventHitsClayButton(e, usr->oilButton.clayId, pixelRatio);
         if (isClaytonClickedWithHover(&usr->oilButton, e, oilButtonHit))
         {
             if (usr->gameMode == UserContext::GameMode::SCHOOL) continue;
@@ -20996,7 +21016,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
             if (isPointerEvent)
             {
-                if (EventHitsAnyHudOpenButton(usr, e))
+                if (EventHitsAnyHudOpenButton(usr, e, pixelRatio))
                 {
                     continue;
                 }

@@ -42,11 +42,27 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
+        // Installable performance build: release native optimization with local debug signing.
+        benchmark {
+            initWith release
+            signingConfig signingConfigs.debug
+            ndk {
+                abiFilters 'arm64-v8a'
+            }
+        }
     }
     lint {
         abortOnError false
     }
 
+}
+
+// The local benchmark APK does not need release lint, which may require an
+// uncached lint plugin when building offline. Keep normal release lint intact.
+tasks.configureEach {
+    if (name.startsWith('lintVital') && name.endsWith('Benchmark')) {
+        enabled = false
+    }
 }
 
 dependencies {

@@ -233,9 +233,13 @@ void AssetMesh::sendMeshDataToGpu(MeshData *meshData)
     glBufferData(
         GL_ARRAY_BUFFER,
         this->instanceCapacity * sizeof(InstanceData),
-        instanceData.data(),
+        nullptr,
         GL_DYNAMIC_DRAW
     );
+    // Capacity is larger than the live vector. Passing instanceData.data() to
+    // glBufferData above makes GL read past the vector on some Android drivers.
+    glBufferSubData(GL_ARRAY_BUFFER, 0,
+                    instanceData.size() * sizeof(InstanceData), instanceData.data());
 
     // Position Offset Attribute (layout = 6, updates per instance)
     glEnableVertexAttribArray(6);

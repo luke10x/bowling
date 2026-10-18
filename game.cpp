@@ -17454,6 +17454,20 @@ static inline bool Tracker_IsSongFilePickerFocusMuted(UserContext *usr)
     return usr && (usr->trackerSongFilePickerActive || usr->trackerSongFilePickerFocusGraceFrames > 0);
 }
 
+// A modal or finished game already blocks live play. Remember this decision at
+// focus loss, before the resume window itself changes the window stack.
+static inline bool AppNeedsResumePrompt(const UserContext *usr)
+{
+    return usr &&
+        usr->windowStack.count == 0 && !usr->dialog.active &&
+        !usr->greetingsWindowRequested &&
+        !Chest_IsRewardActive(usr) && !usr->chestSummaryActive &&
+        usr->gameMode != UserContext::GameMode::TRACKER &&
+        usr->phase != UserContext::Phase::RESULT &&
+        usr->phase != UserContext::Phase::FINAL_RESULT &&
+        usr->phase != UserContext::Phase::MENU;
+}
+
 static inline bool AppInactiveOverlayIsOrphaned(UserContext *usr)
 {
     return usr && usr->appInactiveOverlayActive && usr->windowStack.count == 0 && !usr->dialog.active;
@@ -18255,11 +18269,15 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
                 usr->appFocusLost = false;
                 usr->appInactiveOverlayActive = false;
             }
-            else
+            else if (!usr->appFocusLost)
             {
-                usr->appInactiveOverlayActive = true;
-                usr->greetingsResumeMessageRequested = true;
-                usr->greetingsWindowRequested = true;
+                usr->appFocusLost = true;
+                usr->appInactiveOverlayActive = AppNeedsResumePrompt(usr);
+                if (usr->appInactiveOverlayActive)
+                {
+                    usr->greetingsResumeMessageRequested = true;
+                    usr->greetingsWindowRequested = true;
+                }
             }
         }
         usr->sound.suspendForBrowser();
@@ -18269,9 +18287,11 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
         if (usr->sound.audioStoppedBecauseWindowLeave || usr->sound.browserAudioSuspended || !usr->sound.audioDev)
             usr->sound.resumeFromBrowser(usr->sound.getSongPlaybackPattern(usr->sound.currentSongIndex));
     }
-    if (appRefocused)
+    if (appRefocused && usr->appFocusLost)
     {
-        if (!Tracker_IsSongFilePickerFocusMuted(usr) && !greetingMuteActive)
+        usr->appFocusLost = false;
+        if (usr->appInactiveOverlayActive &&
+            !Tracker_IsSongFilePickerFocusMuted(usr) && !greetingMuteActive)
         {
             usr->greetingsResumeMessageRequested = true;
             usr->greetingsWindowRequested = true;
@@ -19977,25 +19997,23 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
         if (e.type == SDL_WINDOWEVENT)
         {
-    if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST ||
-        e.window.event == SDL_WINDOWEVENT_HIDDEN ||
-        e.window.event == SDL_WINDOWEVENT_MINIMIZED)
-        usr->clayton.secretMenuUnlock.cancel();
-    switch (e.window.event)
-    {
-    case SDL_WINDOWEVENT_FOCUS_LOST:
-    case SDL_WINDOWEVENT_HIDDEN:
-    case SDL_WINDOWEVENT_MINIMIZED:
-        if (!Tracker_IsSongFilePickerFocusMuted(usr))
-        {
-            usr->appFocusLost = true;
-            if (usr->saveGreetingMuteFrames > 0 || usr->loadGreetingMuteFrames > 0)
+            if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST ||
+                e.window.event == SDL_WINDOWEVENT_HIDDEN ||
+                e.window.event == SDL_WINDOWEVENT_MINIMIZED)
+                usr->clayton.secretMenuUnlock.cancel();
+            switch (e.window.event)
             {
-                usr->appInactiveOverlayActive = false;
-            }
-            else
+            case SDL_WINDOWEVENT_FOCUS_LOST:
+            case SDL_WINDOWEVENT_HIDDEN:
+            case SDL_WINDOWEVENT_MINIMIZED:
+                if (!Tracker_IsSongFilePickerFocusMuted(usr) && !usr->appFocusLost)
+                {
+                    usr->appFocusLost = true;
+                    const bool greetingMuted = usr->saveGreetingMuteFrames > 0 ||
+                        usr->loadGreetingMuteFrames > 0;
+                    usr->appInactiveOverlayActive = !greetingMuted && AppNeedsResumePrompt(usr);
+                    if (usr->appInactiveOverlayActive)
                     {
-                        usr->appInactiveOverlayActive = true;
                         usr->greetingsResumeMessageRequested = true;
                         usr->windowStack.windowStackPushGreetingsWindow(true);
                         usr->greetingsWindowRequested = false;
@@ -20008,15 +20026,17 @@ void vtx::loop(vtx::VertexContext *ctx)
             case SDL_WINDOWEVENT_SHOWN:
             case SDL_WINDOWEVENT_RESTORED:
                 if (usr->appFocusLost)
-            {
-                usr->appFocusLost = false;
-                if (usr->sound.audioStoppedBecauseWindowLeave || usr->sound.browserAudioSuspended || !usr->sound.audioDev)
-                    usr->sound.resumeFromBrowser(usr->sound.getSongPlaybackPattern(usr->sound.currentSongIndex));
-                if (!Tracker_IsSongFilePickerFocusMuted(usr) && usr->saveGreetingMuteFrames <= 0 && usr->loadGreetingMuteFrames <= 0)
                 {
-                    usr->greetingsResumeMessageRequested = true;
-                    usr->greetingsWindowRequested = true;
-                    usr->windowStack.windowStackPushGreetingsWindow(true);
+                    usr->appFocusLost = false;
+                    if (usr->sound.audioStoppedBecauseWindowLeave || usr->sound.browserAudioSuspended || !usr->sound.audioDev)
+                        usr->sound.resumeFromBrowser(usr->sound.getSongPlaybackPattern(usr->sound.currentSongIndex));
+                    if (usr->appInactiveOverlayActive &&
+                        !Tracker_IsSongFilePickerFocusMuted(usr) &&
+                        usr->saveGreetingMuteFrames <= 0 && usr->loadGreetingMuteFrames <= 0)
+                    {
+                        usr->greetingsResumeMessageRequested = true;
+                        usr->greetingsWindowRequested = true;
+                        usr->windowStack.windowStackPushGreetingsWindow(true);
                         usr->greetingsWindowRequested = false;
                         usr->greetingsResumeMessageRequested = false;
                     }

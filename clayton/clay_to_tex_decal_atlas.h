@@ -268,7 +268,7 @@ struct ClayToTexDecalAtlas
         }
 
         Clay_RenderCommandArray cmds = Clay_EndLayout();
-        clayton->renderClayton(cmds, WIDTH, HEIGHT, deltaTime);
+        clayton->renderClayton(cmds, WIDTH, HEIGHT, deltaTime, 1.0f);
         glDisable(GL_SCISSOR_TEST);
         texture.unbind(screenWidth, screenHeight);
         glDepthMask(GL_TRUE);
@@ -385,7 +385,7 @@ struct ClayToTexDecalAtlas
         }
 
         Clay_RenderCommandArray cmds = Clay_EndLayout();
-        clayton->renderClayton(cmds, WIDTH, HEIGHT, deltaTime);
+        clayton->renderClayton(cmds, WIDTH, HEIGHT, deltaTime, 1.0f);
         glDisable(GL_SCISSOR_TEST);
         texture.unbind(screenWidth, screenHeight);
         glDepthMask(GL_TRUE);

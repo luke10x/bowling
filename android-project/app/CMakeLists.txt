@@ -64,6 +64,8 @@ target_include_directories(main PRIVATE
     ${stb_SOURCE_DIR}
     ${imgui_SOURCE_DIR}
     ${jolt_SOURCE_DIR}
+    ${GAME_ROOT}/../eggsfm
+    ${GAME_ROOT}/../ymfm/src
 )
 
 # Build libraries

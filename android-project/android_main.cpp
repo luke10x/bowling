@@ -3,12 +3,14 @@
 #include <time.h>
 #include <string>
 #include <memory>
+#define GLM_ENABLE_EXPERIMENTAL
 #include "SDL.h"
 #include <GLES3/gl3.h>
 #include <GLES3/gl3ext.h>
 
 #include "../framework/boot.h"
 #include "../framework/boot.cpp"
+#include "../window.h"
 
 #include "../physics/physics.h"
 #include "../physics/physics.cpp"
@@ -20,11 +22,16 @@
 #undef STB_IMAGE_IMPLEMENTATION
 #undef STB_TRUETYPE_IMPLEMENTATION
 
-#define CLAY_IMPLEMENTATION
-#define CLAY_RENDERER_GLES3_IMPLEMENTATION
-
 #include "../sidecar.h"
 #include "../sidecar.cpp"
+
+#include "../../ymfm/src/ymfm_misc.cpp"
+#include "../../ymfm/src/ymfm_adpcm.cpp"
+#include "../../ymfm/src/ymfm_ssg.cpp"
+#include "../../ymfm/src/ymfm_opn.cpp"
+#include "../../eggsfm/xfm_patched_ym3438.cpp"
+#include "../../eggsfm/xfm_impl.cpp"
+#include "../sounds/sounds.cpp"
 
 #include "../game.cpp"
 
@@ -35,7 +42,7 @@ int main(int argc, char *argv[])
 {
     SDL_Window* window = 0;
     SDL_GLContext gl = 0;
-    if(0 != SDL_Init(SDL_INIT_VIDEO))
+    if(0 != SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_AUDIO))
     {
         fprintf(stderr,"Unable to initialize SDL: %s\n",SDL_GetError());
         return 1;
@@ -72,9 +79,7 @@ int main(int argc, char *argv[])
     /* Set video details back to ctx */ {
         g_ctx.sdlContext = gl;
         g_ctx.sdlWindow = window;
-        g_ctx.screenWidth = width;
-        g_ctx.screenHeight = height;
-        g_ctx.pixelRatio = 1.0f;
+        Android_UpdateLayoutMetrics(&g_ctx);
     }
 
     vtx::init(&g_ctx);

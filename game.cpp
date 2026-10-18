@@ -19247,6 +19247,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             shouldHandleResize = true;
         }
     }
+#elif defined(__ANDROID__) || defined(ANDROID)
+    if (Android_UpdateLayoutMetrics(ctx))
+        shouldHandleResize = true;
 #endif
     if (usr->totalFrames == 1)
     {
@@ -19602,7 +19605,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     {
         const bool windowsActive = usr->windowStack.count > 0;
         const bool forceAbsolute = windowsActive || usr->phase == UserContext::Phase::RESULT;
-#if defined(__EMSCRIPTEN__) || TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
+#if defined(__EMSCRIPTEN__) || TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR || defined(__ANDROID__) || defined(ANDROID)
         // Touch-first platforms: never enable relative mode.
         //
         // Why:
@@ -19848,7 +19851,10 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->imgui.processEvent(&e, ctx);
 
         float pixelRatio = ctx->pixelRatio;
-#if TARGET_OS_MAC || TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
+#if defined(__ANDROID__) || defined(ANDROID)
+        // Android SDL mouse coordinates are physical pixels; Clay and gameplay use points.
+        pixelRatio = ctx->pixelRatio > 0.0f ? 1.0f / ctx->pixelRatio : 1.0f;
+#elif TARGET_OS_MAC || TARGET_OS_IOS || TARGET_IPHONE_SIMULATOR
         if (e.type == SDL_MOUSEBUTTONUP || e.type == SDL_MOUSEBUTTONDOWN ||
             e.type == SDL_MOUSEMOTION)
         {
@@ -25201,6 +25207,8 @@ swing_checks_done:
         ctx->pixelRatio = winW > 0 ? (float)drawW / (float)winW : 1.0f;
         glViewport(0, 0, drawW, drawH);
     }
+#elif defined(__ANDROID__) || defined(ANDROID)
+    // Android layout dimensions were refreshed at loop start and on resize events.
 #else
     SDL_GL_GetDrawableSize(ctx->sdlWindow, &ctx->screenWidth, &ctx->screenHeight);
 #endif
@@ -29565,7 +29573,7 @@ Clay_UpdateScrollContainers(true, (Clay_Vector2){scrollDelta.x, scrollDelta.y}, 
 // glDisable(GL_DEPTH_TEST);
 // glDepthMask(GL_FALSE); // Clay renderer is simple and never writes to depth buffer
 
-#if defined(TARGET_OS_IOS) && TARGET_OS_IOS
+#if (defined(TARGET_OS_IOS) && TARGET_OS_IOS) || defined(__ANDROID__) || defined(ANDROID)
 	usr->clayton.renderClayton(cmds, ctx->screenWidth, ctx->screenHeight, deltaTime, ctx->pixelRatio);
 #else
 	usr->clayton.renderClayton(cmds, ctx->screenWidth, ctx->screenHeight, deltaTime);

@@ -407,7 +407,7 @@ struct TrackerDiagramRenderer
         drawEnvelopeCurve(selected, selectedOp, x, y, w, h, 8.0f, 1.0f);
     }
 
-    void render(RenderTexture &target, const xfm_patch_opn &patch, int screenW, int screenH, int pixelRatio)
+    void render(RenderTexture &target, const xfm_patch_opn &patch, int screenW, int screenH, float pixelRatio)
     {
         init();
         atlasW = target.width;
@@ -444,6 +444,8 @@ struct TrackerDiagramRenderer
         glBufferData(GL_ARRAY_BUFFER, verts.size() * sizeof(TrackerDiagramVertex), verts.data(), GL_DYNAMIC_DRAW);
         glDrawArrays(GL_TRIANGLES, 0, (GLsizei)verts.size());
         glBindVertexArray(0);
-        target.unbind(screenW * pixelRatio, screenH * pixelRatio);
+        // Restore the full drawable viewport. Android density scales can be fractional;
+        // truncating the ratio to an integer leaves the HUD in one corner of the screen.
+        target.unbind((int)std::lround(screenW * pixelRatio), (int)std::lround(screenH * pixelRatio));
     }
 };

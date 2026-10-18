@@ -6,8 +6,52 @@
 #include <TargetConditionals.h>
 #endif
 
+#if defined(__ANDROID__) || defined(ANDROID)
+// SDL reports Android window and touch coordinates in physical pixels. Keep UI
+// layout in density-independent points, like iOS, while rendering at full resolution.
+inline bool Android_UpdateLayoutMetrics(vtx::VertexContext *ctx)
+{
+    if (!ctx || !ctx->sdlWindow)
+        return false;
+
+    int windowW = 0, windowH = 0;
+    int drawableW = 0, drawableH = 0;
+    SDL_GetWindowSize(ctx->sdlWindow, &windowW, &windowH);
+    SDL_GL_GetDrawableSize(ctx->sdlWindow, &drawableW, &drawableH);
+    if (windowW <= 0 || windowH <= 0 || drawableW <= 0 || drawableH <= 0)
+        return false;
+
+    static const float densityScale = [] {
+        float densityDpi = 160.0f;
+        if (SDL_GetDisplayDPI(0, &densityDpi, nullptr, nullptr) != 0 || densityDpi <= 0.0f)
+            densityDpi = 160.0f;
+        return densityDpi / 160.0f;
+    }();
+    const int layoutW = windowW / densityScale >= 1.0f
+        ? static_cast<int>(windowW / densityScale + 0.5f) : 1;
+    const int layoutH = windowH / densityScale >= 1.0f
+        ? static_cast<int>(windowH / densityScale + 0.5f) : 1;
+    const float framebufferScale = static_cast<float>(drawableW) / layoutW;
+    const bool changed = ctx->screenWidth != layoutW || ctx->screenHeight != layoutH ||
+        ctx->pixelRatio != framebufferScale;
+
+    ctx->screenWidth = layoutW;
+    ctx->screenHeight = layoutH;
+    ctx->pixelRatio = framebufferScale;
+    glViewport(0, 0, drawableW, drawableH);
+    if (changed)
+        SDL_Log("Android display: %dx%d pixels, %dx%d layout points, density %.2f, framebuffer scale %.2f",
+                drawableW, drawableH, layoutW, layoutH, densityScale, framebufferScale);
+    return changed;
+}
+#endif
+
 void handleWindowResize(vtx::VertexContext *ctx, int width, int height)
 {
+#if defined(__ANDROID__) || defined(ANDROID)
+    Android_UpdateLayoutMetrics(ctx);
+    return;
+#endif
     if (height == 0)
         height = 1; // Prevent division by zero in perspective matrices
 

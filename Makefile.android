@@ -1,0 +1,144 @@
+# Android build and device shortcuts. Run from the repository root with
+# `make -f Makefile.android <target>`.
+ANDROID_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+ANDROID_PROJECT := $(ANDROID_ROOT)/android-project
+ANDROID_SDK := $(or $(ANDROID_SDK_ROOT),$(ANDROID_HOME),$(shell sed -n 's/^sdk.dir=//p' "$(ANDROID_PROJECT)/local.properties" 2>/dev/null | head -n 1))
+ADB ?= $(if $(ANDROID_SDK),$(ANDROID_SDK)/platform-tools/adb,adb)
+ADB_CMD = "$(ADB)" $(if $(SERIAL),-s "$(SERIAL)")
+# Use Gradle's local dependency cache by default, including on flights.
+# Override with GRADLE_ARGS= when intentionally allowing network access.
+GRADLE_ARGS ?= --offline
+PACKAGE := com.bigjump
+ACTIVITY := org.libsdl.app.TrackerActivity
+DEBUG_APK := $(ANDROID_PROJECT)/app/build/outputs/apk/debug/app-debug.apk
+BENCHMARK_APK := $(ANDROID_PROJECT)/app/build/outputs/apk/benchmark/app-benchmark.apk
+RELEASE_APK := $(ANDROID_PROJECT)/app/build/outputs/apk/release/app-release-unsigned.apk
+
+.DEFAULT_GOAL := help
+.PHONY: help open devices wireless restart-adb pair connect disconnect check-device \
+        build build-debug build-benchmark build-release build-all prepare-offline verify-offline \
+        install install-debug install-benchmark install-apk \
+        run deploy deploy-debug deploy-benchmark stop logs logcat apks
+
+help:
+	@echo 'Android shortcuts: make -f Makefile.android <target>'
+	@echo '  open                 Open this project in Android Studio'
+	@echo '  build-debug          Build the debuggable APK'
+	@echo '  build-benchmark      Build the optimized, debug-signed APK (default build)'
+	@echo '  build-release        Build an unsigned release APK'
+	@echo '  build-all            Build all three variants offline'
+	@echo '  prepare-offline      Run while online once to cache all three variants'
+	@echo '  verify-offline       Check that all three variants build without internet'
+	@echo '  install-debug        Build and install Debug'
+	@echo '  install-benchmark    Build and install Benchmark (default install)'
+	@echo '  deploy-debug         Build, install, and launch Debug'
+	@echo '  deploy-benchmark     Build, install, and launch Benchmark (default deploy)'
+	@echo '  run / stop           Launch or stop the installed app'
+	@echo '  devices / wireless   List USB/ADB devices or discovered wireless devices'
+	@echo '  restart-adb          Restart the SDK ADB server'
+	@echo '  pair / connect       Use ADDRESS=host:port; pair prompts for the code'
+	@echo '  disconnect           Disconnect ADDRESS, or all wireless devices'
+	@echo '  logs / logcat        Filter game logs or show all device logs'
+	@echo '  apks                 Show built APK paths'
+	@echo 'Builds use --offline by default. Run prepare-offline before travel.'
+	@echo 'Options: SERIAL=<device-id> selects a device; GRADLE_ARGS= allows network access.'
+
+open:
+	open -a 'Android Studio' "$(ANDROID_PROJECT)"
+
+build: build-benchmark
+
+build-debug:
+	cd "$(ANDROID_PROJECT)" && ./gradlew :app:assembleDebug $(GRADLE_ARGS)
+	@echo "Debug APK: $(DEBUG_APK)"
+
+build-benchmark:
+	cd "$(ANDROID_PROJECT)" && ./gradlew :app:assembleBenchmark $(GRADLE_ARGS)
+	@echo "Benchmark APK: $(BENCHMARK_APK)"
+
+build-release:
+	cd "$(ANDROID_PROJECT)" && ./gradlew :app:assembleRelease $(GRADLE_ARGS)
+	@echo "Unsigned release APK: $(RELEASE_APK)"
+
+build-all:
+	cd "$(ANDROID_PROJECT)" && ./gradlew :app:assembleDebug :app:assembleBenchmark :app:assembleRelease $(GRADLE_ARGS)
+	@$(MAKE) -f "$(ANDROID_ROOT)/Makefile.android" apks
+
+prepare-offline:
+	cd "$(ANDROID_PROJECT)" && ./gradlew :app:assembleDebug :app:assembleBenchmark :app:assembleRelease
+	@echo 'All variants built. Run verify-offline before leaving your network.'
+
+verify-offline:
+	cd "$(ANDROID_PROJECT)" && ./gradlew :app:assembleDebug :app:assembleBenchmark :app:assembleRelease --offline
+
+devices:
+	$(ADB_CMD) devices -l
+	@echo 'Android settings to check if the list is empty:'
+	@echo '  USB:     Settings > System > Developer options > USB debugging'
+	@echo '  Wi-Fi:   Settings > System > Developer options > Wireless debugging'
+	@echo '  Hidden?  Settings > About phone > Build number (tap 7 times)'
+	@echo '  Samsung: Settings > Developer options; Build number is under About phone > Software information'
+	@echo 'Unlock the phone and accept the USB debugging authorization prompt when it appears.'
+
+wireless:
+	"$(ADB)" mdns services
+
+restart-adb:
+	"$(ADB)" kill-server
+	"$(ADB)" start-server
+	$(ADB_CMD) devices -l
+
+pair:
+	@test -n "$(ADDRESS)" || { echo 'Set ADDRESS=<pairing-ip:port> from the phone Wireless debugging screen.' >&2; exit 1; }
+	"$(ADB)" pair "$(ADDRESS)"
+
+connect:
+	@test -n "$(ADDRESS)" || { echo 'Set ADDRESS=<debugging-ip:port> from the phone Wireless debugging screen.' >&2; exit 1; }
+	"$(ADB)" connect "$(ADDRESS)"
+
+disconnect:
+	"$(ADB)" disconnect $(if $(ADDRESS),"$(ADDRESS)")
+
+check-device:
+	@if ! $(ADB_CMD) get-state 2>/dev/null | grep -qx device; then \
+		echo 'No usable ADB device (or more than one). Connect/unlock the phone, then run devices; set SERIAL=<id> if needed.' >&2; \
+		$(ADB_CMD) devices -l; \
+		exit 1; \
+	fi
+
+install: install-benchmark
+
+install-debug: build-debug check-device
+	$(ADB_CMD) install -r "$(DEBUG_APK)"
+
+install-benchmark: build-benchmark check-device
+	$(ADB_CMD) install -r "$(BENCHMARK_APK)"
+
+install-apk: check-device
+	@test -n "$(APK)" && test -f "$(APK)" || { echo 'Set APK=<existing-apk-path>.' >&2; exit 1; }
+	$(ADB_CMD) install -r "$(APK)"
+
+run: check-device
+	$(ADB_CMD) shell am start -n "$(PACKAGE)/$(ACTIVITY)"
+
+deploy: deploy-benchmark
+
+deploy-debug: install-debug
+	$(ADB_CMD) shell am start -n "$(PACKAGE)/$(ACTIVITY)"
+
+deploy-benchmark: install-benchmark
+	$(ADB_CMD) shell am start -n "$(PACKAGE)/$(ACTIVITY)"
+
+stop: check-device
+	$(ADB_CMD) shell am force-stop "$(PACKAGE)"
+
+logs: check-device
+	$(ADB_CMD) logcat -s 'SDL:*' 'TrackerSongFiles:*' 'AndroidRuntime:E'
+
+logcat: check-device
+	$(ADB_CMD) logcat
+
+apks:
+	@for apk in "$(DEBUG_APK)" "$(BENCHMARK_APK)" "$(RELEASE_APK)"; do \
+		if test -f "$$apk"; then echo "$$apk"; fi; \
+	done

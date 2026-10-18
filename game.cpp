@@ -41,6 +41,15 @@ extern "C" void Tracker_NativeSetSongFileCallbacks(
     void (*saved)(int));
 #endif
 
+#if defined(__ANDROID__) || defined(ANDROID)
+extern "C" void Tracker_AndroidOpenSongFile(void);
+extern "C" void Tracker_AndroidSaveSongFile(const char *filename, const char *text);
+extern "C" void Tracker_AndroidPollSongFileResults(
+    void (*loaded)(const char *, const char *),
+    void (*closed)(void),
+    void (*saved)(int));
+#endif
+
 #if __has_include("build/generated/build_version.h")
 #include "build/generated/build_version.h"
 #else
@@ -380,6 +389,10 @@ EM_JS(void, WebUpdate_Apply, (), {
     });
 });
 #endif
+#endif
+
+#if defined(__ANDROID__) || defined(ANDROID)
+static UserContext *g_trackerIoUserContext = nullptr;
 #endif
 
 static void Settings_InitWebUpdateState(GameSettings *settings)
@@ -16249,7 +16262,7 @@ static inline bool Tracker_ApplyLoadedSongText(
     return true;
 }
 
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__ANDROID__) || defined(ANDROID)
 extern "C" void Tracker_NativeSongFileLoaded(const char *filename, const char *text)
 {
     UserContext *usr = g_trackerIoUserContext;
@@ -17000,7 +17013,7 @@ static inline void Tracker_SaveSongToBrowser(UserContext *usr)
     usr->trackerSongFilePickerActive = false;
     usr->trackerSongFilePickerFocusGraceFrames = 120;
 #else
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__ANDROID__) || defined(ANDROID)
     usr->trackerSongFilePickerActive = true;
     usr->trackerSongFilePickerFocusGraceFrames = 120;
     usr->saveGreetingMuteFrames = 240;
@@ -17008,7 +17021,11 @@ static inline void Tracker_SaveSongToBrowser(UserContext *usr)
     usr->appInactiveOverlayActive = false;
     usr->greetingsWindowRequested = false;
     usr->greetingsResumeMessageRequested = false;
+#if defined(__APPLE__)
     Tracker_NativeSaveSongFile(filename.c_str(), text.c_str());
+#else
+    Tracker_AndroidSaveSongFile(filename.c_str(), text.c_str());
+#endif
 #else
     (void)filename;
     (void)text;
@@ -17651,12 +17668,16 @@ static inline void Tracker_OpenSongLoadDialog(UserContext *usr)
             }
         }, 60000);
     });
-#elif defined(__APPLE__)
+#elif defined(__APPLE__) || defined(__ANDROID__) || defined(ANDROID)
     usr->trackerSongFilePickerActive = true;
     usr->trackerSongFilePickerFocusGraceFrames = 0;
     usr->appFocusLost = false;
     usr->appInactiveOverlayActive = false;
+#if defined(__APPLE__)
     Tracker_NativeOpenSongFile();
+#else
+    Tracker_AndroidOpenSongFile();
+#endif
 #endif
 }
 
@@ -18586,7 +18607,7 @@ void vtx::init(vtx::VertexContext *ctx)
     ctx->usrptr = new UserContext;
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
 
-#if defined(__EMSCRIPTEN__) || defined(__APPLE__)
+#if defined(__EMSCRIPTEN__) || defined(__APPLE__) || defined(__ANDROID__) || defined(ANDROID)
     // Only for emscripten as it breaks hot reload otherwise
     g_trackerIoUserContext = usr;
 #endif
@@ -19221,6 +19242,14 @@ void vtx::init(vtx::VertexContext *ctx)
 void vtx::loop(vtx::VertexContext *ctx)
 {
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
+
+#if defined(__ANDROID__) || defined(ANDROID)
+    // Android's document picker finishes on the UI thread; apply its result here.
+    Tracker_AndroidPollSongFileResults(
+        Tracker_NativeSongFileLoaded,
+        Tracker_NativeSongFilePickerClosed,
+        Tracker_NativeSongFileSaved);
+#endif
 
     usr->totalFrames += 1;
 

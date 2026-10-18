@@ -45,6 +45,7 @@ FetchContent_MakeAvailable(jolt)
 # Add source files
 add_library(main SHARED
     ${GAME_SRC}/android-project/android_main.cpp
+    ${GAME_SRC}/android-project/android_song_file_dialog.cpp
     
     ${imgui_SOURCE_DIR}/imgui.cpp
     ${imgui_SOURCE_DIR}/imgui_demo.cpp

@@ -46,6 +46,7 @@ FetchContent_MakeAvailable(jolt)
 add_library(main SHARED
     ${GAME_SRC}/android-project/android_main.cpp
     ${GAME_SRC}/android-project/android_song_file_dialog.cpp
+    ${GAME_SRC}/android-project/android_loss_ads.cpp
     
     ${imgui_SOURCE_DIR}/imgui.cpp
     ${imgui_SOURCE_DIR}/imgui_demo.cpp

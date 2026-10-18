@@ -117,6 +117,72 @@
             oncontextmenu="event.preventDefault()"
             tabindex=-1></canvas>
 
+        <script src="ads_config.js"></script>
+        <script>
+            // H5 Games Ad Placement needs a real publisher ID and a user gesture.
+            // The Continue tap is the gesture; closing/skipping the ad returns to
+            // the ordinary loss result underneath.
+            (function () {
+                if (!window.BOWLING_ADSENSE_CLIENT) return;
+                window.adsbygoogle = window.adsbygoogle || [];
+                window.adBreak = window.adConfig = function (request) {
+                    window.adsbygoogle.push(request);
+                };
+                var tag = document.createElement('script');
+                tag.async = true;
+                tag.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js';
+                tag.dataset.adClient = window.BOWLING_ADSENSE_CLIENT;
+                tag.dataset.adFrequencyHint = '30s';
+                if (window.BOWLING_ADS_TEST) tag.dataset.adbreakTest = 'on';
+                document.head.appendChild(tag);
+
+                window.bowlingShowLossAd = function () {
+                    if (document.getElementById('loss-ad-overlay')) return;
+                    var overlay = document.createElement('div');
+                    overlay.id = 'loss-ad-overlay';
+                    overlay.style.cssText = 'position:fixed;inset:0;z-index:2000;background:#111b;color:white;display:flex;align-items:center;justify-content:center';
+                    var button = document.createElement('button');
+                    button.textContent = 'Continue';
+                    button.style.cssText = 'font:600 24px sans-serif;padding:20px 48px;border:0;border-radius:12px;background:#fff;color:#111';
+                    overlay.appendChild(button);
+                    document.body.appendChild(overlay);
+                    button.addEventListener('click', function () {
+                        button.disabled = true;
+                        var finished = false;
+                        var timeout;
+                        var adAudioContext = null;
+                        function finish() {
+                            if (finished) return;
+                            finished = true;
+                            clearTimeout(timeout);
+                            overlay.remove();
+                            if (adAudioContext && adAudioContext.state === 'suspended')
+                                adAudioContext.resume().catch(function () {});
+                        }
+                        // An ad blocker or unavailable network must not trap the player.
+                        timeout = setTimeout(finish, 5000);
+                        try {
+                            window.adBreak({
+                                type: 'next', name: 'after-loss',
+                                beforeAd: function () {
+                                    overlay.style.display = 'none';
+                                    clearTimeout(timeout);
+                                    timeout = setTimeout(finish, 120000);
+                                    adAudioContext = window.Module && Module.SDL2 && Module.SDL2.audioContext;
+                                    if (adAudioContext) adAudioContext.suspend().catch(function () {});
+                                },
+                                afterAd: finish,
+                                adBreakDone: finish
+                            });
+                        } catch (error) {
+                            console.warn('Loss ad unavailable:', error);
+                            finish();
+                        }
+                    });
+                };
+            })();
+        </script>
+
         <!-- FAB Button -->
         <button id="fab-btn" title="Open Logs">📋</button>
 

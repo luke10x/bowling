@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C0DA00012F20000100000001 /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = C0DA00032F20000100000001 /* GoogleMobileAds */; };
+		C0DA00042F20000100000001 /* JavaScriptCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C0DA00052F20000100000001 /* JavaScriptCore.framework */; };
 		357608402F11CA430004DD94 /* libJolt.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 3576083E2F11CA430004DD94 /* libJolt.a */; };
 		357608432F11CA960004DD94 /* OpenGLES.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 357608422F11CA960004DD94 /* OpenGLES.framework */; };
 		357608452F11CAA80004DD94 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 357608442F11CAA80004DD94 /* UIKit.framework */; };
@@ -37,6 +39,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		C0DA00052F20000100000001 /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		3576081A2F116F2C0004DD94 /* ios-project.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "ios-project.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		3576083E2F11CA430004DD94 /* libJolt.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libJolt.a; path = ../build/ios/usr/lib/libJolt.a; sourceTree = "<group>"; };
 		3576083F2F11CA430004DD94 /* libSDL2.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libSDL2.a; path = ../build/ios/usr/lib/libSDL2.a; sourceTree = "<group>"; };
@@ -4180,6 +4183,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0DA00012F20000100000001 /* GoogleMobileAds in Frameworks */,
+				C0DA00042F20000100000001 /* JavaScriptCore.framework in Frameworks */,
 				35761ACC2F11DEE60004DD94 /* CoreMotion.framework in Frameworks */,
 				35761ACA2F11DEC50004DD94 /* GameController.framework in Frameworks */,
 				35761AC82F11DE980004DD94 /* CoreHaptics.framework in Frameworks */,
@@ -13493,6 +13498,7 @@
 			);
 			name = "ios-project";
 			packageProductDependencies = (
+				C0DA00032F20000100000001 /* GoogleMobileAds */,
 			);
 			productName = "ios-project";
 			productReference = 3576081A2F116F2C0004DD94 /* ios-project.app */;
@@ -13520,6 +13526,9 @@
 				Base,
 			);
 			mainGroup = 357608112F116F2C0004DD94;
+			packageReferences = (
+				C0DA00022F20000100000001 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
+			);
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3576081B2F116F2C0004DD94 /* Products */;
@@ -13811,6 +13820,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		C0DA00022F20000100000001 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/swift-package-manager-google-mobile-ads.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		C0DA00032F20000100000001 /* GoogleMobileAds */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0DA00022F20000100000001 /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
+			productName = GoogleMobileAds;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 357608122F116F2C0004DD94 /* Project object */;
 }

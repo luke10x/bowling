@@ -16,6 +16,13 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import com.google.android.gms.ads.AdError;
+import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.FullScreenContentCallback;
+import com.google.android.gms.ads.LoadAdError;
+import com.google.android.gms.ads.MobileAds;
+import com.google.android.gms.ads.interstitial.InterstitialAd;
+import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
 
 /** Android document picker bridge for tracker songs. No storage permission is needed. */
 public class TrackerActivity extends SDLActivity {
@@ -24,6 +31,55 @@ public class TrackerActivity extends SDLActivity {
     private static final int SAVE_SONG = 4102;
     private static final int MAX_SONG_BYTES = 8 * 1024 * 1024;
     private byte[] pendingExport;
+    // A loaded ad is consumed once and replenished on close.
+    private InterstitialAd lossAd;
+    private boolean lossAdLoading;
+    private static native void nativeSetAdAudioPaused(boolean paused);
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        MobileAds.initialize(this, status -> runOnUiThread(this::loadLossAd));
+    }
+
+    private void loadLossAd() {
+        if (lossAd != null || lossAdLoading) return;
+        lossAdLoading = true;
+        InterstitialAd.load(this, getString(R.string.admob_loss_unit), new AdRequest.Builder().build(),
+            new InterstitialAdLoadCallback() {
+                @Override public void onAdLoaded(InterstitialAd ad) {
+                    lossAdLoading = false;
+                    lossAd = ad;
+                }
+                @Override public void onAdFailedToLoad(LoadAdError error) {
+                    lossAdLoading = false;
+                    Log.w(TAG, "Loss interstitial unavailable: " + error.getMessage());
+                }
+            });
+    }
+
+    // Called once after a campaign match ends in defeat. Never wait for a load:
+    // the result screen remains usable when offline or when Google has no ad.
+    public void showLossInterstitial() {
+        runOnUiThread(() -> {
+            InterstitialAd ad = lossAd;
+            if (ad == null) { loadLossAd(); return; }
+            lossAd = null;
+            ad.setFullScreenContentCallback(new FullScreenContentCallback() {
+                @Override public void onAdShowedFullScreenContent() { nativeSetAdAudioPaused(true); }
+                @Override public void onAdDismissedFullScreenContent() {
+                    nativeSetAdAudioPaused(false);
+                    loadLossAd();
+                }
+                @Override public void onAdFailedToShowFullScreenContent(AdError error) {
+                    nativeSetAdAudioPaused(false);
+                    Log.w(TAG, "Loss interstitial could not open: " + error.getMessage());
+                    loadLossAd();
+                }
+            });
+            ad.show(this);
+        });
+    }
 
     private static native void nativeSongLoaded(String filename, byte[] contents);
     private static native void nativeSongPickerClosed();

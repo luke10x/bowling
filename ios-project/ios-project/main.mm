@@ -1,6 +1,9 @@
 #include <iostream>
 #include <SDL_syswm.h>
 #import <UIKit/UIKit.h>
+#import <GoogleMobileAds/GoogleMobileAds.h>
+
+static void TrackerIosLossAdsStart(void);
 
 #define GLM_ENABLE_EXPERIMENTAL
 #define GLM_FORCE_STD140
@@ -152,6 +155,7 @@ extern "C" int SDL_main(int argc, char* argv[]) {
     }
 
     vtx::init(&g_ctx);
+    TrackerIosLossAdsStart();
 
     g_ctx.shouldContinue = true;
     while (g_ctx.shouldContinue) {
@@ -238,6 +242,103 @@ static UIViewController *TrackerTopViewController(void)
     while (controller.presentedViewController)
         controller = controller.presentedViewController;
     return controller;
+}
+
+@interface TrackerLossAdManager : NSObject <GADFullScreenContentDelegate>
+@property(nonatomic, strong) GADInterstitialAd *ad;
+@property(nonatomic, assign) BOOL loading;
+@property(nonatomic, assign) BOOL presenting;
+@property(nonatomic, assign) NSTimeInterval loadedAt;
++ (instancetype)shared;
+- (void)start;
+- (void)showAfterLoss;
+@end
+
+@implementation TrackerLossAdManager
++ (instancetype)shared
+{
+    static TrackerLossAdManager *manager;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ manager = [TrackerLossAdManager new]; });
+    return manager;
+}
+
+- (void)loadAd
+{
+    if (self.ad || self.loading) return;
+    self.loading = YES;
+    NSString *unitID = [NSBundle.mainBundle objectForInfoDictionaryKey:@"LossInterstitialAdUnitID"];
+    if (!unitID.length) { self.loading = NO; return; }
+    [GADInterstitialAd loadWithAdUnitID:unitID
+                             request:[GADRequest request]
+                   completionHandler:^(GADInterstitialAd *ad, NSError *error) {
+        self.loading = NO;
+        if (error) {
+            NSLog(@"Loss interstitial unavailable: %@", error.localizedDescription);
+            return;
+        }
+        self.ad = ad;
+        self.loadedAt = NSDate.date.timeIntervalSince1970;
+        ad.fullScreenContentDelegate = self;
+    }];
+}
+
+- (void)start
+{
+    [GADMobileAds.sharedInstance startWithCompletionHandler:nil];
+    [self loadAd];
+}
+
+- (void)showAfterLoss
+{
+    // Google's loaded interstitials expire after one hour. Never hold up results
+    // while waiting for an ad or present it later over an unrelated screen.
+    if (self.ad && NSDate.date.timeIntervalSince1970 - self.loadedAt > 3600.0) {
+        self.ad = nil;
+    }
+    UIViewController *presenter = TrackerTopViewController();
+    if (!self.ad || !presenter || self.presenting) {
+        [self loadAd];
+        return;
+    }
+    self.presenting = YES;
+    [self.ad presentFromRootViewController:presenter];
+}
+
+- (void)adDidDismissFullScreenContent:(id<GADFullScreenPresentingAd>)ad
+{
+    (void)ad;
+    Game_SetAdAudioPaused(0);
+    self.presenting = NO;
+    self.ad = nil;
+    [self loadAd];
+}
+
+- (void)adWillPresentFullScreenContent:(id<GADFullScreenPresentingAd>)ad
+{
+    (void)ad;
+    Game_SetAdAudioPaused(1);
+}
+
+- (void)ad:(id<GADFullScreenPresentingAd>)ad didFailToPresentFullScreenContentWithError:(NSError *)error
+{
+    (void)ad;
+    Game_SetAdAudioPaused(0);
+    self.presenting = NO;
+    self.ad = nil;
+    NSLog(@"Loss interstitial could not open: %@", error.localizedDescription);
+    [self loadAd];
+}
+@end
+
+static void TrackerIosLossAdsStart(void)
+{
+    dispatch_async(dispatch_get_main_queue(), ^{ [[TrackerLossAdManager shared] start]; });
+}
+
+extern "C" void PlatformAds_ShowOnLoss(void)
+{
+    dispatch_async(dispatch_get_main_queue(), ^{ [[TrackerLossAdManager shared] showAfterLoss]; });
 }
 
 extern "C" void Tracker_NativeOpenSongFile(void)

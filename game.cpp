@@ -13,11 +13,13 @@
 #include <stdio.h>
 #include <string.h> // for memcpy, strcmp
 #include <thread>
+#include <atomic>
 #include <utility>
 #include <vector>
 #include <cerrno>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <SDL.h>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
@@ -25,6 +27,11 @@
 EM_JS(void, WebPerfLogFab_SetVisible, (int enabled), {
     if (window.setPerfLogFabVisible)
         window.setPerfLogFabVisible(!!enabled);
+});
+
+EM_JS(void, WebLossAd_Show, (), {
+    if (window.bowlingShowLossAd)
+        window.bowlingShowLossAd();
 });
 #endif
 
@@ -39,9 +46,13 @@ extern "C" void Tracker_NativeSetSongFileCallbacks(
     void (*loaded)(const char *, const char *),
     void (*closed)(void),
     void (*saved)(int));
+#if TARGET_OS_IPHONE
+extern "C" void PlatformAds_ShowOnLoss(void);
+#endif
 #endif
 
 #if defined(__ANDROID__) || defined(ANDROID)
+extern "C" void PlatformAds_ShowOnLoss(void);
 extern "C" void Tracker_AndroidOpenSongFile(void);
 extern "C" void Tracker_AndroidSaveSongFile(const char *filename, const char *text);
 extern "C" void Tracker_AndroidPollSongFileResults(
@@ -49,6 +60,31 @@ extern "C" void Tracker_AndroidPollSongFileResults(
     void (*closed)(void),
     void (*saved)(int));
 #endif
+
+#if defined(__ANDROID__) || defined(ANDROID) || (defined(__APPLE__) && TARGET_OS_IPHONE)
+static std::atomic<SDL_AudioDeviceID> g_lossAdAudioDevice{0};
+extern "C" void Game_SetAdAudioPaused(int paused)
+{
+    const SDL_AudioDeviceID device = g_lossAdAudioDevice.load();
+    if (device) SDL_PauseAudioDevice(device, paused ? 1 : 0);
+}
+#endif
+
+static inline void Game_ShowInterstitialAfterLoss(SDL_AudioDeviceID audioDevice)
+{
+#ifdef __EMSCRIPTEN__
+    (void)audioDevice;
+    WebLossAd_Show();
+#elif defined(__ANDROID__) || defined(ANDROID)
+    g_lossAdAudioDevice.store(audioDevice);
+    PlatformAds_ShowOnLoss();
+#elif defined(__APPLE__) && TARGET_OS_IPHONE
+    g_lossAdAudioDevice.store(audioDevice);
+    PlatformAds_ShowOnLoss();
+#else
+    (void)audioDevice;
+#endif
+}
 
 #if __has_include("build/generated/build_version.h")
 #include "build/generated/build_version.h"
@@ -24029,6 +24065,8 @@ swing_checks_done:
                                         if (showBowlingResult)
                                             usr->windowStack.windowStackPushNewGameWindow(usr->clayton.newGameIsResult);
                                         ResultWindow_ApplyReturnedBallsNotice(usr);
+                                        if (!playerWins)
+                                            Game_ShowInterstitialAfterLoss(usr->sound.audioDev);
 	                                        if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
                                             playerWins &&
                                             !usr->campaignPostgameFreeplayActive &&
@@ -24101,6 +24139,8 @@ swing_checks_done:
                                         ResultWindow_CoinsSinceRunStart(usr),
 	                                        Txl_Get(usr->language, passed ? TXL_NEXT : TXL_RETRY)
                                     );
+                                    if (!passed)
+                                        Game_ShowInterstitialAfterLoss(usr->sound.audioDev);
                                 }
                                 else
                                 {

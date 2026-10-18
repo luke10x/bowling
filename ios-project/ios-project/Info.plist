@@ -2,6 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<!-- Values come from ios-project.xcconfig. -->
+	<key>GADApplicationIdentifier</key>
+	<string>$(ADMOB_IOS_APP_ID)</string>
+	<key>LossInterstitialAdUnitID</key>
+	<string>$(ADMOB_IOS_LOSS_UNIT)</string>
+	<key>SKAdNetworkItems</key>
+	<array>
+		<dict>
+			<key>SKAdNetworkIdentifier</key>
+			<string>cstr6suwn9.skadnetwork</string>
+		</dict>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

@@ -1,4 +1,7 @@
 // iOS Project Build Configuration
+// Override these two build settings with the app's own IDs for distribution.
+ADMOB_IOS_APP_ID = ca-app-pub-3940256099942544~1458002511
+ADMOB_IOS_LOSS_UNIT = ca-app-pub-3940256099942544/4411468910
 
 // Header search paths
 HEADER_SEARCH_PATHS = \

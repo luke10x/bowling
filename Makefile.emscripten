@@ -239,6 +239,7 @@ main: $(JOLT_LIB) imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(STAMPED_SW) $(PW
 		$(LDFLAGS) $(LDLIBS) -o build/emscripten/www/index.html 
 	cp $(PWD)/wasm/manifest.json build/emscripten/www/manifest.json
 	cp $(PWD)/wasm/credits.html build/emscripten/www/credits.html
+	cp $(PWD)/wasm/ads_config.js build/emscripten/www/ads_config.js
 	(cd "$(PWD)/build/emscripten/www" && zip -r ../bowling.zip .)
 
 test:

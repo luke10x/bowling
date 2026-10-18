@@ -34,12 +34,24 @@ public class TrackerActivity extends SDLActivity {
     // A loaded ad is consumed once and replenished on close.
     private InterstitialAd lossAd;
     private boolean lossAdLoading;
-    private static native void nativeSetAdAudioPaused(boolean paused);
+    private boolean lossAdReturnPending;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         MobileAds.initialize(this, status -> runOnUiThread(this::loadLossAd));
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (lossAdReturnPending) restoreAfterLossAd();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus && lossAdReturnPending) restoreAfterLossAd();
     }
 
     private void loadLossAd() {
@@ -66,18 +78,43 @@ public class TrackerActivity extends SDLActivity {
             if (ad == null) { loadLossAd(); return; }
             lossAd = null;
             ad.setFullScreenContentCallback(new FullScreenContentCallback() {
-                @Override public void onAdShowedFullScreenContent() { nativeSetAdAudioPaused(true); }
+                @Override public void onAdShowedFullScreenContent() {
+                    Log.i(TAG, "Loss interstitial opened");
+                }
                 @Override public void onAdDismissedFullScreenContent() {
-                    nativeSetAdAudioPaused(false);
+                    Log.i(TAG, "Loss interstitial dismissed");
+                    lossAdReturnPending = true;
+                    restoreAfterLossAd();
                     loadLossAd();
                 }
                 @Override public void onAdFailedToShowFullScreenContent(AdError error) {
-                    nativeSetAdAudioPaused(false);
+                    lossAdReturnPending = true;
+                    restoreAfterLossAd();
                     Log.w(TAG, "Loss interstitial could not open: " + error.getMessage());
                     loadLossAd();
                 }
             });
             ad.show(this);
+        });
+    }
+
+    private void restoreAfterLossAd() {
+        // The ad has its own Activity. Let Android finish returning to ours before
+        // reconciling SDL's surface/focus state. Its lifecycle already pauses and
+        // resumes audio; touching the SDL audio device from this UI callback races
+        // with the game thread closing that device on SDL_WINDOWEVENT_MINIMIZED.
+        getWindow().getDecorView().post(() -> {
+            Log.i(TAG, "Loss ad return: activityResumed=" + mIsResumedCalled +
+                " windowFocus=" + hasWindowFocus() +
+                " surfaceReady=" + (mSurface != null && mSurface.mIsSurfaceReady) +
+                " SDL=" + mCurrentNativeState + "->" + mNextNativeState);
+            if (isFinishing() || !hasWindowFocus() || !mIsResumedCalled ||
+                mSurface == null || !mSurface.mIsSurfaceReady) return;
+            mSurface.requestFocus();
+            mHasFocus = true;
+            mNextNativeState = NativeState.RESUMED;
+            handleNativeState();
+            lossAdReturnPending = false;
         });
     }
 

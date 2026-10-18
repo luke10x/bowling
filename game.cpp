@@ -61,7 +61,7 @@ extern "C" void Tracker_AndroidPollSongFileResults(
     void (*saved)(int));
 #endif
 
-#if defined(__ANDROID__) || defined(ANDROID) || (defined(__APPLE__) && TARGET_OS_IPHONE)
+#if defined(__APPLE__) && TARGET_OS_IPHONE
 static std::atomic<SDL_AudioDeviceID> g_lossAdAudioDevice{0};
 extern "C" void Game_SetAdAudioPaused(int paused)
 {
@@ -76,7 +76,7 @@ static inline void Game_ShowInterstitialAfterLoss(SDL_AudioDeviceID audioDevice)
     (void)audioDevice;
     WebLossAd_Show();
 #elif defined(__ANDROID__) || defined(ANDROID)
-    g_lossAdAudioDevice.store(audioDevice);
+    (void)audioDevice;
     PlatformAds_ShowOnLoss();
 #elif defined(__APPLE__) && TARGET_OS_IPHONE
     g_lossAdAudioDevice.store(audioDevice);

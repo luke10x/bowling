@@ -42,6 +42,7 @@ int main(int argc, char *argv[])
 {
     SDL_Window* window = 0;
     SDL_GLContext gl = 0;
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, "Portrait");
     if(0 != SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_AUDIO))
     {
         fprintf(stderr,"Unable to initialize SDL: %s\n",SDL_GetError());

@@ -53,6 +53,7 @@ extern "C" int SDL_main(int argc, char* argv[]) {
     SDL_Log("SDL + OpenGL ES 3.0 Hello World");
     SDL_Log("IOS_GL_DIAG_BUILD_V2");
 
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, "Portrait");
     // Initialize SDL
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_AUDIO) < 0) {
         SDL_Log("SDL_Init failed: %s", SDL_GetError());

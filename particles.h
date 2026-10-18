@@ -556,9 +556,12 @@ struct Particles
                 glm::mix(0.55f, 2.0f, clampedIntensity),
                 0.46f,
                 0.50f,
-                0.50f
+                0.50f,
+                false
             );
         }
+        if (visibleBlockSparkParticles > 0)
+            uploadBlockSparkVerts();
         if (clampedIntensity > 0.35f)
             burstMiniDustRipple(contact, 0.24f * clampedIntensity, 1.35f * clampedIntensity);
     }
@@ -723,13 +726,14 @@ struct Particles
         float countScale = 1.0f,
         float motionScale = 1.0f,
         float ttlScale = 1.0f,
-        float alphaScale = 1.0f
+        float alphaScale = 1.0f,
+        bool upload = true
     )
     {
         const float clampedIntensity = glm::clamp(intensity, 0.0f, 1.0f);
         const int baseCount = glm::clamp(4 + (int)glm::round(clampedIntensity * 5.0f), 4, 9);
         const int burstCount = glm::clamp((int)glm::round((float)baseCount * countScale), 4, 18);
-        spawnBlockSparkBurst(center, awayDir, clampedIntensity, burstCount, 0.02f, true, tint, 0.5f, 0, motionScale, alphaScale, ttlScale);
+        spawnBlockSparkBurst(center, awayDir, clampedIntensity, burstCount, 0.02f, upload, tint, 0.5f, 0, motionScale, alphaScale, ttlScale);
     }
 
     void burstMiniDustRipple(const glm::vec3 &center, float intensity, float countScale = 1.0f)
@@ -1858,7 +1862,7 @@ struct Particles
 
 const char *Particles::VS =
     GLSL_VERSION R"(
-precision mediump float;
+precision highp float;
 
 uniform float u_time;
 uniform mat4 u_modelToWorld;
@@ -1894,7 +1898,7 @@ void main() {
 
 const char *Particles::SNOW_VS =
     GLSL_VERSION R"(
-precision mediump float;
+precision highp float;
 
 uniform float u_time;
 uniform float u_spinRadians;
@@ -1959,7 +1963,7 @@ void main() {
 
 const char *Particles::BALL_TRACE_VS =
     GLSL_VERSION R"(
-precision mediump float;
+precision highp float;
 
 uniform float u_time;
 uniform mat4 u_worldToView;
@@ -2010,7 +2014,7 @@ void main() {
 
 const char *Particles::LANE_DUST_VS =
     GLSL_VERSION R"(
-precision mediump float;
+precision highp float;
 
 uniform float u_time;
 uniform mat4 u_worldToView;
@@ -2061,7 +2065,7 @@ void main() {
 
 const char *Particles::BLOCK_SPARK_VS =
     GLSL_VERSION R"(
-precision mediump float;
+precision highp float;
 
 uniform float u_time;
 uniform mat4 u_worldToView;

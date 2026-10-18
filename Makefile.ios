@@ -1,5 +1,31 @@
 VERSION_SCRIPT := $(PWD)/scripts/increment_build_version.sh
 VERSION_HEADER := $(PWD)/build/generated/build_version.h
+IOS_ROOT := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+IOS_PROJECT := $(IOS_ROOT)/ios-project/ios-project.xcodeproj
+IOS_DERIVED_DATA := $(IOS_ROOT)/build/ios/DerivedData
+IOS_APP := $(IOS_DERIVED_DATA)/Build/Products/Debug-iphoneos/ios-project.app
+IOS_ZIP := $(IOS_ROOT)/build/ios/bowling-ios-debug-unsigned.zip
+
+.PHONY: build zip open
+
+# Build an unsigned device app. Select a signing team in Xcode to run it on an iPhone.
+build:
+	xcodebuild -quiet \
+		-project "$(IOS_PROJECT)" \
+		-scheme ios-project \
+		-configuration Debug \
+		-sdk iphoneos \
+		-destination 'generic/platform=iOS' \
+		-derivedDataPath "$(IOS_DERIVED_DATA)" \
+		CODE_SIGNING_ALLOWED=NO \
+		build
+
+zip: build
+	ditto -c -k --sequesterRsrc --keepParent "$(IOS_APP)" "$(IOS_ZIP)"
+	@echo "iOS ZIP: $(IOS_ZIP)"
+
+open:
+	open -a Xcode "$(IOS_PROJECT)"
 
 FORCE:
 

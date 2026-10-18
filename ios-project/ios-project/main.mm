@@ -150,8 +150,6 @@ extern "C" int SDL_main(int argc, char* argv[]) {
 #endif
     }
 
-    printShaderVersions();
-
     vtx::init(&g_ctx);
 
     g_ctx.shouldContinue = true;

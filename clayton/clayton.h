@@ -138,11 +138,16 @@ struct Clayton
     bool housesActionEnabled = true;
     bool botsActionEnabled = true;
     bool shopActionEnabled = true;
+    bool shopSellEnabled = false;
+    int shopSellPrice = 0;
 
     Clayton_Click closeShopClick;
     Clayton_Click shopInventoryTabClick;
     Clayton_Click shopStoreTabClick;
     Clayton_Click buyClick;
+    Clayton_Click sellClick;
+    Clayton_Click sellConfirmNoClick;
+    Clayton_Click sellConfirmYesClick;
     Clayton_Click shopRestockVisitClick;
     Clayton_Click shopRestockLaterClick;
     Clayton_Click playAgainClick;

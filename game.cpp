@@ -11313,7 +11313,9 @@ static inline bool Progress_EnsureStarterUnlocks(UserContext *usr)
     const uint32_t prevHouseMask = usr->unlockedHouseMask;
     const uint32_t prevBotMask = usr->unlockedBotMask;
 
-    UnlockMask_AddBall(usr, 0);
+    // A sold starter ball stays sold. Restore it only if no ball remains.
+    if (usr->unlockedBallMask == 0ull)
+        UnlockMask_AddBall(usr, 0);
     UnlockMask_AddHouse(usr, 0);
     UnlockMask_AddOpponent(usr, CampaignOpponent::MALACH);
 
@@ -12002,7 +12004,7 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     Campaign_ClearPostgameOverride(usr);
     usr->gameplayTime = 0.0f;
     usr->gameplayTimeLastSavedSecond = -1;
-    if (resetInventory || !UnlockMask_HasBall(usr, usr->selectedBallId))
+    if (resetInventory)
         usr->selectedBallId = 0;
     usr->shouldShowShop = false;
     CampaignBlockCards_Clear(usr->playerBlockCards);
@@ -12010,6 +12012,8 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     usr->playerBlockCardRngState = 1;
     usr->enemyBlockCardRngState = 2;
     Progress_EnsureStarterUnlocks(usr);
+    if (!UnlockMask_HasBall(usr, usr->selectedBallId))
+        usr->selectedBallId = UnlockMask_FirstOwnedBallId(usr->unlockedBallMask);
     BallShop_Init(&usr->ballShop);
     BallShop_RebuildInventoryCarousel(usr, usr->selectedBallId);
     if (const CatalogItem *selectedBall = Ball_FindById(usr->selectedBallId))
@@ -18960,6 +18964,9 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.shopInventoryTabClick, "shopInventoryTab");
     initClaytonClick(&usr->clayton.shopStoreTabClick, "shopStoreTab");
     initClaytonClick(&usr->clayton.buyClick, "BuyButtdd");
+    initClaytonClick(&usr->clayton.sellClick, "SellBallButton");
+    initClaytonClick(&usr->clayton.sellConfirmNoClick, "SellBallCancel");
+    initClaytonClick(&usr->clayton.sellConfirmYesClick, "SellBallConfirm");
     initClaytonClick(&usr->clayton.shopRestockVisitClick, "shopRestockVisit");
     initClaytonClick(&usr->clayton.shopRestockLaterClick, "shopRestockLater");
     initClaytonClick(&usr->clayton.newGameShopClick, "newGameShop");
@@ -19342,10 +19349,10 @@ void vtx::init(vtx::VertexContext *ctx)
             usr->unlockedBotMask = (uint32_t)strtoul(tmp, nullptr, 10);
     }
     usr->gameplayTimeLastSavedSecond = glm::max(0, (int)floorf(usr->gameplayTime));
-    usr->unlockedBallMask |= BallShop_StarterOwnedMask();
     const bool starterUnlocksUpdated = Progress_EnsureStarterUnlocks(usr);
+    const int previousSelectedBallId = usr->selectedBallId;
     if (!UnlockMask_HasBall(usr, usr->selectedBallId))
-        usr->selectedBallId = 0;
+        usr->selectedBallId = UnlockMask_FirstOwnedBallId(usr->unlockedBallMask);
     if (const CatalogItem *equippedBall = Ball_FindById(usr->selectedBallId))
         BallStats_OnBallChange(equippedBall, usr);
     else
@@ -19381,8 +19388,9 @@ void vtx::init(vtx::VertexContext *ctx)
     if (starterUnlocksUpdated)
     {
         Progress_SaveUnlocksAndBank(usr);
-        Progress_SaveEquippedBall(usr);
     }
+    if (starterUnlocksUpdated || usr->selectedBallId != previousSelectedBallId)
+        Progress_SaveEquippedBall(usr);
 }
 
 void vtx::loop(vtx::VertexContext *ctx)
@@ -22253,6 +22261,49 @@ void vtx::loop(vtx::VertexContext *ctx)
         return true;
     };
 
+    if (usr->windowStack.shopSellRequested)
+    {
+        const int ballId = usr->windowStack.shopSellBallId;
+        const uint64_t bucketId = usr->windowStack.shopSellBucketId;
+        usr->windowStack.shopSellRequested = false;
+        if (usr->shouldShowShop && usr->ballShop.activeTab == BallShopTab_INVENTORY)
+        {
+            if (BallShop_CanSell(usr->unlockedBallMask, usr->destroyedBallPendingReturnMask,
+                                 usr->selectedBallId, ballId))
+            {
+                if (const CatalogItem *item = Ball_FindById(ballId))
+                {
+                    usr->windowStack.sellConfirmBallId = ballId;
+                    usr->windowStack.sellConfirmBucketId = bucketId;
+                    usr->windowStack.sellConfirmPrice = BallShop_SellPrice(*item, bucketId);
+                    usr->windowStack.sellConfirmOriginalPrice = (int)std::lround(item->price);
+                    std::snprintf(usr->windowStack.sellConfirmBallName,
+                                  sizeof(usr->windowStack.sellConfirmBallName), "%s", item->name);
+                    usr->windowStack.shopSellConfirmed = false;
+                    usr->windowStack.windowStackPushSellBallConfirmWindow();
+                }
+            }
+        }
+    }
+    if (usr->windowStack.shopSellConfirmed)
+    {
+        usr->windowStack.shopSellConfirmed = false;
+        if (usr->shouldShowShop && usr->ballShop.activeTab == BallShopTab_INVENTORY)
+        {
+            // Use the quote's original bucket even if the shop renewed while
+            // the player read the confirmation window.
+            const int paid = BallShop_SellOwnedBall(
+                &usr->unlockedBallMask, &usr->carousel.bank,
+                usr->destroyedBallPendingReturnMask, usr->selectedBallId,
+                usr->windowStack.sellConfirmBallId, usr->windowStack.sellConfirmBucketId);
+            if (paid > 0)
+            {
+                Progress_SaveUnlocksAndBank(usr);
+                BallShop_RebuildInventoryCarousel(usr);
+            }
+        }
+        usr->windowStack.sellConfirmBallId = -1;
+    }
     if (usr->shouldShowShop && usr->windowStack.shopBuyRequested)
     {
         usr->windowStack.shopBuyRequested = false;
@@ -29364,6 +29415,8 @@ END_LINE:
         usr->clayton.housesActionLabel = (usr->selectorFlowStep == SelectorFlowStep::HOUSE) ? Txl_Get(usr->language, TXL_SELECT_HOUSE) : Txl_Get(usr->language, TXL_SWITCH_HOUSE);
         usr->clayton.shopActionLabel = (usr->ballShop.activeTab == BallShopTab_INVENTORY) ? Txl_Get(usr->language, TXL_SELECT_BALL) : Txl_Get(usr->language, TXL_BUY_NOW);
         usr->clayton.shopDisabledActionLabel = nullptr;
+        usr->clayton.shopSellEnabled = false;
+        usr->clayton.shopSellPrice = 0;
         usr->clayton.botsActionEnabled = true;
         usr->clayton.housesActionEnabled = true;
         usr->clayton.shopActionEnabled = true;
@@ -29399,6 +29452,15 @@ END_LINE:
             if (usr->ballShop.activeTab == BallShopTab_INVENTORY)
             {
                 usr->clayton.shopActionEnabled = hasSelectedShopBall && !selectedShopBallLost;
+                if (hasSelectedShopBall)
+                {
+                    const CatalogItem &item = usr->carousel.items[idx];
+                    usr->clayton.shopSellEnabled = BallShop_CanSell(
+                        usr->unlockedBallMask, usr->destroyedBallPendingReturnMask,
+                        usr->selectedBallId, item.id);
+                    if (usr->clayton.shopSellEnabled)
+                        usr->clayton.shopSellPrice = BallShop_SellPrice(item, usr->ballShop.stockBucketId);
+                }
                 if (selectedShopBallLost)
                     usr->clayton.shopDisabledActionLabel = "LOST";
                 else if (hasSelectedShopBall &&

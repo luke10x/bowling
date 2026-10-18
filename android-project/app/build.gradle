@@ -8,8 +8,7 @@ android {
     defaultConfig {
         applicationId "com.bigjump"
 
-        // Pass real IDs with -PADMOB_ANDROID_APP_ID=... and
-        // -PADMOB_ANDROID_LOSS_UNIT=... for a publishing build.
+        // Local builds use Google's sample ads; release overrides these below.
         resValue 'string', 'admob_app_id',
             (project.findProperty('ADMOB_ANDROID_APP_ID') ?: 'ca-app-pub-3940256099942544~3347511713')
         resValue 'string', 'admob_loss_unit',
@@ -46,12 +45,19 @@ android {
     }
     buildTypes {
         release {
+            resValue 'string', 'admob_app_id',
+                (project.findProperty('ADMOB_ANDROID_APP_ID') ?: 'ca-app-pub-2747257038106344~4817748726')
+            resValue 'string', 'admob_loss_unit',
+                (project.findProperty('ADMOB_ANDROID_LOSS_UNIT') ?: 'ca-app-pub-2747257038106344/9125404259')
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
         // Installable performance build: release native optimization with local debug signing.
         benchmark {
             initWith release
+            // This installable performance build is also used for local testing.
+            resValue 'string', 'admob_app_id', 'ca-app-pub-3940256099942544~3347511713'
+            resValue 'string', 'admob_loss_unit', 'ca-app-pub-3940256099942544/1033173712'
             signingConfig signingConfigs.debug
             ndk {
                 abiFilters 'arm64-v8a'

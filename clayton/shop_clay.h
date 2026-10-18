@@ -13,6 +13,8 @@ typedef struct ShopWindowRenderData
     bool inventoryTabActive;
     bool hasCards;
     bool actionEnabled;
+    bool sellEnabled;
+    int sellPrice;
     float transitionOffsetX;
     float transitionFlashAlpha;
 } ShopWindowRenderData;
@@ -868,17 +870,27 @@ inline void RenderShopWindow_Carousel(
                                 CLAY_TEXT(lable, CLAY_TEXT_CONFIG(disabledCfg));
                             }
                         }
-                        CLAY(CLAY_ID("ShopFooter"), CLAY_THEME_SHOP_FOOTER)
+                        if (data.sellEnabled && item)
                         {
-                            char cdBuf[64];
-                            int len = snprintf(
-                                cdBuf,
-                                sizeof(cdBuf),
-                                Txl_Get(clayton->uiLanguage, TXL_RESETS_IN_FMT),
-                                data.countdownLabel ? data.countdownLabel : "--"
-                            );
-                            Clay_String countdownStr = ClayArena_AllocString(arena, cdBuf);
-                            CLAY_TEXT(countdownStr, CLAY_TEXT_CONFIG(countdownCfg));
+                            Clay_ElementDeclaration sellButton = CLAY_THEME_SHOP_FOOTER;
+                            sellButton.backgroundColor = CLAY_THEME_HOVER_COLOR(CLAY_COLOR_BTN_DANGER, 20.0f, 0.0f);
+                            Clay_String label = ClayArena_FormatString(
+                                arena, Txl_Get(clayton->uiLanguage, TXL_SELL_FOR_FMT), data.sellPrice);
+                            CLAY(clayton->sellClick.clayId, sellButton)
+                            {
+                                CLAY_TEXT(label, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                            }
+                        }
+                        else
+                        {
+                            CLAY(CLAY_ID("ShopFooter"), CLAY_THEME_SHOP_FOOTER)
+                            {
+                                char cdBuf[64];
+                                snprintf(cdBuf, sizeof(cdBuf), Txl_Get(clayton->uiLanguage, TXL_RESETS_IN_FMT),
+                                         data.countdownLabel ? data.countdownLabel : "--");
+                                Clay_String countdownStr = ClayArena_AllocString(arena, cdBuf);
+                                CLAY_TEXT(countdownStr, CLAY_TEXT_CONFIG(countdownCfg));
+                            }
                         }
                     }
                 }

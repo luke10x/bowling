@@ -123,6 +123,49 @@ TEST_CASE("Ball inventory build keeps selected owned ball first and excludes uno
     CHECK(sawIce);
 }
 
+TEST_CASE("Sell quotes are stable per ball and shop bucket, and round up to tens")
+{
+    const CatalogItem &item = g_ballCatalog[4]; // expensive enough to expose bucket changes
+    const int first = BallShop_SellPrice(item, 42);
+    CHECK(first == BallShop_SellPrice(item, 42));
+    CHECK(first % 10 == 0);
+    CHECK(first >= (int)ceil(item.price * 0.2 / 10.0) * 10);
+    CHECK(first <= (int)ceil(item.price * 1.2 / 10.0) * 10);
+    bool sawDifferentQuote = false;
+    for (uint64_t bucket = 43; bucket < 100; ++bucket)
+    {
+        const int quote = BallShop_SellPrice(item, bucket);
+        CHECK(quote % 10 == 0);
+        CHECK(quote >= (int)ceil(item.price * 0.2 / 10.0) * 10);
+        CHECK(quote <= (int)ceil(item.price * 1.2 / 10.0) * 10);
+        sawDifferentQuote |= quote != first;
+    }
+    CHECK(sawDifferentQuote);
+}
+
+TEST_CASE("Only owned, available, unequipped balls can be sold")
+{
+    const uint64_t owned = (1ull << 0) | (1ull << 5);
+    CHECK(BallShop_CanSell(owned, 0, 5, 0));
+    CHECK_FALSE(BallShop_CanSell(owned, 0, 5, 5));
+    CHECK_FALSE(BallShop_CanSell(owned, 0, 5, 10));
+    CHECK_FALSE(BallShop_CanSell(owned, 1ull << 0, 5, 0));
+}
+
+TEST_CASE("Selling removes ownership and pays the displayed quote only once")
+{
+    uint64_t owned = (1ull << 0) | (1ull << 5);
+    int bank = 25;
+    const int quote = BallShop_SellPrice(g_ballCatalog[0], 42);
+    CHECK(BallShop_SellOwnedBall(&owned, &bank, 0, 5, 0, 42) == quote);
+    CHECK((owned & (1ull << 0)) == 0);
+    CHECK(bank == 25 + quote);
+    CHECK(BallShop_SellOwnedBall(&owned, &bank, 0, 5, 0, 42) == 0);
+    CHECK(bank == 25 + quote);
+    CHECK(BallShop_SellOwnedBall(&owned, &bank, 0, 5, 5, 42) == 0);
+    CHECK(bank == 25 + quote);
+}
+
 TEST_CASE("Modal pause begin triggers only on first window-open edge")
 {
     CHECK(UiModalPauseShouldBegin(false, 0) == false);

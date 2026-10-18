@@ -8,6 +8,7 @@
 #include <stdio.h>   // for debug logging (optional)
 #include <stdint.h>
 #include <float.h>
+#include <math.h>
 #include <glm/glm.hpp>
 
 #define CAROUSEL_CARD_WIDTH 0.7f
@@ -257,6 +258,45 @@ static inline uint64_t BallShop_NextRandom(uint64_t *state)
 static inline uint64_t BallShop_StarterOwnedMask()
 {
     return 1ull << 0;
+}
+
+// The quote is shared by every copy of a ball during this shop bucket. It
+// changes only when the shop renews, even if the player closes the window.
+static inline int BallShop_SellPrice(const CatalogItem &item, uint64_t bucketId)
+{
+    uint64_t seed = (bucketId * 0x9E3779B97F4A7C15ull) ^
+                    ((uint64_t)(item.id + 1) * 0xBF58476D1CE4E5B9ull);
+    const uint64_t roll = BallShop_NextRandom(&seed) % 10001ull;
+    const double multiplier = (2000.0 + (double)roll) / 10000.0; // 20%..120%
+    return (int)(ceil((double)item.price * multiplier / 10.0) * 10.0);
+}
+
+static inline bool BallShop_CanSell(uint64_t ownedMask, uint64_t destroyedMask,
+                                    int equippedBallId, int ballId)
+{
+    if (ballId < 0 || ballId >= 63 || ballId == equippedBallId)
+        return false;
+    const uint64_t bit = 1ull << ballId;
+    return (ownedMask & bit) != 0ull && (destroyedMask & bit) == 0ull;
+}
+
+// One transaction updates ownership and cash together; a repeated click
+// cannot pay out again after the ownership bit has been removed.
+static inline int BallShop_SellOwnedBall(uint64_t *ownedMask, int *bank, uint64_t destroyedMask,
+                                         int equippedBallId, int ballId, uint64_t bucketId)
+{
+    if (!ownedMask || !bank || !BallShop_CanSell(*ownedMask, destroyedMask, equippedBallId, ballId))
+        return 0;
+    for (size_t i = 0; i < g_ballCatalogCount; ++i)
+    {
+        if (g_ballCatalog[i].id != ballId)
+            continue;
+        const int price = BallShop_SellPrice(g_ballCatalog[i], bucketId);
+        *ownedMask &= ~(1ull << ballId);
+        *bank += price;
+        return price;
+    }
+    return 0;
 }
 
 static inline int BallShop_BuildInventoryItems(

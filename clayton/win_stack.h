@@ -61,6 +61,7 @@ enum WindowKind // I like it
     WindowKind_Houses,
     WindowKind_BotSelect,
     WindowKind_Shop,
+    WindowKind_SellBallConfirm,
     WindowKind_Keypad,
     WindowKind_NumKeypad,
     WindowKind_ShopRestockPrompt,
@@ -103,6 +104,15 @@ struct WindowStack
     int shopLastX;
     int shopLastY;
     bool shopBuyRequested;
+    bool shopSellRequested;
+    int shopSellBallId;
+    uint64_t shopSellBucketId;
+    bool shopSellConfirmed;
+    int sellConfirmBallId;
+    uint64_t sellConfirmBucketId;
+    int sellConfirmPrice;
+    int sellConfirmOriginalPrice;
+    char sellConfirmBallName[20];
     bool oilReoilRequested;
     bool playAgainRequested;
     bool resultRepeatRequested;
@@ -189,6 +199,15 @@ struct WindowStack
         shopLastX = 0;
         shopLastY = 0;
         shopBuyRequested = false;
+        shopSellRequested = false;
+        shopSellBallId = -1;
+        shopSellBucketId = 0;
+        shopSellConfirmed = false;
+        sellConfirmBallId = -1;
+        sellConfirmBucketId = 0;
+        sellConfirmPrice = 0;
+        sellConfirmOriginalPrice = 0;
+        sellConfirmBallName[0] = '\0';
         oilReoilRequested = false;
         playAgainRequested = false;
         resultRepeatRequested = false;
@@ -314,6 +333,7 @@ struct WindowStack
     inline void windowStackPushLanguageWindow() { windowStackPushWindow_(WindowKind_LanguageSelect); }
     inline void windowStackPushCreditsWindow() { windowStackPushWindow_(WindowKind_Credits); }
     inline void windowStackPushAdManagerWindow() { windowStackPushWindow_(WindowKind_AdManager); }
+    inline void windowStackPushSellBallConfirmWindow() { windowStackPushWindow_(WindowKind_SellBallConfirm); }
     inline void windowStackPushTrackerEditorWindow() { windowStackPushWindow_(WindowKind_TrackerEditor); }
     inline void windowStackPushTrackerSelectionEditWindow() { windowStackPushWindow_(WindowKind_TrackerSelectionEdit); }
     inline void windowStackPushTrackerInstrumentsWindow() { windowStackPushWindow_(WindowKind_TrackerInstruments); }
@@ -510,6 +530,9 @@ private:
         // still being active. (Do NOT clear playAgainRequested here; it's a one-shot signal from
         // the window to game.cpp, and we often pop the window in the same event that sets it.)
         shopBuyRequested = false;
+        shopSellRequested = false;
+        shopSellBallId = -1;
+        shopSellBucketId = 0;
     }
 
     inline void windowStackRemoveWindow_(WindowKind kind)
@@ -536,6 +559,9 @@ private:
         // Any time the stack changes, clear one-shot requests that depend on a specific window
         // still being active.
         shopBuyRequested = false;
+        shopSellRequested = false;
+        shopSellBallId = -1;
+        shopSellBucketId = 0;
 
         if (count >= WINDOW_STACK_MAX)
         {
@@ -581,6 +607,7 @@ private:
     static bool processSettingsWindowEvent(WindowStack *self, Clayton *clayton, GameSettings *settings, SDL_Event e);
     static bool processSettingsResetConfirmWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processMiniGameExitConfirmWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
+    static bool processSellBallConfirmWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processLanguageWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processCreditsWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processAdManagerWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
@@ -619,6 +646,7 @@ private:
     static void renderSettingsWindow(Clayton *clayton, GameSettings *settings);
     static void renderSettingsResetConfirmWindow(WindowStack *self, Clayton *clayton);
     static void renderMiniGameExitConfirmWindow(Clayton *clayton);
+    static void renderSellBallConfirmWindow(WindowStack *self, Clayton *clayton);
     static void renderLanguageWindow(Clayton *clayton);
     static void renderCreditsWindow(Clayton *clayton);
     static void renderAdManagerWindow(Clayton *clayton, const AdPolicyState *adPolicy, int64_t now);
@@ -753,6 +781,10 @@ inline bool WindowStack::processActiveWindowEvent(
         {
             windowStackPopTopWindow_();
         }
+        return consumed;
+
+    case WindowKind_SellBallConfirm:
+        consumed = processSellBallConfirmWindowEvent(this, clayton, e);
         return consumed;
 
     case WindowKind_ShopRestockPrompt:
@@ -1083,6 +1115,9 @@ inline void WindowStack::renderWindowStack(
 
                             renderShopWindow(clayton, carousel, ballShop);
                         break;
+                    case WindowKind_SellBallConfirm:
+                        renderSellBallConfirmWindow(this, clayton);
+                        break;
                     case WindowKind_ShopRestockPrompt:
                         renderShopRestockPromptWindow(this, clayton);
                         break;
@@ -1232,6 +1267,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_Shop:
                         if (shouldShowShop)
                             renderShopWindow(clayton, carousel, ballShop);
+                        break;
+                    case WindowKind_SellBallConfirm:
+                        renderSellBallConfirmWindow(this, clayton);
                         break;
                     case WindowKind_ShopRestockPrompt:
                         renderShopRestockPromptWindow(this, clayton);
@@ -1807,6 +1845,17 @@ inline bool WindowStack::processShopWindowEvent(
         self->shopBuyRequested = true;
         return true;
     }
+    if (clayton->shopSellEnabled && isClaytonClicked(&clayton->sellClick, e))
+    {
+        const int idx = carousel ? carousel->closestBallIdx : -1;
+        if (idx >= 0 && idx < carousel->cardCount)
+        {
+            self->shopSellBallId = carousel->items[idx].id;
+            self->shopSellBucketId = ballShop ? ballShop->stockBucketId : 0;
+            self->shopSellRequested = true;
+        }
+        return true;
+    }
 
     if (e.type == SDL_MOUSEBUTTONDOWN)
     {
@@ -2357,6 +2406,28 @@ inline bool WindowStack::processMiniGameExitConfirmWindowEvent(WindowStack *self
     return isPointerEvent;
 }
 
+inline bool WindowStack::processSellBallConfirmWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
+{
+    if (!self || !clayton)
+        return false;
+    if (isClaytonClicked(&clayton->sellConfirmNoClick, e))
+    {
+        self->sellConfirmBallId = -1;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+    if (isClaytonClicked(&clayton->sellConfirmYesClick, e))
+    {
+        self->shopSellConfirmed = true;
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+    return e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP ||
+           e.type == SDL_MOUSEMOTION || e.type == SDL_MOUSEWHEEL ||
+           e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP ||
+           e.type == SDL_FINGERMOTION;
+}
+
 inline bool WindowStack::processTrackerLoadErrorWindowEvent(WindowStack * /*self*/, Tracker *tracker, SDL_Event e)
 {
     return Tracker_HandleLoadErrorWindowEvent(tracker, e);
@@ -2539,6 +2610,8 @@ inline void WindowStack::renderShopWindow(Clayton *clayton, CarouselState *carou
         .inventoryTabActive = inventoryTabActive,
         .hasCards = hasCards,
         .actionEnabled = clayton->shopActionEnabled && (inventoryTabActive || canAfford),
+        .sellEnabled = inventoryTabActive && clayton->shopSellEnabled,
+        .sellPrice = clayton->shopSellPrice,
         .transitionOffsetX = ballShop ? (ballShop->transitionDir * 72.0f * eased) : 0.0f,
         .transitionFlashAlpha = 48.0f * transitionNorm,
     };
@@ -2842,6 +2915,51 @@ inline void WindowStack::renderMiniGameExitConfirmWindow(Clayton *clayton)
                     CLAY_TEXT(clayton->txl(TXL_NO), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }
                 CLAY(clayton->miniGameExitConfirmYesClick.clayId, CLAY_THEME_BTN_DANGER)
+                {
+                    CLAY_TEXT(clayton->txl(TXL_YES), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
+            }
+        }
+    }
+}
+
+inline void WindowStack::renderSellBallConfirmWindow(WindowStack *self, Clayton *clayton)
+{
+    if (!self || !clayton)
+        return;
+    ClayArena *arena = &clayton->clayArena;
+    const int difference = self->sellConfirmPrice - self->sellConfirmOriginalPrice;
+    Clay_String saleLine = ClayArena_FormatString(
+        arena, Txl_Get(clayton->uiLanguage, TXL_SELL_CONFIRM_ITEM_FMT),
+        self->sellConfirmBallName, self->sellConfirmPrice);
+    Clay_String differenceLine = ClayArena_FormatString(
+        arena, Txl_Get(clayton->uiLanguage,
+                       difference < 0 ? TXL_SELL_CONFIRM_LOSS_FMT : TXL_SELL_CONFIRM_GAIN_FMT),
+        difference < 0 ? -difference : difference);
+
+    CLAY(CLAY_ID("SellBallConfirmWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(CLAY_ID("SellBallConfirmContent"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                         .childGap = 14,
+                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                         .layoutDirection = CLAY_TOP_TO_BOTTOM}})
+        {
+            CLAY_TEXT(clayton->txl(TXL_SELL_CONFIRM_TITLE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+            CLAY_TEXT(clayton->txl(TXL_ARE_YOU_SURE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+            CLAY_TEXT(saleLine, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+            CLAY_TEXT(differenceLine, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+            CLAY(CLAY_ID("SellBallConfirmButtons"),
+                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                             .childGap = 12,
+                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                             .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+            {
+                CLAY(clayton->sellConfirmNoClick.clayId, CLAY_THEME_BTN_PRIMARY)
+                {
+                    CLAY_TEXT(clayton->txl(TXL_NO), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+                }
+                CLAY(clayton->sellConfirmYesClick.clayId, CLAY_THEME_BTN_DANGER)
                 {
                     CLAY_TEXT(clayton->txl(TXL_YES), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                 }

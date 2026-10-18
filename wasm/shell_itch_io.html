@@ -130,7 +130,9 @@
                 };
                 var tag = document.createElement('script');
                 tag.async = true;
-                tag.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js';
+                tag.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' +
+                    encodeURIComponent(window.BOWLING_ADSENSE_CLIENT);
+                tag.crossOrigin = 'anonymous';
                 tag.dataset.adClient = window.BOWLING_ADSENSE_CLIENT;
                 tag.dataset.adFrequencyHint = '30s';
                 if (window.BOWLING_ADS_TEST) tag.dataset.adbreakTest = 'on';

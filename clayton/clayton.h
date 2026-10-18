@@ -224,6 +224,7 @@ struct Clayton
     Clayton_Click campaignEndgameCloseClick;
     Clayton_Click campaignEndgameCreditsClick;
     Clayton_Click creditsCloseClick;
+    Clayton_Click adManagerCloseClick;
 
     // Greetings window
     Clayton_Click greetingsReadyClick;

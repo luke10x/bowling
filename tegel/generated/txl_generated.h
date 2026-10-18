@@ -26,6 +26,15 @@ enum TxlKey
     TXL_GAME_SETTINGS,
     TXL_TRACKER,
     TXL_CREDITS,
+    TXL_AD_MANAGER_TITLE,
+    TXL_AD_CREDIT_FMT,
+    TXL_AD_HOLIDAY_ACTIVE,
+    TXL_AD_HOLIDAY_INACTIVE,
+    TXL_AD_HOLIDAY_REMAINING_FMT,
+    TXL_AD_HOLIDAY_END_FMT,
+    TXL_ADS_TODAY_FMT,
+    TXL_ADS_TO_HOLIDAY_FMT,
+    TXL_AD_MONEY_TODAY_FMT,
     TXL_MINIGAMES,
     TXL_SELECT_LANGUAGE,
     TXL_LANGUAGE_ENGLISH,
@@ -474,6 +483,15 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "Game Settings",
     "Tracker",
     "Credits",
+    "AD MANAGER",
+    "Ad credit: %.1f / 100",
+    "Ad holiday active",
+    "No ad holiday",
+    "Remaining: %d h %d min",
+    "Ends: %s (local time)",
+    "Game ads shown today: %d / %d",
+    "Ads until holiday: %d",
+    "Money ads viewed today: %d / %d",
     "MINIGAMES",
     "Select Language",
     "English",
@@ -898,7 +916,7 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "Ezekiel",
 };
 
-static constexpr const char *g_txl_chars_en_us = "MENUCheatsnr igLumpAPIGVSRTWOQBKY/cDvkdlJoH-Fy.wb?f:%qx'!0()z;53,>ė12Z46789X\n$+j";
+static constexpr const char *g_txl_chars_en_us = "MENUCheatsnr igLumpAPIGVSRTWOQBKY/cDvkd:%.1f0oly()wJH-Fb?qx'!z;53,>ė2Z46789X\n$+j";
 
 static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "MENIU",
@@ -923,6 +941,15 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Nustatymai",
     "Trekeris",
     "Kreditai",
+    "REKLAMŲ VALDYMAS",
+    "Reklamų kreditas: %.1f / 100",
+    "Pertrauka nuo reklamų",
+    "Pertraukos nuo reklamų nėra",
+    "Liko: %d val. %d min.",
+    "Baigsis: %s (vietos laiku)",
+    "Šiandien parodyta reklamų: %d / %d",
+    "Iki pertraukos liko reklamų: %d",
+    "Šiandien žiūrėta už pinigus: %d / %d",
     "Minižaidimai",
     "Pasirinkti kalbą",
     "Anglų",
@@ -1347,7 +1374,7 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Ezekielis",
 };
 
-static constexpr const char *g_txl_chars_lt_lt = "MENIUČytai įprkąKlbmnjAPJOSLYGRDĖTĄŠĮVŽegodsužųvB!ę?š.ėĘ,:%čZfzcū/0()–F;53->wHCxh12Ų4Ū6789\n$+—„“\"";
+static constexpr const char *g_txl_chars_lt_lt = "MENIUČytai įprkąKlbmnjAPJOSLYGRDĖTĄŠĮVŽegodsuŲų:%.1f/0ėvB()žū!ę?šĘ,čZzc–F;53->wHCxh24Ū6789\n$+—„“\"";
 
 static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "メニュー",
@@ -1372,6 +1399,15 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "ゲーム設定",
     "トラッカー",
     "クレジット",
+    "広告管理",
+    "広告クレジット: %.1f / 100",
+    "広告休暇中",
+    "広告休暇はありません",
+    "残り: %d時間 %d分",
+    "終了: %s（現地時刻）",
+    "今日のゲーム広告: %d / %d",
+    "休暇まであと%d件",
+    "今日のコイン広告: %d / %d",
     "ミニゲーム",
     "言語選択",
     "英語",
@@ -1796,7 +1832,7 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "エゼキエル",
 };
 
-static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語キャンペレベルをやり直す勝利敗北中断スコアクリ時間戻るもう一度プイなし練習デバ共有ゲム設定ラッカジミ選択英国日本サウド曲オボショハフタナエネギが足ません。ェ集めてださいグ続けか？このよそ「ィ」押画面に対戦相手切替え現在使用所持今ぐ購入: %sであは空ロ合格セ品質変更.モ緊急停止SDLァ音楽量状態マ情報最大ダ減衰滑再d/資金不れ済みたっ良！ポ近全0f上回（1）ヤ-初記録試数範囲～高装飾と追加視覚効果改版YMF実験的速源声起動性能解析計測結5秒ご表示3期化、\n除含む消去新確認PWAブ読込ビ公開>接後き適ザapeKl基礎OnGmrtogVywHu宝箱CixEJhcべ内蔵制作テ投げ皆感謝転(k)軽重ピ番ろ引放右移左残進況前取目標ノ点2ゼ登場風力発電砂漠警告4ガ氷硝子郊外6犬78木材ゾ森林9謁見洞窟ちば工白墓地灰色街車輪廃墟牛パ荒火炎ズ極河吹雪星ず雲宇宙虚ホUツ雷巨人根世界樹影深淵ヌ路特異潮ケヴ負荷策個必要爆散滅生存凍備配置稲妻強失危険防衛敵攻撃球打破壊得意妨害跳ね口酬物群衆遊び終了差獲次挑補充始完$+途：守護者到達出天該当値削決迷魂門来符文尽百道尋つ運わぬ修受届お拒狙導求冴姿ら先ぶ触卒業端反応噛ど方向部倒塗半分三二ほ響ぼ央保離線側事苦立眼下眠望戸誇才救罪偽奪揺軌穏覆跡乾野渇ふぎ塞油乳香潤清焼真裂隙傷横避板降光刃雨痛返砕蓄鳴与代価宿激逃熱耐寒約束落身崩万支留胎逸冷割町ひ窓ゴ歩別領務域平和教知片裁待厳携会呼彼商訪ぞ店誰張己正収穫晶隠越秘盗黄燃吸満惜走抜陰鉱山々枝予成伐緑命阻役末女底闇迎疫病胸ゆ刻暗座ソ輝慈悲祈じ掘明渡閉熟機関養炉称何秤載迫壁法災翼貸煙昇塔答据古債帰閃悪死静魔私?ė";
+static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語キャンペレベルをやり直す勝利敗北中断スコアクリ時間戻るもう一度プイなし練習デバ共有ゲム設定ラッカジ広告管理: %.1f/0休暇はあません残d分終了s（現地刻）今日のでと件ミ選択英国本サウド曲オボショハフタナエネギが足。ェ集めてださいグ続けか？こよそ「ィ」押画面に対戦相手切替え在使用所持ぐ購入空ロ合格セ品質変更モ緊急停止SDLァ音楽量状態マ情報最大ダ減衰滑再資金不れ済みたっ良！ポ近全上回ヤ-初記録試数範囲～高装飾追加視覚効果改版YMF実験的速源声起動性能解析計測結5秒ご表示3期化、\n除含む消去新確認PWAブ読込ビ公開>接後き適ザapeKl基礎OnGmrtogVywHu宝箱CixEJhcべ内蔵制作テ投げ皆感謝転(k)軽重ピ番ろ引放右移左進況前取目標ノ点2ゼ登場風力発電砂漠警4ガ氷硝子郊外6犬78木材ゾ森林9謁見洞窟ちば工白墓灰色街車輪廃墟牛パ荒火炎ズ極河吹雪星ず雲宇宙虚ホUツ雷巨人根世界樹影深淵ヌ路特異潮ケヴ負荷策個必要爆散滅生存凍備配置稲妻強失危険防衛敵攻撃球打破壊得意妨害跳ね口酬物群衆遊び差獲次挑補充始完$+途：守護者到達出天該当値削決迷魂門来符文尽百道尋つ運わぬ修受届お拒狙導求冴姿ら先ぶ触卒業端反応噛ど方向部倒塗半三二ほ響ぼ央保離線側事苦立眼下眠望戸誇才救罪偽奪揺軌穏覆跡乾野渇ふぎ塞油乳香潤清焼真裂隙傷横避板降光刃雨痛返砕蓄鳴与代価宿激逃熱耐寒約束落身崩万支留胎逸冷割町ひ窓ゴ歩別領務域平和教知片裁待厳携会呼彼商訪ぞ店誰張己正収穫晶隠越秘盗黄燃吸満惜走抜陰鉱山々枝予成伐緑命阻役末女底闇迎疫病胸ゆ暗座ソ輝慈悲祈じ掘明渡閉熟機関養炉称何秤載迫壁法災翼貸煙昇塔答据古債帰閃悪死静魔私?ė";
 
 static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "菜单",
@@ -1821,6 +1857,15 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "游戏设置",
     "音轨编辑",
     "制作名单",
+    "广告管理",
+    "广告积分：%.1f / 100",
+    "广告假期进行中",
+    "当前没有广告假期",
+    "剩余：%d 小时 %d 分钟",
+    "结束时间：%s（本地时间）",
+    "今日游戏广告：%d / %d",
+    "距离假期还需广告：%d",
+    "今日金币广告：%d / %d",
     "小游戏",
     "选择语言",
     "English",
@@ -2245,5 +2290,5 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "以西结",
 };
 
-static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言战役关卡重开胜利失败退出最高分通时间返回玩始无练习设备共享游戏置音轨编辑制名小选择English中文立陶宛日声歌曲油道球库商店自由赛再试一次奖励能量不足。拾取宝石你想继续打保龄吗？欢迎来到这款点击“准”以聚焦画面天使对手切换当前用存即购买已：%个没有形象为空未解锁过后正在频模式.合成器闭急停SDL 缓冲乐状态图信息大带衰减滑度推力新上d/余额暂刚的数进入错局！超了近期0f排行榜（）家还，第吧尝范围-细节更多和装饰特效改版YMF实验性速；将启动析帧耗及每5秒计报告3恢复厂会清除包括记录、符\n应检查PWA加载网站安构建发布…是可>离线请连接络法服务只页支持程序美术apeK角色基础型OGmrtoVywHu箱CxJc所均内追踪别感谢位测并投人课瞄质给旋与全路1公斤轻转咬普稀史诗传说目标把尽向拉现放右移左剩先掉里碑达2西结风电场沙漠警4玻璃冰霓虹郊区6狗7金字塔8木材地森林9水晶觐见洞窟喙煤气工白墓园灰城市之轮废墟牛烬荒原强烈焰滚火钩炼狱怒凤凰升霜寒意极漂川暴雪王星尘云宇宙虚黑U氙光藤蔓雷橡泰坦根世界树暗影深渊归零者子奇潮汐礁海妖维神谕偏低调至弯拖少需要爆炸蒸扛闪瓶冻巡逻部署激活骷髅命住补块砖混凝土获得枚币但险防守敌方攻让变狠破障三阻挡刻弹起它快栏添口故事刺师群控确定否下步货完$+途卫生首领级门总输码氮架看稍删认碍迷魂今研百寻莫侥幸欺心愿堂修骄误汝且稳如闯求曾吾身颇精显凡技艺那段终默然注视久亦此消本被讲都己几颗而毕业也必须很好或端算随恭喜反像样参响屏幕做就朝某倒才条约半二长覆盖着满明些馆窗我们何往任跟走从袋另侧亮吃经乃落藏于其若引磨傲骨掷收眼底资助拯救罪妄早占据锋芒循既漫温旧痕渴灼遍壅塞负乳香涂抹涤烧直撞便两旁隙留伤弧免困却干燥润待受苦碎雨般痛予片机眠圆环施唤醒舍审令迸鸣损创称价裂毁炽焚断避霆热浪飞脚许诺夺万物依凭灵境孕育处皆难谨疏忽仍预座倾扇越蛾摩彼岸掌疆职责伯绝非太平碰篇钮裁教导等严酷召容迟他各同秉按赴艰谁孽竟理化尚踏沉积苏窃黄燃抽份板骤穿辛携阴矿井拥斩枝叶逐真伐青绿居拦撒弗末护索染瘟疫渐凋净写罗耀因怜悯祈交封熟养炉又盗私秤笼罩外众盈送知降果翼浓烟颓矜答判债恶诸唯独亡历寂静遂拒魔?ė";
+static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言战役关卡重开胜利失败退出最高分通时间返回玩始无练习设备共享游戏置音轨编辑制名广告管理积：%.1f /0假期进行中当前没有剩余d小钟结束s（本地）今日距离还需金币选择Englih文立陶宛声歌曲油道球库商店自由赛再试一次奖励能量不足。拾取宝石你想继续打保龄吗？欢迎来到这款点击“准”以聚焦画面天使对手切换用存即购买已个形象为空未解锁过后正在频模式合成器闭急停SDL缓冲乐状态图信息大带衰减滑度推力新上额暂刚的数入错局！超了近排榜家，第吧尝范围-细节更多和装饰特效改版YMF实验性速；将启动析帧耗及每5秒计报3恢复厂会清除包括记录、符\n应检查PWA加载网站安构建发布…是可>线请连接络法服务只页支持程序美术apeK角色基础型OGmrtoVywHu箱CxJc所均内追踪别感谢位测并投人课瞄质给旋与全路公斤轻转咬普稀史诗传说目标把尽向拉现放右移左先掉里碑达2西风电场沙漠警4玻璃冰霓虹郊区6狗7字塔8木材森林9水晶觐见洞窟喙煤气工白墓园灰城市之轮废墟牛烬荒原强烈焰滚火钩炼狱怒凤凰升霜寒意极漂川暴雪王星尘云宇宙虚黑U氙光藤蔓雷橡泰坦根世界树暗影深渊归零者子奇潮汐礁海妖维神谕偏低调至弯拖少要爆炸蒸扛闪瓶冻巡逻部署激活骷髅命住补块砖混凝土获得枚但险防守敌方攻让变狠破障三阻挡刻弹起它快栏添口故事刺师群控确定否下步货完$+途卫生首领级门总输码氮架看稍删认碍迷魂研百寻莫侥幸欺心愿堂修骄误汝且稳如闯求曾吾身颇精显凡技艺那段终默然注视久亦此消被讲都己几颗而毕业也必须很好或端算随恭喜反像样参响屏幕做就朝某倒才条约半二长覆盖着满明些馆窗我们何往任跟走从袋另侧亮吃经乃落藏于其若引磨傲骨掷收眼底资助拯救罪妄早占据锋芒循既漫温旧痕渴灼遍壅塞负乳香涂抹涤烧直撞便两旁隙留伤弧免困却干燥润待受苦碎雨般痛予片机眠圆环施唤醒舍审令迸鸣损创称价裂毁炽焚断避霆热浪飞脚许诺夺万物依凭灵境孕育处皆难谨疏忽仍预座倾扇越蛾摩彼岸掌疆职责伯绝非太平碰篇钮裁教导等严酷召容迟他各同秉按赴艰谁孽竟化尚踏沉苏窃黄燃抽份板骤穿辛携阴矿井拥斩枝叶逐真伐青绿居拦撒弗末护索染瘟疫渐凋净写罗耀因怜悯祈交封熟养炉又盗私秤笼罩外众盈送知降果翼浓烟颓矜答判债恶诸唯独亡历寂静遂拒魔?ė";
 

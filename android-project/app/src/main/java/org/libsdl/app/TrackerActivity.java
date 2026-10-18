@@ -35,6 +35,8 @@ public class TrackerActivity extends SDLActivity {
     private InterstitialAd lossAd;
     private boolean lossAdLoading;
     private boolean lossAdReturnPending;
+    private static native void nativeInterstitialShown();
+    private static native void nativeInterstitialFinished();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,24 +72,31 @@ public class TrackerActivity extends SDLActivity {
             });
     }
 
-    // Called once after a campaign match ends in defeat. Never wait for a load:
-    // the result screen remains usable when offline or when Google has no ad.
-    public void showLossInterstitial() {
+    // Called at a charged win or retry. Never wait for a load: the game
+    // remains usable when offline or when Google has no ad.
+    public void showGameInterstitial() {
         runOnUiThread(() -> {
             InterstitialAd ad = lossAd;
-            if (ad == null) { loadLossAd(); return; }
+            if (ad == null) {
+                nativeInterstitialFinished();
+                loadLossAd();
+                return;
+            }
             lossAd = null;
             ad.setFullScreenContentCallback(new FullScreenContentCallback() {
                 @Override public void onAdShowedFullScreenContent() {
-                    Log.i(TAG, "Loss interstitial opened");
+                    Log.i(TAG, "Game interstitial opened");
+                    nativeInterstitialShown();
                 }
                 @Override public void onAdDismissedFullScreenContent() {
-                    Log.i(TAG, "Loss interstitial dismissed");
+                    Log.i(TAG, "Game interstitial dismissed");
+                    nativeInterstitialFinished();
                     lossAdReturnPending = true;
                     restoreAfterLossAd();
                     loadLossAd();
                 }
                 @Override public void onAdFailedToShowFullScreenContent(AdError error) {
+                    nativeInterstitialFinished();
                     lossAdReturnPending = true;
                     restoreAfterLossAd();
                     Log.w(TAG, "Loss interstitial could not open: " + error.getMessage());

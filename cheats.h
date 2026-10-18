@@ -134,6 +134,12 @@ static inline bool Cheats_ApplyCode(UserContext *usr, const char *code, int32_t 
         activated = true;
     }
 
+    if (Cheats_TextMatchesCaseInsensitive(code, codeLen, "ADS"))
+    {
+        usr->windowStack.windowStackPushAdManagerWindow();
+        activated = true;
+    }
+
     // School cheat codes: SC1..SC5 unlock/complete lessons.
     const bool isSc =
         (code && codeLen == 3 &&

@@ -29,9 +29,23 @@ EM_JS(void, WebPerfLogFab_SetVisible, (int enabled), {
         window.setPerfLogFabVisible(!!enabled);
 });
 
-EM_JS(void, WebLossAd_Show, (), {
-    if (window.bowlingShowLossAd)
-        window.bowlingShowLossAd();
+EM_JS(void, WebGameAd_Show, (int won), {
+    if (window.bowlingShowGameAd)
+        window.bowlingShowGameAd(won ? 'win' : 'loss');
+    else
+        window.bowlingInterstitialFinishedCount = (window.bowlingInterstitialFinishedCount | 0) + 1;
+});
+
+EM_JS(int, WebInterstitial_ConsumeShown, (), {
+    const count = window.bowlingInterstitialShownCount | 0;
+    window.bowlingInterstitialShownCount = 0;
+    return count;
+});
+
+EM_JS(int, WebInterstitial_ConsumeFinished, (), {
+    const count = window.bowlingInterstitialFinishedCount | 0;
+    window.bowlingInterstitialFinishedCount = 0;
+    return count;
 });
 #endif
 
@@ -47,12 +61,12 @@ extern "C" void Tracker_NativeSetSongFileCallbacks(
     void (*closed)(void),
     void (*saved)(int));
 #if TARGET_OS_IPHONE
-extern "C" void PlatformAds_ShowOnLoss(void);
+extern "C" void PlatformAds_ShowInterstitial(void);
 #endif
 #endif
 
 #if defined(__ANDROID__) || defined(ANDROID)
-extern "C" void PlatformAds_ShowOnLoss(void);
+extern "C" void PlatformAds_ShowInterstitial(void);
 extern "C" void Tracker_AndroidOpenSongFile(void);
 extern "C" void Tracker_AndroidSaveSongFile(const char *filename, const char *text);
 extern "C" void Tracker_AndroidPollSongFileResults(
@@ -70,20 +84,38 @@ extern "C" void Game_SetAdAudioPaused(int paused)
 }
 #endif
 
-static inline void Game_ShowInterstitialAfterLoss(SDL_AudioDeviceID audioDevice)
+extern "C" void Game_OnInterstitialFinished(void);
+static inline void Game_ShowInterstitial(SDL_AudioDeviceID audioDevice, bool won)
 {
 #ifdef __EMSCRIPTEN__
     (void)audioDevice;
-    WebLossAd_Show();
+    WebGameAd_Show(won ? 1 : 0);
 #elif defined(__ANDROID__) || defined(ANDROID)
     (void)audioDevice;
-    PlatformAds_ShowOnLoss();
+    (void)won;
+    PlatformAds_ShowInterstitial();
 #elif defined(__APPLE__) && TARGET_OS_IPHONE
+    (void)won;
     g_lossAdAudioDevice.store(audioDevice);
-    PlatformAds_ShowOnLoss();
+    PlatformAds_ShowInterstitial();
 #else
     (void)audioDevice;
+    (void)won;
+    Game_OnInterstitialFinished();
 #endif
+}
+
+// Ad callbacks can arrive on a platform UI thread while the game loop is
+// paused. Apply accounting on the game thread when it resumes.
+static std::atomic<int> g_interstitialShownSignals{0};
+static std::atomic<int> g_interstitialFinishedSignals{0};
+extern "C" void Game_OnInterstitialShown(void)
+{
+    g_interstitialShownSignals.fetch_add(1, std::memory_order_relaxed);
+}
+extern "C" void Game_OnInterstitialFinished(void)
+{
+    g_interstitialFinishedSignals.fetch_add(1, std::memory_order_relaxed);
 }
 
 #if __has_include("build/generated/build_version.h")
@@ -168,6 +200,7 @@ static inline void Game_ShowInterstitialAfterLoss(SDL_AudioDeviceID audioDevice)
 #include "sounds/sound_clay.h"
 #include "sounds/sounds.h"
 #include "storage.h"
+#include "ad_policy.h"
 #include "transition.h"
 #include "tritest.h"
 #include "thunder.h"
@@ -1102,6 +1135,9 @@ struct UserContext
     int loadGreetingMuteFrames = 0;
     bool appFocusLost = false;
     bool appInactiveOverlayActive = false;
+    AdPolicyState adPolicy;
+    bool pendingLossInterstitial = false;
+    bool adInterstitialInFlight = false;
     bool trackerSongFilePickerActive = false;
     int trackerSongFilePickerFocusGraceFrames = 0;
     // Tracks whether the first SOLO game was actually completed (10 frames).
@@ -11286,6 +11322,47 @@ static inline bool Progress_EnsureStarterUnlocks(UserContext *usr)
            usr->unlockedBotMask != prevBotMask;
 }
 
+static inline void AdPolicy_Save(UserContext *usr)
+{
+    if (!usr) return;
+    char saved[128];
+    AdPolicy_Format(usr->adPolicy, saved, sizeof(saved));
+    usr->storage.setChar(Storage::AD_POLICY, saved, std::strlen(saved));
+}
+
+static inline void AdPolicy_Tick(UserContext *usr)
+{
+    if (!usr) return;
+    const int64_t now = static_cast<int64_t>(std::time(nullptr));
+    const int today = AdPolicy_LocalDay(now);
+    if (AdPolicy_OnLogin(usr->adPolicy, today))
+        AdPolicy_Save(usr);
+    int shown = g_interstitialShownSignals.exchange(0, std::memory_order_relaxed);
+    int finished = g_interstitialFinishedSignals.exchange(0, std::memory_order_relaxed);
+#ifdef __EMSCRIPTEN__
+    shown += WebInterstitial_ConsumeShown();
+    finished += WebInterstitial_ConsumeFinished();
+#endif
+    bool changed = false;
+    while (shown-- > 0)
+        changed |= AdPolicy_OnInterstitialShown(usr->adPolicy, today, now);
+    if (changed)
+        AdPolicy_Save(usr);
+    if (finished > 0)
+        usr->adInterstitialInFlight = false;
+}
+
+static inline bool AdPolicy_ChargeOutcome(UserContext *usr, bool won)
+{
+    if (!usr) return false;
+    const int64_t now = static_cast<int64_t>(std::time(nullptr));
+    const float previousCredit = usr->adPolicy.credit;
+    const bool show = AdPolicy_OnOutcome(usr->adPolicy, won, AdPolicy_LocalDay(now), now);
+    if (usr->adPolicy.credit != previousCredit)
+        AdPolicy_Save(usr);
+    return show;
+}
+
 static inline void Progress_SaveUnlocksAndBank(UserContext *usr)
 {
     if (!usr)
@@ -11962,6 +12039,9 @@ static inline void Progress_ResetFull(UserContext *usr)
     // state back, so the current run can begin immediately.
     usr->storage.reset();
     Progress_ResetCampaign(usr, /*resetInventory=*/true);
+    usr->adPolicy = AdPolicyState{};
+    usr->pendingLossInterstitial = false;
+    usr->adInterstitialInFlight = false;
     usr->school = School{};
     School_Init(&usr->school);
     School_ClayInit(&usr->school, &usr->clayton, usr->desiredMass);
@@ -13361,6 +13441,8 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
 {
     if (!usr)
         return;
+    // A loss ad belongs only to the Retry action for the result just left.
+    usr->pendingLossInterstitial = false;
 
     if (usr->campaignPostgameFreeplayActive && usr->campaignRunStarted &&
         usr->phase != UserContext::Phase::RESULT)
@@ -13569,6 +13651,7 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
 {
     if (!usr)
         return;
+    usr->pendingLossInterstitial = false;
     usr->gameMode = gameMode;
     usr->phase = UserContext::Phase::IDLE;
     usr->turnOwner = UserContext::TurnOwner::PLAYER;
@@ -18934,6 +19017,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.campaignEndgameCloseClick, "campaignEndgameClose");
     initClaytonClick(&usr->clayton.campaignEndgameCreditsClick, "campaignEndgameCredits");
     initClaytonClick(&usr->clayton.creditsCloseClick, "creditsClose");
+    initClaytonClick(&usr->clayton.adManagerCloseClick, "adManagerClose");
     initClaytonClick(&usr->clayton.greetingsReadyClick, "greetingsReady");
     initClaytonClick(&usr->dialog.optionClicks[0], "StoryOpt0");
     initClaytonClick(&usr->dialog.optionClicks[1], "StoryOpt1");
@@ -18944,6 +19028,12 @@ void vtx::init(vtx::VertexContext *ctx)
     usr->totalFrames = 0;
     usr->dialog.language = usr->language;
     usr->storage.storageInit("10x", "bowling");
+    {
+        char saved[128] = {};
+        if (usr->storage.getChar(Storage::AD_POLICY, saved, sizeof(saved)) > 0)
+            AdPolicy_Parse(usr->adPolicy, saved);
+        AdPolicy_Tick(usr);
+    }
     {
         char saved[32] = {};
         if (usr->storage.getChar(Storage::AUDIO_BUFFER_SIZE, saved, sizeof(saved)) > 0)
@@ -19298,6 +19388,7 @@ void vtx::init(vtx::VertexContext *ctx)
 void vtx::loop(vtx::VertexContext *ctx)
 {
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
+    AdPolicy_Tick(usr);
 
 #if defined(__ANDROID__) || defined(ANDROID)
     // Android's document picker finishes on the UI thread; apply its result here.
@@ -19464,6 +19555,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     // Start-of-level story: show after the first rendered frame whenever the
     // current chapter defines an intro beat.
     if (campaignStartStoryId != 0 &&
+        !usr->adInterstitialInFlight &&
         usr->playerRoute == PlayerRoute::CAMPAIGN &&
         usr->phase == UserContext::Phase::IDLE &&
         usr->campaignStartStoryLevelShown != campaignLevel.levelNumber &&
@@ -21761,7 +21853,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     const bool chestRewardPausesGameplay = Chest_IsRewardActive(usr);
     const bool gameplayPausedByUi =
         trackerOnlyMode || usr->windowStack.count > 0 || usr->dialog.active ||
-        chestRewardPausesGameplay || usr->chestSummaryActive;
+        chestRewardPausesGameplay || usr->chestSummaryActive || usr->adInterstitialInFlight;
     if (usr->gameplayPausedByUiLastFrame && !gameplayPausedByUi &&
         usr->phase == UserContext::Phase::THROW)
     {
@@ -22302,6 +22394,12 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
 	    if (usr->windowStack.playAgainRequested || usr->windowStack.resultRepeatRequested || usr->windowStack.resultNextRequested)
 	    {
+        if (usr->pendingLossInterstitial)
+        {
+            usr->pendingLossInterstitial = false;
+            usr->adInterstitialInFlight = true;
+            Game_ShowInterstitial(usr->sound.audioDev, false);
+        }
         const bool repeatCampaignLevel = Campaign_ShouldRepeatResultLevel(
             usr->windowStack.resultRepeatRequested,
             usr->playerRoute == PlayerRoute::CAMPAIGN && !usr->campaignPostgameFreeplayActive,
@@ -24085,8 +24183,16 @@ swing_checks_done:
                                         if (showBowlingResult)
                                             usr->windowStack.windowStackPushNewGameWindow(usr->clayton.newGameIsResult);
                                         ResultWindow_ApplyReturnedBallsNotice(usr);
-                                        if (!playerWins)
-                                            Game_ShowInterstitialAfterLoss(usr->sound.audioDev);
+                                        usr->pendingLossInterstitial = false;
+                                        if (playerWins)
+                                        {
+                                            if (AdPolicy_ChargeOutcome(usr, true))
+                                                Game_ShowInterstitial(usr->sound.audioDev, true);
+                                        }
+                                        else
+                                        {
+                                            usr->pendingLossInterstitial = AdPolicy_ChargeOutcome(usr, false);
+                                        }
 	                                        if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
                                             playerWins &&
                                             !usr->campaignPostgameFreeplayActive &&
@@ -24159,8 +24265,16 @@ swing_checks_done:
                                         ResultWindow_CoinsSinceRunStart(usr),
 	                                        Txl_Get(usr->language, passed ? TXL_NEXT : TXL_RETRY)
                                     );
-                                    if (!passed)
-                                        Game_ShowInterstitialAfterLoss(usr->sound.audioDev);
+                                    usr->pendingLossInterstitial = false;
+                                    if (passed)
+                                    {
+                                        if (AdPolicy_ChargeOutcome(usr, true))
+                                            Game_ShowInterstitial(usr->sound.audioDev, true);
+                                    }
+                                    else
+                                    {
+                                        usr->pendingLossInterstitial = AdPolicy_ChargeOutcome(usr, false);
+                                    }
                                 }
                                 else
                                 {
@@ -29609,6 +29723,8 @@ END_LINE:
 	        usr->shouldShowShop,
             !usr->sound.audioDisabled,
 	            &oilStatus,
+	            &usr->adPolicy,
+	            static_cast<int64_t>(std::time(nullptr)),
 	            (float)deltaTime
 #if defined(TARGET_OS_IOS) && TARGET_OS_IOS
 	            , ctx->iosSafeAreaTop

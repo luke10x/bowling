@@ -251,7 +251,7 @@ static UIViewController *TrackerTopViewController(void)
 @property(nonatomic, assign) NSTimeInterval loadedAt;
 + (instancetype)shared;
 - (void)start;
-- (void)showAfterLoss;
+- (void)showInterstitial;
 @end
 
 @implementation TrackerLossAdManager
@@ -289,16 +289,17 @@ static UIViewController *TrackerTopViewController(void)
     [self loadAd];
 }
 
-- (void)showAfterLoss
+- (void)showInterstitial
 {
-    // Google's loaded interstitials expire after one hour. Never hold up results
-    // while waiting for an ad or present it later over an unrelated screen.
+    // Google's loaded interstitials expire after one hour. Never hold up the
+    // current result or retry while waiting for an ad.
     if (self.ad && NSDate.date.timeIntervalSince1970 - self.loadedAt > 3600.0) {
         self.ad = nil;
     }
     UIViewController *presenter = TrackerTopViewController();
     if (!self.ad || !presenter || self.presenting) {
         [self loadAd];
+        Game_OnInterstitialFinished();
         return;
     }
     self.presenting = YES;
@@ -309,6 +310,7 @@ static UIViewController *TrackerTopViewController(void)
 {
     (void)ad;
     Game_SetAdAudioPaused(0);
+    Game_OnInterstitialFinished();
     self.presenting = NO;
     self.ad = nil;
     [self loadAd];
@@ -318,15 +320,17 @@ static UIViewController *TrackerTopViewController(void)
 {
     (void)ad;
     Game_SetAdAudioPaused(1);
+    Game_OnInterstitialShown();
 }
 
 - (void)ad:(id<GADFullScreenPresentingAd>)ad didFailToPresentFullScreenContentWithError:(NSError *)error
 {
     (void)ad;
     Game_SetAdAudioPaused(0);
+    Game_OnInterstitialFinished();
     self.presenting = NO;
     self.ad = nil;
-    NSLog(@"Loss interstitial could not open: %@", error.localizedDescription);
+    NSLog(@"Game interstitial could not open: %@", error.localizedDescription);
     [self loadAd];
 }
 @end
@@ -336,9 +340,9 @@ static void TrackerIosLossAdsStart(void)
     dispatch_async(dispatch_get_main_queue(), ^{ [[TrackerLossAdManager shared] start]; });
 }
 
-extern "C" void PlatformAds_ShowOnLoss(void)
+extern "C" void PlatformAds_ShowInterstitial(void)
 {
-    dispatch_async(dispatch_get_main_queue(), ^{ [[TrackerLossAdManager shared] showAfterLoss]; });
+    dispatch_async(dispatch_get_main_queue(), ^{ [[TrackerLossAdManager shared] showInterstitial]; });
 }
 
 extern "C" void Tracker_NativeOpenSongFile(void)

@@ -120,8 +120,8 @@
         <script src="ads_config.js"></script>
         <script>
             // H5 Games Ad Placement needs a real publisher ID and a user gesture.
-            // The Continue tap is the gesture; closing/skipping the ad returns to
-            // the ordinary loss result underneath.
+            // The Continue tap is the gesture; closing/skipping the ad returns
+            // to the result or the retried round underneath.
             (function () {
                 if (!window.BOWLING_ADSENSE_CLIENT) return;
                 window.adsbygoogle = window.adsbygoogle || [];
@@ -136,8 +136,11 @@
                 if (window.BOWLING_ADS_TEST) tag.dataset.adbreakTest = 'on';
                 document.head.appendChild(tag);
 
-                window.bowlingShowLossAd = function () {
-                    if (document.getElementById('loss-ad-overlay')) return;
+                window.bowlingShowGameAd = function (placement) {
+                    if (document.getElementById('loss-ad-overlay')) {
+                        window.bowlingInterstitialFinishedCount = (window.bowlingInterstitialFinishedCount | 0) + 1;
+                        return;
+                    }
                     var overlay = document.createElement('div');
                     overlay.id = 'loss-ad-overlay';
                     overlay.style.cssText = 'position:fixed;inset:0;z-index:2000;background:#111b;color:white;display:flex;align-items:center;justify-content:center';
@@ -156,6 +159,7 @@
                             finished = true;
                             clearTimeout(timeout);
                             overlay.remove();
+                            window.bowlingInterstitialFinishedCount = (window.bowlingInterstitialFinishedCount | 0) + 1;
                             if (adAudioContext && adAudioContext.state === 'suspended')
                                 adAudioContext.resume().catch(function () {});
                         }
@@ -163,7 +167,7 @@
                         timeout = setTimeout(finish, 5000);
                         try {
                             window.adBreak({
-                                type: 'next', name: 'after-loss',
+                                type: 'next', name: 'after-' + placement,
                                 beforeAd: function () {
                                     overlay.style.display = 'none';
                                     clearTimeout(timeout);
@@ -171,11 +175,14 @@
                                     adAudioContext = window.Module && Module.SDL2 && Module.SDL2.audioContext;
                                     if (adAudioContext) adAudioContext.suspend().catch(function () {});
                                 },
-                                afterAd: finish,
-                                adBreakDone: finish
+                                adBreakDone: function (info) {
+                                    if (info && info.breakStatus === 'viewed')
+                                        window.bowlingInterstitialShownCount = (window.bowlingInterstitialShownCount | 0) + 1;
+                                    finish();
+                                }
                             });
                         } catch (error) {
-                            console.warn('Loss ad unavailable:', error);
+                            console.warn('Game ad unavailable:', error);
                             finish();
                         }
                     });

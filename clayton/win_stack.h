@@ -37,6 +37,7 @@
 #include "../tracker/tracker_clay.h"
 #include "../clayton/slider.h"
 #include "../settings/settings.h"
+#include "../ad_policy.h"
 #include "../settings/settings_clay.h"
 #include "language_clay.h"
 #include "menu_clay.h"
@@ -71,6 +72,7 @@ enum WindowKind // I like it
     WindowKind_CampaignLevelDetail,
     WindowKind_CampaignPostgameSettings,
     WindowKind_Credits,
+    WindowKind_AdManager,
     WindowKind_Settings,
     WindowKind_SettingsResetConfirm,
     WindowKind_MiniGameExitConfirm,
@@ -311,6 +313,7 @@ struct WindowStack
     }
     inline void windowStackPushLanguageWindow() { windowStackPushWindow_(WindowKind_LanguageSelect); }
     inline void windowStackPushCreditsWindow() { windowStackPushWindow_(WindowKind_Credits); }
+    inline void windowStackPushAdManagerWindow() { windowStackPushWindow_(WindowKind_AdManager); }
     inline void windowStackPushTrackerEditorWindow() { windowStackPushWindow_(WindowKind_TrackerEditor); }
     inline void windowStackPushTrackerSelectionEditWindow() { windowStackPushWindow_(WindowKind_TrackerSelectionEdit); }
     inline void windowStackPushTrackerInstrumentsWindow() { windowStackPushWindow_(WindowKind_TrackerInstruments); }
@@ -482,6 +485,8 @@ struct WindowStack
         bool shouldShowShop,
         bool showTrackerInMenu,
         const OilStatusUI *oilStatus,
+        const AdPolicyState *adPolicy,
+        int64_t adNow,
         float deltaTime,
         float topSafeInset = 0.0f
     );
@@ -578,6 +583,7 @@ private:
     static bool processMiniGameExitConfirmWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processLanguageWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processCreditsWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
+    static bool processAdManagerWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processBotResultWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processCampaignEndgameSummaryWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processCampaignLevelSelectWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
@@ -615,6 +621,7 @@ private:
     static void renderMiniGameExitConfirmWindow(Clayton *clayton);
     static void renderLanguageWindow(Clayton *clayton);
     static void renderCreditsWindow(Clayton *clayton);
+    static void renderAdManagerWindow(Clayton *clayton, const AdPolicyState *adPolicy, int64_t now);
     static void renderBotResultWindow(WindowStack *self, Clayton *clayton);
     static void renderCampaignEndgameSummaryWindow(WindowStack *self, Clayton *clayton);
     static void renderCampaignLevelSelectWindow(WindowStack *self, Clayton *clayton);
@@ -784,6 +791,10 @@ inline bool WindowStack::processActiveWindowEvent(
         consumed = processCreditsWindowEvent(this, clayton, e);
         return consumed;
 
+    case WindowKind_AdManager:
+        consumed = processAdManagerWindowEvent(this, clayton, e);
+        return consumed;
+
     case WindowKind_BotResult:
         consumed = processBotResultWindowEvent(this, clayton, e);
         return consumed;
@@ -926,6 +937,8 @@ inline void WindowStack::renderWindowStack(
     bool shouldShowShop,
     bool showTrackerInMenu,
     const OilStatusUI *oilStatus,
+    const AdPolicyState *adPolicy,
+    int64_t adNow,
     float deltaTime,
     float topSafeInset
 )
@@ -1094,6 +1107,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_Credits:
                         renderCreditsWindow(clayton);
                         break;
+                    case WindowKind_AdManager:
+                        renderAdManagerWindow(clayton, adPolicy, adNow);
+                        break;
                     case WindowKind_Settings:
                         renderSettingsWindow(clayton, settings);
                         break;
@@ -1237,6 +1253,9 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_Credits:
                         renderCreditsWindow(clayton);
+                        break;
+                    case WindowKind_AdManager:
+                        renderAdManagerWindow(clayton, adPolicy, adNow);
                         break;
                     case WindowKind_MassEditor:
                         renderMassEditorWindow(clayton, massSlider);
@@ -1535,6 +1554,20 @@ inline bool WindowStack::processCreditsWindowEvent(WindowStack *self, Clayton *c
         (e.type == SDL_MOUSEMOTION) || (e.type == SDL_MOUSEWHEEL) ||
         (e.type == SDL_FINGERDOWN) || (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
     return isPointerEvent;
+}
+
+inline bool WindowStack::processAdManagerWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
+{
+    if (!self || !clayton) return false;
+    if (isClaytonClicked(&clayton->adManagerCloseClick, e))
+    {
+        self->windowStackPopTopWindow_();
+        return true;
+    }
+    return e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP ||
+           e.type == SDL_MOUSEMOTION || e.type == SDL_MOUSEWHEEL ||
+           e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP ||
+           e.type == SDL_FINGERMOTION;
 }
 
 inline bool WindowStack::processOilStatusWindowEvent(
@@ -2889,6 +2922,68 @@ inline void WindowStack::renderCreditsWindow(Clayton *clayton)
             CLAY_TEXT(clayton->txl(TXL_CREDITS_MIXAMO), CLAY_TEXT_CONFIG(bodyCfg));
             CLAY_TEXT(clayton->txl(TXL_CREDITS_TECH), CLAY_TEXT_CONFIG(bodyCfg));
             CLAY_TEXT(clayton->txl(TXL_CREDITS_THANKS), CLAY_TEXT_CONFIG(bodyCfg));
+        }
+    }
+}
+
+inline void WindowStack::renderAdManagerWindow(Clayton *clayton, const AdPolicyState *adPolicy, int64_t now)
+{
+    if (!clayton || !adPolicy) return;
+    Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
+    Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
+    Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
+    Clay_String lines[7] = {};
+    int lineCount = 0;
+    ClayArena *arena = &clayton->clayArena;
+    const TxlLanguage language = clayton->uiLanguage;
+    lines[lineCount++] = ClayArena_FormatString(arena, Txl_Get(language, TXL_AD_CREDIT_FMT), adPolicy->credit);
+    if (AdPolicy_OnHoliday(*adPolicy, now))
+    {
+        const int64_t remaining = adPolicy->holidayEndsAt - now;
+        const int remainingMinutes = static_cast<int>((remaining + 59) / 60);
+        const time_t endTime = static_cast<time_t>(adPolicy->holidayEndsAt);
+        char localEnd[32] = {};
+        if (const tm *local = std::localtime(&endTime))
+            std::strftime(localEnd, sizeof(localEnd), "%Y-%m-%d %H:%M", local);
+        lines[lineCount++] = clayton->txl(TXL_AD_HOLIDAY_ACTIVE);
+        lines[lineCount++] = ClayArena_FormatString(arena, Txl_Get(language, TXL_AD_HOLIDAY_REMAINING_FMT),
+                                                     remainingMinutes / 60, remainingMinutes % 60);
+        lines[lineCount++] = ClayArena_FormatString(arena, Txl_Get(language, TXL_AD_HOLIDAY_END_FMT), localEnd);
+    }
+    else
+    {
+        lines[lineCount++] = clayton->txl(TXL_AD_HOLIDAY_INACTIVE);
+    }
+    lines[lineCount++] = ClayArena_FormatString(arena, Txl_Get(language, TXL_ADS_TODAY_FMT),
+                                                 adPolicy->interstitialsToday, kAdPolicyDailyInterstitialLimit);
+    lines[lineCount++] = ClayArena_FormatString(arena, Txl_Get(language, TXL_ADS_TO_HOLIDAY_FMT),
+                                                 AdPolicy_OnHoliday(*adPolicy, now) ? 0 :
+                                                 std::max(0, kAdPolicyDailyInterstitialLimit - adPolicy->interstitialsToday));
+    lines[lineCount++] = ClayArena_FormatString(arena, Txl_Get(language, TXL_AD_MONEY_TODAY_FMT),
+                                                 adPolicy->moneyAdsToday, kAdPolicyDailyMoneyAdLimit);
+
+    CLAY(CLAY_ID("AdManagerWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(CLAY_ID("AdManagerTitleRow"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                         .padding = {0, 0, 5, 0}, .childGap = 10,
+                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
+                         .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+        {
+            CLAY_TEXT(clayton->txl(TXL_AD_MANAGER_TITLE), CLAY_TEXT_CONFIG(titleCfg));
+            CLAY(CLAY_ID("AdManagerTitleSpacer"),
+                 {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
+            CLAY(clayton->adManagerCloseClick.clayId, CLAY_THEME_BTN_DANGER)
+            {
+                CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(buttonCfg));
+            }
+        }
+        CLAY(CLAY_ID("AdManagerContent"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                         .childGap = 12, .layoutDirection = CLAY_TOP_TO_BOTTOM}})
+        {
+            for (int i = 0; i < lineCount; ++i)
+                CLAY_TEXT(lines[i], CLAY_TEXT_CONFIG(bodyCfg));
         }
     }
 }

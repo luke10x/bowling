@@ -28,13 +28,13 @@
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="px"
      showgrid="false"
-     inkscape:zoom="0.96714595"
-     inkscape:cx="1569.0496"
-     inkscape:cy="1584.5592"
+     inkscape:zoom="1.004907"
+     inkscape:cx="1653.3869"
+     inkscape:cy="1563.8263"
      inkscape:window-width="1445"
      inkscape:window-height="640"
      inkscape:window-x="189"
-     inkscape:window-y="71"
+     inkscape:window-y="43"
      inkscape:window-maximized="0"
      inkscape:current-layer="exportroot" /><defs
      id="defs2"><marker
@@ -719,7 +719,7 @@
        inkscape:label="kagelbg"
        rx="1.8194464" /><g
        id="g30"
-       transform="matrix(1.062563,0,0,1.062563,-61.90353,9.1714864)"
+       transform="matrix(0.82865359,0,0,1.062563,52.764801,9.1714864)"
        inkscape:label="diamondicon"><path
          id="path12-8"
          style="fill:#ffffff;stroke-width:2.487;stroke-linecap:round;stroke-linejoin:round"
@@ -4698,7 +4698,7 @@
        y="-453.48303"
        transform="scale(1,-1)" /><g
        id="g21"
-       transform="matrix(1,0,0,0.95083325,-6.7122763,-17.28582)"
+       transform="matrix(1,0,0,0.95083325,6.1890005,-17.812403)"
        style="stroke-width:1.02553"><path
          id="path12"
          style="fill:#ffffff;stroke-width:2.55049;stroke-linecap:round;stroke-linejoin:round"

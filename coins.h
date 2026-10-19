@@ -56,6 +56,7 @@ struct CoinFlyAnimation {
     float startDelay = 0.0f;   // seconds to wait before this fly becomes visible/moving
     float durationScale = 1.0f;
     bool playSfxOnStart = false;
+    bool forceHudOverlay = false;
     bool startSfxPending = false;
     bool active = false;       // is this animation slot in use?
     
@@ -75,7 +76,8 @@ struct CoinFlyAnimation {
         float delaySeconds = 0.0f,
         bool playPickupSfxOnStart = false,
         float flyArcPhase = 0.0f,
-        float flyDurationScale = 1.0f
+        float flyDurationScale = 1.0f,
+        bool overHudFromStart = false
     ) {
         startPos = screenPos;
         targetPos = target;
@@ -86,6 +88,7 @@ struct CoinFlyAnimation {
         startDelay = std::max(0.0f, delaySeconds);
         durationScale = std::max(0.05f, flyDurationScale);
         playSfxOnStart = playPickupSfxOnStart;
+        forceHudOverlay = overHudFromStart;
         startSfxPending = playSfxOnStart;
         elapsed = -startDelay;
         active = true;
@@ -508,7 +511,8 @@ struct CoinLane {
         float startDelay = 0.0f,
         bool playPickupSfxOnStart = false,
         float arcPhase = 0.0f,
-        float durationScale = 1.0f
+        float durationScale = 1.0f,
+        bool overHudFromStart = false
     ) noexcept {
         for (auto& anim : flyAnimations) {
             if (!anim.active) {
@@ -521,7 +525,8 @@ struct CoinLane {
                     startDelay,
                     playPickupSfxOnStart,
                     arcPhase,
-                    durationScale
+                    durationScale,
+                    overHudFromStart
                 );
                 return true;
             }
@@ -549,6 +554,12 @@ struct CoinLane {
         int n = 0;
         for (const auto& a : flyAnimations) if (a.active) ++n;
         return n;
+    }
+
+    [[nodiscard]] bool hasActiveHudOverlayFly() const noexcept {
+        for (const auto& a : flyAnimations)
+            if (a.active && a.forceHudOverlay) return true;
+        return false;
     }
 
     // === Reset/Respawn ===

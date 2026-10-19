@@ -7,6 +7,8 @@
 	<string>$(ADMOB_IOS_APP_ID)</string>
 	<key>LossInterstitialAdUnitID</key>
 	<string>$(ADMOB_IOS_LOSS_UNIT)</string>
+	<key>MoneyRewardAdUnitID</key>
+	<string>$(ADMOB_IOS_REWARDED_UNIT)</string>
 	<key>SKAdNetworkItems</key>
 	<array>
 		<dict>

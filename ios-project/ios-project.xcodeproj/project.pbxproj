@@ -4149,7 +4149,7 @@
 		35761AE32F1216850004DD94 /* imgui_impl_opengl3.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = imgui_impl_opengl3.cpp; path = ../3rdparty/imgui/backends/imgui_impl_opengl3.cpp; sourceTree = "<group>"; };
 		35761AE42F1216AD0004DD94 /* imgui_impl_sdl2.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = imgui_impl_sdl2.cpp; path = ../3rdparty/imgui/backends/imgui_impl_sdl2.cpp; sourceTree = "<group>"; };
 		35761B022F1223960004DD94 /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
-		35761B032F1223960004DD94 /* everything_tex.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = everything_tex.png; sourceTree = "<group>"; };
+		35761B032F1223960004DD94 /* everything_tex.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; name = everything_tex.png; path = ../assets/files/everything_tex.png; sourceTree = SOURCE_ROOT; };
 		35761B042F1223960004DD94 /* park.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; path = park.jpg; sourceTree = "<group>"; };
 		35761B052F1223960004DD94 /* Roboto-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Roboto-Regular.ttf"; sourceTree = "<group>"; };
 		35761B062F1223960004DD94 /* RobotoMono-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "RobotoMono-Regular.ttf"; sourceTree = "<group>"; };
@@ -13578,8 +13578,9 @@
 		357608332F116F2F0004DD94 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ADMOB_IOS_APP_ID = "ca-app-pub-3940256099942544~1458002511";
-				ADMOB_IOS_LOSS_UNIT = "ca-app-pub-3940256099942544/4411468910";
+				ADMOB_IOS_APP_ID = "$(ADS_TEST_IOS_APP_ID)";
+				ADMOB_IOS_LOSS_UNIT = "$(ADS_TEST_IOS_INTERSTITIAL_ID)";
+				ADMOB_IOS_REWARDED_UNIT = "$(ADS_TEST_IOS_REWARDED_ID)";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;

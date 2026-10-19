@@ -140,6 +140,8 @@ struct Clayton
     bool shopActionEnabled = true;
     bool shopSellEnabled = false;
     int shopSellPrice = 0;
+    int shopDisplayedCoins = -1;
+    float shopBalanceFlash01 = 0.0f;
 
     Clayton_Click closeShopClick;
     Clayton_Click shopInventoryTabClick;

@@ -2,6 +2,20 @@ plugins {
     id 'com.android.application'   // MUST have this for 'android { }' block
 }
 
+// Read the C++ source of truth directly; Android Studio and Gradle need no
+// separate key file or manual sync step.
+def adsConfig = [:]
+file('../../ads_config.h').eachLine { line ->
+    def match = line =~ /^#define\s+(ADS_[A-Z0-9_]+)\s+"([^"]+)"\s*$/
+    if (match.matches()) adsConfig[match[0][1]] = match[0][2]
+}
+[
+    'ADS_ANDROID_APP_ID', 'ADS_ANDROID_INTERSTITIAL_ID', 'ADS_ANDROID_REWARDED_ID',
+    'ADS_TEST_ANDROID_APP_ID', 'ADS_TEST_ANDROID_INTERSTITIAL_ID', 'ADS_TEST_ANDROID_REWARDED_ID'
+].each { key ->
+    if (!adsConfig[key]) throw new GradleException("Missing ${key} in ads_config.h")
+}
+
 android {
     namespace "org.libsdl.app"
     compileSdkVersion 34
@@ -9,10 +23,9 @@ android {
         applicationId "com.bigjump"
 
         // Local builds use Google's sample ads; release overrides these below.
-        resValue 'string', 'admob_app_id',
-            (project.findProperty('ADMOB_ANDROID_APP_ID') ?: 'ca-app-pub-3940256099942544~3347511713')
-        resValue 'string', 'admob_loss_unit',
-            (project.findProperty('ADMOB_ANDROID_LOSS_UNIT') ?: 'ca-app-pub-3940256099942544/1033173712')
+        resValue 'string', 'admob_app_id', adsConfig.ADS_TEST_ANDROID_APP_ID
+        resValue 'string', 'admob_loss_unit', adsConfig.ADS_TEST_ANDROID_INTERSTITIAL_ID
+        resValue 'string', 'admob_rewarded_unit', adsConfig.ADS_TEST_ANDROID_REWARDED_ID
 
         minSdkVersion 21
         targetSdkVersion 34
@@ -45,10 +58,9 @@ android {
     }
     buildTypes {
         release {
-            resValue 'string', 'admob_app_id',
-                (project.findProperty('ADMOB_ANDROID_APP_ID') ?: 'ca-app-pub-2747257038106344~4817748726')
-            resValue 'string', 'admob_loss_unit',
-                (project.findProperty('ADMOB_ANDROID_LOSS_UNIT') ?: 'ca-app-pub-2747257038106344/9125404259')
+            resValue 'string', 'admob_app_id', adsConfig.ADS_ANDROID_APP_ID
+            resValue 'string', 'admob_loss_unit', adsConfig.ADS_ANDROID_INTERSTITIAL_ID
+            resValue 'string', 'admob_rewarded_unit', adsConfig.ADS_ANDROID_REWARDED_ID
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -56,8 +68,9 @@ android {
         benchmark {
             initWith release
             // This installable performance build is also used for local testing.
-            resValue 'string', 'admob_app_id', 'ca-app-pub-3940256099942544~3347511713'
-            resValue 'string', 'admob_loss_unit', 'ca-app-pub-3940256099942544/1033173712'
+            resValue 'string', 'admob_app_id', adsConfig.ADS_TEST_ANDROID_APP_ID
+            resValue 'string', 'admob_loss_unit', adsConfig.ADS_TEST_ANDROID_INTERSTITIAL_ID
+            resValue 'string', 'admob_rewarded_unit', adsConfig.ADS_TEST_ANDROID_REWARDED_ID
             signingConfig signingConfigs.debug
             ndk {
                 abiFilters 'arm64-v8a'

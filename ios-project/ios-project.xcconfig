@@ -1,7 +1,10 @@
 // iOS Project Build Configuration
-// Production IDs; the Xcode Debug configuration uses Google's sample IDs.
-ADMOB_IOS_APP_ID = ca-app-pub-2747257038106344~8933832565
-ADMOB_IOS_LOSS_UNIT = ca-app-pub-2747257038106344/2790351187
+// IDs are generated from ads_config.h. Xcode Debug selects its sample IDs
+// in project.pbxproj; Release uses the production values below.
+#include "generated_ads.xcconfig"
+ADMOB_IOS_APP_ID = $(ADS_IOS_APP_ID)
+ADMOB_IOS_LOSS_UNIT = $(ADS_IOS_INTERSTITIAL_ID)
+ADMOB_IOS_REWARDED_UNIT = $(ADS_IOS_REWARDED_ID)
 
 // Header search paths
 HEADER_SEARCH_PATHS = \

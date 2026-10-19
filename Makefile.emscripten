@@ -226,7 +226,10 @@ $(MINIGAME_ANIM_CACHE_HEADER): $(ASSMAN) $(MINIGAME_ANIM_CACHE_CFG) $(MINIGAME_A
 	mkdir -p $(dir $@)
 	$(ASSMAN) minigame-anim-cache -cfg $(MINIGAME_ANIM_CACHE_CFG) -o $@
 
-main: $(JOLT_LIB) imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(STAMPED_SW) $(PWA_LOGO_OUTPUT) $(PWA_ICON_192) $(PWA_ICON_512) $(TXL_GENERATED) $(TXL_FONT_GENERATED) $(MINIGAME_ANIM_CACHE_HEADER)
+$(PWD)/wasm/ads_config.js $(PWD)/wasm/ads.txt: $(PWD)/ads_config.h $(PWD)/scripts/generate_ads_config.py
+	python3 $(PWD)/scripts/generate_ads_config.py
+
+main: $(JOLT_LIB) imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(STAMPED_SW) $(PWA_LOGO_OUTPUT) $(PWA_ICON_192) $(PWA_ICON_512) $(TXL_GENERATED) $(TXL_FONT_GENERATED) $(MINIGAME_ANIM_CACHE_HEADER) $(PWD)/wasm/ads_config.js $(PWD)/wasm/ads.txt
 	mkdir -p build/emscripten/www
 
 	time $(CXX) $(CXXFLAGS) \
@@ -240,6 +243,7 @@ main: $(JOLT_LIB) imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(STAMPED_SW) $(PW
 	cp $(PWD)/wasm/manifest.json build/emscripten/www/manifest.json
 	cp $(PWD)/wasm/credits.html build/emscripten/www/credits.html
 	cp $(PWD)/wasm/ads_config.js build/emscripten/www/ads_config.js
+	cp $(PWD)/wasm/ads.txt build/emscripten/www/ads.txt
 	(cd "$(PWD)/build/emscripten/www" && zip -r ../bowling.zip .)
 
 test:

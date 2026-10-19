@@ -124,19 +124,117 @@
             // to the result or the retried round underneath.
             (function () {
                 if (!window.BOWLING_ADSENSE_CLIENT) return;
-                window.adsbygoogle = window.adsbygoogle || [];
-                window.adBreak = window.adConfig = function (request) {
-                    window.adsbygoogle.push(request);
-                };
-                var tag = document.createElement('script');
-                tag.async = true;
-                tag.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' +
-                    encodeURIComponent(window.BOWLING_ADSENSE_CLIENT);
-                tag.crossOrigin = 'anonymous';
-                tag.dataset.adClient = window.BOWLING_ADSENSE_CLIENT;
-                tag.dataset.adFrequencyHint = '30s';
-                if (window.BOWLING_ADS_TEST) tag.dataset.adbreakTest = 'on';
-                document.head.appendChild(tag);
+                var housePromo = !!window.BOWLING_H5_HOUSE_PROMO && !window.BOWLING_ADS_TEST;
+                // The live house promo is an in-game activity, not an AdSense
+                // impression. Do not load Google's ad script in this mode.
+                window.bowlingH5AdsReady = false;
+                if (!housePromo) {
+                    window.adsbygoogle = window.adsbygoogle || [];
+                    window.adBreak = window.adConfig = function (request) {
+                        window.adsbygoogle.push(request);
+                    };
+                    // The reward card can appear before Google finishes preload.
+                    window.adConfig({
+                        preloadAdBreaks: 'on',
+                        onReady: function () { window.bowlingH5AdsReady = true; }
+                    });
+                    var tag = document.createElement('script');
+                    tag.async = true;
+                    tag.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' +
+                        encodeURIComponent(window.BOWLING_ADSENSE_CLIENT);
+                    tag.crossOrigin = 'anonymous';
+                    tag.dataset.adClient = window.BOWLING_ADSENSE_CLIENT;
+                    tag.dataset.adFrequencyHint = window.BOWLING_AD_FREQUENCY_HINT;
+                    if (window.BOWLING_ADS_TEST) tag.dataset.adbreakTest = 'on';
+                    document.head.appendChild(tag);
+                }
+
+                // Localhost preview follows the game's real ad placement and
+                // credit rules, but does not depend on H5 approval or ad fill.
+                // ?googleMockAds=1 keeps Google's alternating H5 test ads
+                // available for integration checks.
+                var localAdPreview = window.BOWLING_ADS_TEST &&
+                    !new URLSearchParams(window.location.search).has('googleMockAds');
+                var useInGamePromo = housePromo || localAdPreview;
+                function showInGamePromo(rewarded, done) {
+                    var overlay = document.createElement('div');
+                    overlay.id = 'in-game-promo';
+                    overlay.style.cssText = 'position:fixed;inset:0;z-index:2001;background:#0c1020;color:white;display:flex;align-items:center;justify-content:center;font:20px sans-serif';
+                    var panel = document.createElement('div');
+                    panel.style.cssText = 'width:min(88vw,480px);padding:24px;border:2px solid #e8b83a;border-radius:20px;background:linear-gradient(145deg,#493067,#202b55);text-align:center;box-shadow:0 20px 80px #000a';
+                    var heading = document.createElement('div');
+                    heading.textContent = housePromo ? 'IN-GAME PROMO' : 'LOCAL AD PREVIEW';
+                    heading.style.cssText = 'font:700 15px sans-serif;letter-spacing:3px;color:#ffe088';
+                    panel.appendChild(heading);
+                    var creative = document.createElement('div');
+                    creative.textContent = rewarded
+                        ? 'Discover your next ball · Earn $' + window.BOWLING_MONEY_REWARD
+                        : 'Ready for another round?';
+                    creative.style.cssText = 'display:flex;align-items:center;justify-content:center;min-height:220px;margin:22px 0;border-radius:16px;background:linear-gradient(135deg,#ed638c,#dfaf35);font:700 32px sans-serif;text-shadow:0 2px 5px #0007';
+                    panel.appendChild(creative);
+                    var disclosure = document.createElement('div');
+                    disclosure.textContent = housePromo
+                        ? 'A promotion for this game. No paid ad is shown.'
+                        : 'Local ad preview · no paid ad is shown.';
+                    disclosure.style.cssText = 'font:14px sans-serif;color:#ddd';
+                    panel.appendChild(disclosure);
+                    var status = document.createElement('div');
+                    status.style.cssText = 'margin:12px 0;color:#eee';
+                    panel.appendChild(status);
+                    var progressTrack = document.createElement('div');
+                    progressTrack.style.cssText = 'height:8px;border-radius:8px;background:#ffffff44;overflow:hidden;margin:12px 0 20px';
+                    var progressFill = document.createElement('div');
+                    progressFill.style.cssText = 'width:0;height:100%;background:#ffe088;transition:width .3s';
+                    progressTrack.appendChild(progressFill);
+                    panel.appendChild(progressTrack);
+                    var controls = document.createElement('div');
+                    controls.style.cssText = 'display:flex;justify-content:center;gap:12px';
+                    var finishButton = document.createElement('button');
+                    finishButton.disabled = true;
+                    finishButton.style.cssText = 'padding:14px 24px;border:0;border-radius:10px;background:#e8b83a;color:#281b00;font:700 18px sans-serif';
+                    controls.appendChild(finishButton);
+                    if (rewarded) {
+                        var skipButton = document.createElement('button');
+                        skipButton.textContent = 'Skip (no reward)';
+                        skipButton.style.cssText = 'padding:14px 18px;border:1px solid #fff8;border-radius:10px;background:transparent;color:white;font:17px sans-serif';
+                        controls.appendChild(skipButton);
+                    }
+                    panel.appendChild(controls);
+                    overlay.appendChild(panel);
+                    document.body.appendChild(overlay);
+                    var audioContext = window.Module && Module.SDL2 && Module.SDL2.audioContext;
+                    var resumeAudio = audioContext && audioContext.state === 'running';
+                    if (resumeAudio) audioContext.suspend().catch(function () {});
+                    var duration = rewarded ? 6 : 4;
+                    var remaining = duration;
+                    var finished = false;
+                    function finish(earned) {
+                        if (finished) return;
+                        finished = true;
+                        clearInterval(timer);
+                        overlay.remove();
+                        if (resumeAudio && audioContext.state === 'suspended')
+                            audioContext.resume().catch(function () {});
+                        done(earned);
+                    }
+                    function update() {
+                        progressFill.style.width = ((duration - remaining) * 100 / duration) + '%';
+                        status.textContent = remaining > 0
+                            ? (rewarded ? 'Reward available in ' : 'Close available in ') + remaining + 's'
+                            : (rewarded ? 'Promo complete — collect your reward' : 'Promo complete');
+                        finishButton.textContent = remaining > 0
+                            ? 'Please wait' : (rewarded ? 'Collect $' + window.BOWLING_MONEY_REWARD : 'Continue');
+                        finishButton.disabled = remaining > 0;
+                    }
+                    finishButton.addEventListener('click', function () { finish(rewarded); });
+                    if (skipButton) skipButton.addEventListener('click', function () { finish(false); });
+                    update();
+                    var timer = setInterval(function () {
+                        if (document.visibilityState === 'hidden') return;
+                        remaining = Math.max(0, remaining - 1);
+                        update();
+                    }, 1000);
+                }
 
                 window.bowlingShowGameAd = function (placement) {
                     if (document.getElementById('loss-ad-overlay')) {
@@ -153,6 +251,14 @@
                     document.body.appendChild(overlay);
                     button.addEventListener('click', function () {
                         button.disabled = true;
+                        if (useInGamePromo) {
+                            showInGamePromo(false, function () {
+                                overlay.remove();
+                                window.bowlingInterstitialShownCount = (window.bowlingInterstitialShownCount | 0) + 1;
+                                window.bowlingInterstitialFinishedCount = (window.bowlingInterstitialFinishedCount | 0) + 1;
+                            });
+                            return;
+                        }
                         var finished = false;
                         var timeout;
                         var adAudioContext = null;
@@ -188,6 +294,85 @@
                             finish();
                         }
                     });
+                };
+
+                window.bowlingShowMoneyRewardAd = function () {
+                    if (useInGamePromo) {
+                        showInGamePromo(true, function (earned) {
+                            window.bowlingMoneyRewardLastStatus = (housePromo ? 'house-promo-' : 'preview-') +
+                                (earned ? 'viewed' : 'skipped');
+                            if (earned)
+                                window.bowlingMoneyRewardEarnedCount = (window.bowlingMoneyRewardEarnedCount | 0) + 1;
+                            window.bowlingMoneyRewardFinishedCount = (window.bowlingMoneyRewardFinishedCount | 0) + 1;
+                        });
+                        return;
+                    }
+                    var overlay = null;
+                    var earned = false;
+                    var finished = false;
+                    var adAudioContext = null;
+                    var timeout = setTimeout(finish, 15000);
+                    function finish() {
+                        if (finished) return;
+                        finished = true;
+                        clearTimeout(timeout);
+                        if (overlay) overlay.remove();
+                        if (adAudioContext && adAudioContext.state === 'suspended')
+                            adAudioContext.resume().catch(function () {});
+                        if (earned)
+                            window.bowlingMoneyRewardEarnedCount = (window.bowlingMoneyRewardEarnedCount | 0) + 1;
+                        window.bowlingMoneyRewardFinishedCount = (window.bowlingMoneyRewardFinishedCount | 0) + 1;
+                    }
+                    try {
+                        window.adBreak({
+                            type: 'reward', name: 'shop-' + window.BOWLING_MONEY_REWARD + '-coins',
+                            beforeReward: function (showAdFn) {
+                                if (finished) return;
+                                // H5 requires showAdFn from a direct user gesture.
+                                clearTimeout(timeout);
+                                timeout = setTimeout(finish, 120000);
+                                overlay = document.createElement('div');
+                                overlay.style.cssText = 'position:fixed;inset:0;z-index:2000;background:#111b;display:flex;align-items:center;justify-content:center';
+                                var button = document.createElement('button');
+                                button.textContent = '▶ $' + window.BOWLING_MONEY_REWARD;
+                                button.style.cssText = 'font:700 28px sans-serif;padding:22px 52px;border:0;border-radius:14px;background:#e8b83a;color:#281b00';
+                                overlay.appendChild(button);
+                                var cancel = document.createElement('button');
+                                cancel.textContent = '×';
+                                cancel.setAttribute('aria-label', 'Close');
+                                cancel.style.cssText = 'position:absolute;top:24px;right:24px;font:32px sans-serif;border:0;background:transparent;color:white';
+                                cancel.addEventListener('click', finish);
+                                overlay.appendChild(cancel);
+                                document.body.appendChild(overlay);
+                                button.addEventListener('click', function () {
+                                    button.disabled = true;
+                                    showAdFn();
+                                }, {once: true});
+                            },
+                            beforeAd: function () {
+                                clearTimeout(timeout);
+                                timeout = setTimeout(finish, 600000);
+                                if (overlay) overlay.style.display = 'none';
+                                adAudioContext = window.Module && Module.SDL2 && Module.SDL2.audioContext;
+                                if (adAudioContext) adAudioContext.suspend().catch(function () {});
+                            },
+                            adViewed: function () { earned = true; },
+                            adBreakDone: function (info) {
+                                var status = info && info.breakStatus || 'unknown';
+                                window.bowlingMoneyRewardLastStatus = status;
+                                if (status === 'viewed') earned = true;
+                                if (status !== 'viewed') {
+                                    var message = 'Money reward ad not awarded: ' + status;
+                                    if (window.Module && Module.printErr) Module.printErr(message);
+                                    else console.info(message);
+                                }
+                                finish();
+                            }
+                        });
+                    } catch (error) {
+                        console.warn('Money reward ad unavailable:', error);
+                        finish();
+                    }
                 };
             })();
         </script>

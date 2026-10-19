@@ -1,9 +1,11 @@
 #include <iostream>
+#include <atomic>
 #include <SDL_syswm.h>
 #import <UIKit/UIKit.h>
 #import <GoogleMobileAds/GoogleMobileAds.h>
 
 static void TrackerIosLossAdsStart(void);
+static void TrackerIosMoneyRewardAdsStart(void);
 
 #define GLM_ENABLE_EXPERIMENTAL
 #define GLM_FORCE_STD140
@@ -156,6 +158,7 @@ extern "C" int SDL_main(int argc, char* argv[]) {
 
     vtx::init(&g_ctx);
     TrackerIosLossAdsStart();
+    TrackerIosMoneyRewardAdsStart();
 
     g_ctx.shouldContinue = true;
     while (g_ctx.shouldContinue) {
@@ -343,6 +346,116 @@ static void TrackerIosLossAdsStart(void)
 extern "C" void PlatformAds_ShowInterstitial(void)
 {
     dispatch_async(dispatch_get_main_queue(), ^{ [[TrackerLossAdManager shared] showInterstitial]; });
+}
+
+extern "C" void Game_OnMoneyRewardEarned(void);
+extern "C" void Game_OnMoneyRewardFinished(void);
+static std::atomic<bool> g_moneyRewardAdReady{false};
+
+@interface TrackerMoneyRewardAdManager : NSObject <GADFullScreenContentDelegate>
+@property(nonatomic, strong) GADRewardedAd *ad;
+@property(nonatomic, assign) BOOL loading;
+@property(nonatomic, assign) BOOL presenting;
+@property(nonatomic, assign) NSTimeInterval loadedAt;
++ (instancetype)shared;
+- (void)start;
+- (void)show;
+@end
+
+@implementation TrackerMoneyRewardAdManager
++ (instancetype)shared
+{
+    static TrackerMoneyRewardAdManager *manager;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ manager = [TrackerMoneyRewardAdManager new]; });
+    return manager;
+}
+
+- (void)loadAd
+{
+    if (self.ad || self.loading) return;
+    NSString *unitID = [NSBundle.mainBundle objectForInfoDictionaryKey:@"MoneyRewardAdUnitID"];
+    if (!unitID.length) return;
+    self.loading = YES;
+    [GADRewardedAd loadWithAdUnitID:unitID request:[GADRequest request]
+                    completionHandler:^(GADRewardedAd *ad, NSError *error) {
+        self.loading = NO;
+        if (error) {
+            NSLog(@"Money reward ad unavailable: %@", error.localizedDescription);
+            return;
+        }
+        self.ad = ad;
+        self.loadedAt = NSDate.date.timeIntervalSince1970;
+        ad.fullScreenContentDelegate = self;
+        g_moneyRewardAdReady.store(true, std::memory_order_release);
+    }];
+}
+
+- (void)start { [self loadAd]; }
+
+- (void)show
+{
+    if (self.ad && NSDate.date.timeIntervalSince1970 - self.loadedAt > 3600.0)
+    {
+        self.ad = nil;
+        g_moneyRewardAdReady.store(false, std::memory_order_release);
+    }
+    UIViewController *presenter = TrackerTopViewController();
+    if (!self.ad || !presenter || self.presenting) {
+        [self loadAd];
+        Game_OnMoneyRewardFinished();
+        return;
+    }
+    self.presenting = YES;
+    g_moneyRewardAdReady.store(false, std::memory_order_release);
+    [self.ad presentFromRootViewController:presenter userDidEarnRewardHandler:^{
+        Game_OnMoneyRewardEarned();
+    }];
+}
+
+- (void)adWillPresentFullScreenContent:(id<GADFullScreenPresentingAd>)ad
+{
+    (void)ad;
+    Game_SetAdAudioPaused(1);
+}
+
+- (void)adDidDismissFullScreenContent:(id<GADFullScreenPresentingAd>)ad
+{
+    (void)ad;
+    Game_SetAdAudioPaused(0);
+    Game_OnMoneyRewardFinished();
+    self.presenting = NO;
+    self.ad = nil;
+    g_moneyRewardAdReady.store(false, std::memory_order_release);
+    [self loadAd];
+}
+
+- (void)ad:(id<GADFullScreenPresentingAd>)ad didFailToPresentFullScreenContentWithError:(NSError *)error
+{
+    (void)ad;
+    Game_SetAdAudioPaused(0);
+    Game_OnMoneyRewardFinished();
+    self.presenting = NO;
+    self.ad = nil;
+    g_moneyRewardAdReady.store(false, std::memory_order_release);
+    NSLog(@"Money reward ad could not open: %@", error.localizedDescription);
+    [self loadAd];
+}
+@end
+
+extern "C" bool PlatformAds_RewardedReady(void)
+{
+    return g_moneyRewardAdReady.load(std::memory_order_acquire);
+}
+
+extern "C" void PlatformAds_ShowMoneyReward(void)
+{
+    dispatch_async(dispatch_get_main_queue(), ^{ [[TrackerMoneyRewardAdManager shared] show]; });
+}
+
+static void TrackerIosMoneyRewardAdsStart(void)
+{
+    dispatch_async(dispatch_get_main_queue(), ^{ [[TrackerMoneyRewardAdManager shared] start]; });
 }
 
 extern "C" void Tracker_NativeOpenSongFile(void)

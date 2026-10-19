@@ -23,6 +23,8 @@ import com.google.android.gms.ads.LoadAdError;
 import com.google.android.gms.ads.MobileAds;
 import com.google.android.gms.ads.interstitial.InterstitialAd;
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback;
+import com.google.android.gms.ads.rewarded.RewardedAd;
+import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback;
 
 /** Android document picker bridge for tracker songs. No storage permission is needed. */
 public class TrackerActivity extends SDLActivity {
@@ -35,19 +37,30 @@ public class TrackerActivity extends SDLActivity {
     private InterstitialAd lossAd;
     private boolean lossAdLoading;
     private boolean lossAdReturnPending;
+    private volatile RewardedAd moneyRewardAd;
+    private volatile long moneyRewardAdLoadedAtMillis;
+    private boolean moneyRewardAdLoading;
+    private boolean adsInitialized;
     private static native void nativeInterstitialShown();
     private static native void nativeInterstitialFinished();
+    private static native void nativeMoneyRewardEarned();
+    private static native void nativeMoneyRewardFinished();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        MobileAds.initialize(this, status -> runOnUiThread(this::loadLossAd));
+        MobileAds.initialize(this, status -> runOnUiThread(() -> {
+            adsInitialized = true;
+            loadLossAd();
+            loadMoneyRewardAd();
+        }));
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         if (lossAdReturnPending) restoreAfterLossAd();
+        loadMoneyRewardAd();
     }
 
     @Override
@@ -70,6 +83,61 @@ public class TrackerActivity extends SDLActivity {
                     Log.w(TAG, "Loss interstitial unavailable: " + error.getMessage());
                 }
             });
+    }
+
+    private void loadMoneyRewardAd() {
+        if (!adsInitialized || moneyRewardAd != null || moneyRewardAdLoading ||
+            getString(R.string.admob_rewarded_unit).isEmpty()) return;
+        moneyRewardAdLoading = true;
+        RewardedAd.load(this, getString(R.string.admob_rewarded_unit),
+            new AdRequest.Builder().build(), new RewardedAdLoadCallback() {
+                @Override public void onAdLoaded(RewardedAd ad) {
+                    moneyRewardAdLoading = false;
+                    moneyRewardAdLoadedAtMillis = System.currentTimeMillis();
+                    moneyRewardAd = ad;
+                }
+                @Override public void onAdFailedToLoad(LoadAdError error) {
+                    moneyRewardAdLoading = false;
+                    Log.w(TAG, "Money reward ad unavailable: " + error.getMessage());
+                }
+            });
+    }
+
+    public boolean isRewardedMoneyAdReady() {
+        RewardedAd ad = moneyRewardAd;
+        if (ad == null) return false;
+        if (System.currentTimeMillis() - moneyRewardAdLoadedAtMillis < 3600000L)
+            return true;
+        moneyRewardAd = null;
+        runOnUiThread(this::loadMoneyRewardAd);
+        return false;
+    }
+
+    public void showRewardedMoneyAd() {
+        runOnUiThread(() -> {
+            RewardedAd ad = isRewardedMoneyAdReady() ? moneyRewardAd : null;
+            if (ad == null) {
+                nativeMoneyRewardFinished();
+                loadMoneyRewardAd();
+                return;
+            }
+            moneyRewardAd = null;
+            ad.setFullScreenContentCallback(new FullScreenContentCallback() {
+                @Override public void onAdDismissedFullScreenContent() {
+                    nativeMoneyRewardFinished();
+                    lossAdReturnPending = true;
+                    restoreAfterLossAd();
+                    loadMoneyRewardAd();
+                }
+                @Override public void onAdFailedToShowFullScreenContent(AdError error) {
+                    nativeMoneyRewardFinished();
+                    lossAdReturnPending = true;
+                    restoreAfterLossAd();
+                    loadMoneyRewardAd();
+                }
+            });
+            ad.show(this, rewardItem -> nativeMoneyRewardEarned());
+        });
     }
 
     // Called at a charged win or retry. Never wait for a load: the game

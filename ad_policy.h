@@ -1,26 +1,33 @@
 #pragma once
 
+#include "ads_config.h"
+
 #include <algorithm>
+#include <climits>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <ctime>
 
 // Calendar days are local to the player; holidays use absolute Unix time so
-// closing the game or crossing midnight cannot shorten the promised 24 hours.
+// closing the game or crossing midnight cannot shorten the configured holiday.
 struct AdPolicyState
 {
-    float credit = 50.0f;
+    float credit = AdsConfig::CreditInitial;
     int lastLoginDay = 0; // YYYYMMDD
     int counterDay = 0;   // YYYYMMDD
     int interstitialsToday = 0;
     int moneyAdsToday = 0;
     int64_t holidayEndsAt = 0;
+    uint64_t rewardedShopBucketId = UINT64_MAX;
+    int moneyAdsThisRestock = 0;
 };
 
-static constexpr int kAdPolicyDailyInterstitialLimit = 5;
-static constexpr int kAdPolicyDailyMoneyAdLimit = 3;
-static constexpr int64_t kAdPolicyHolidaySeconds = 24 * 60 * 60;
+static constexpr int kAdPolicyDailyInterstitialLimit = AdsConfig::InterstitialDailyLimit;
+static constexpr int kAdPolicyDailyMoneyAdLimit = AdsConfig::MoneyDailyLimit;
+static constexpr int64_t kAdPolicyHolidaySeconds = AdsConfig::HolidayHours * 60 * 60;
+static_assert(AdsConfig::MoneyPerRestockLimit >= 0,
+              "The rewarded ad limit per restock cannot be negative");
 
 static inline int AdPolicy_LocalDay(int64_t epochSeconds)
 {
@@ -46,7 +53,7 @@ static inline bool AdPolicy_OnLogin(AdPolicyState &state, int today)
         return false;
     const bool earned = state.lastLoginDay > 0;
     if (earned)
-        state.credit = std::min(100.0f, state.credit + 10.0f);
+        state.credit = std::min(AdsConfig::CreditMax, state.credit + AdsConfig::DailyLoginBonus);
     state.lastLoginDay = today;
     return true;
 }
@@ -64,7 +71,7 @@ static inline bool AdPolicy_OnOutcome(AdPolicyState &state, bool won, int today,
     if (AdPolicy_OnHoliday(state, now) ||
         state.interstitialsToday >= kAdPolicyDailyInterstitialLimit)
         return false;
-    const float cost = won ? 1.0f : 5.0f;
+    const float cost = won ? AdsConfig::WinCost : AdsConfig::LossCost;
     if (state.credit >= cost)
     {
         state.credit = std::max(0.0f, state.credit - cost);
@@ -87,22 +94,37 @@ static inline bool AdPolicy_OnInterstitialShown(AdPolicyState &state, int today,
     return true;
 }
 
-// Reserved for future rewarded money ads. They never count toward the holiday.
-static inline bool AdPolicy_OnMoneyAdViewed(AdPolicyState &state, int today)
+static inline bool AdPolicy_CanOfferMoneyAd(const AdPolicyState &state, uint64_t shopBucketId)
+{
+    return AdsConfig::MoneyPerRestockLimit > 0 &&
+           state.moneyAdsToday < kAdPolicyDailyMoneyAdLimit &&
+           (state.rewardedShopBucketId != shopBucketId ||
+            state.moneyAdsThisRestock < AdsConfig::MoneyPerRestockLimit);
+}
+
+// A verified reward consumes one offer from this restock and one daily money ad.
+// Rewarded ads never contribute to the interstitial holiday.
+static inline bool AdPolicy_OnMoneyAdViewed(AdPolicyState &state, int today, uint64_t shopBucketId)
 {
     AdPolicy_RefreshDay(state, today);
-    if (state.moneyAdsToday >= kAdPolicyDailyMoneyAdLimit)
+    if (!AdPolicy_CanOfferMoneyAd(state, shopBucketId))
         return false;
     ++state.moneyAdsToday;
+    if (state.rewardedShopBucketId != shopBucketId)
+        state.moneyAdsThisRestock = 0;
+    state.rewardedShopBucketId = shopBucketId;
+    ++state.moneyAdsThisRestock;
     return true;
 }
 
 static inline void AdPolicy_Format(const AdPolicyState &state, char *out, size_t size)
 {
-    std::snprintf(out, size, "%.3f,%d,%d,%d,%d,%lld", state.credit,
+    std::snprintf(out, size, "%.3f,%d,%d,%d,%d,%lld,%llu,%d", state.credit,
                   state.lastLoginDay, state.counterDay,
                   state.interstitialsToday, state.moneyAdsToday,
-                  static_cast<long long>(state.holidayEndsAt));
+                  static_cast<long long>(state.holidayEndsAt),
+                  static_cast<unsigned long long>(state.rewardedShopBucketId),
+                  state.moneyAdsThisRestock);
 }
 
 static inline bool AdPolicy_Parse(AdPolicyState &state, const char *text)
@@ -110,15 +132,22 @@ static inline bool AdPolicy_Parse(AdPolicyState &state, const char *text)
     if (!text) return false;
     AdPolicyState parsed;
     long long holiday = 0;
-    if (std::sscanf(text, "%f,%d,%d,%d,%d,%lld", &parsed.credit,
+    unsigned long long rewardedBucket = ULLONG_MAX;
+    const int fields = std::sscanf(text, "%f,%d,%d,%d,%d,%lld,%llu,%d", &parsed.credit,
                     &parsed.lastLoginDay, &parsed.counterDay,
-                    &parsed.interstitialsToday, &parsed.moneyAdsToday, &holiday) != 6 ||
-        !std::isfinite(parsed.credit))
+                    &parsed.interstitialsToday, &parsed.moneyAdsToday, &holiday,
+                    &rewardedBucket, &parsed.moneyAdsThisRestock);
+    if (fields < 6 || !std::isfinite(parsed.credit))
         return false;
-    parsed.credit = std::max(0.0f, std::min(100.0f, parsed.credit));
+    parsed.credit = std::max(0.0f, std::min(AdsConfig::CreditMax, parsed.credit));
     parsed.interstitialsToday = std::max(0, std::min(kAdPolicyDailyInterstitialLimit, parsed.interstitialsToday));
     parsed.moneyAdsToday = std::max(0, std::min(kAdPolicyDailyMoneyAdLimit, parsed.moneyAdsToday));
     parsed.holidayEndsAt = std::max<int64_t>(0, holiday);
+    parsed.rewardedShopBucketId = static_cast<uint64_t>(rewardedBucket);
+    // Seven-field saves recorded one reward in the stored bucket. Six-field
+    // saves predate the bucket and have no restock rewards to carry forward.
+    parsed.moneyAdsThisRestock = parsed.rewardedShopBucketId == UINT64_MAX
+        ? 0 : (fields == 7 ? 1 : std::max(0, parsed.moneyAdsThisRestock));
     state = parsed;
     return true;
 }

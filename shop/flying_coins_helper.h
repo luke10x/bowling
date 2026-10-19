@@ -35,8 +35,8 @@ void renderFlyingCollectables(
         runeFreezeMesh, runeSkullMesh, runeGuardPinsMesh, runeFootballMesh
     }};
     const auto visibleOnThisSide = [beforeHudPass, hudLevel](const CoinFlyAnimation &fly) {
-        return fly.isVisible() && (beforeHudPass ? fly.currentPos.y < hudLevel
-                                                : fly.currentPos.y >= hudLevel);
+        return fly.isVisible() && (fly.forceHudOverlay ? !beforeHudPass :
+            (beforeHudPass ? fly.currentPos.y < hudLevel : fly.currentPos.y >= hudLevel));
     };
     const bool anyVisible = std::any_of(
         coinLane->flyAnimations.begin(), coinLane->flyAnimations.end(), visibleOnThisSide);

@@ -1,8 +1,12 @@
 #pragma once
 
+#include "ads_config.h"
+
 #define CAROUSEL_MAX_CARDS 40
 #define BALL_SHOP_STOCK_SIZE 5
 #define BALL_SHOP_DEFAULT_REFRESH_MINUTES 30
+#define BALL_SHOP_REWARDED_CARD_ID -1
+#define BALL_SHOP_REWARDED_COINS ADS_MONEY_REWARD
 
 #include <string.h>  // for memcpy, strcmp
 #include <stdio.h>   // for debug logging (optional)
@@ -173,6 +177,15 @@ typedef struct BallShopState
     float transitionDir;
     bool restockPromptPending;
     int pendingFocusIndex;
+    bool carouselRewardAvailable;
+    bool rewardCardConsumedThisOpen;
+    int removingCardId;
+    int removingCardIndex;
+    int removingPayout;
+    float removingCardElapsed;
+    bool removingCardActive;
+    bool removingPayoutStarted;
+    float rewardCardPulse;
 } BallShopState;
 
 static inline void BallShop_Init(BallShopState *state)
@@ -185,6 +198,8 @@ static inline void BallShop_Init(BallShopState *state)
     state->transitionDuration = 0.18f;
     state->restockPromptPending = false;
     state->pendingFocusIndex = -1;
+    state->removingCardId = -2;
+    state->removingCardIndex = -1;
 }
 
 static inline void BallShop_BeginTransition(BallShopState *state, float dir)

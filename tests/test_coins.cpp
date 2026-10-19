@@ -66,3 +66,15 @@ TEST_CASE("Dismissing transient fly effects preserves deployed gems")
     CHECK(lane.getActiveCount() == deployedCount);
     CHECK(lane.hasActiveGem());
 }
+
+TEST_CASE("Shop payout coins stay in the HUD overlay without changing the bank")
+{
+    CoinLane lane {};
+    CHECK(lane.spawnFlyAnimation(
+        {200.0f, 100.0f}, {40.0f, 800.0f}, CollectableVisualKind::Coin,
+        false, 45.0f, 0.0f, false, 0.0f, 1.0f, true));
+    CHECK(lane.hasActiveHudOverlayFly());
+    REQUIRE(lane.flyAnimations[0].forceHudOverlay);
+    CHECK(lane.updateFlyAnimations(1.0f) == 0);
+    CHECK_FALSE(lane.hasActiveHudOverlayFly());
+}

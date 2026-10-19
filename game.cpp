@@ -47,6 +47,35 @@ EM_JS(int, WebInterstitial_ConsumeFinished, (), {
     window.bowlingInterstitialFinishedCount = 0;
     return count;
 });
+
+EM_JS(void, WebMoneyReward_Show, (), {
+    if (window.bowlingShowMoneyRewardAd)
+        window.bowlingShowMoneyRewardAd();
+    else
+        window.bowlingMoneyRewardFinishedCount = (window.bowlingMoneyRewardFinishedCount | 0) + 1;
+});
+
+EM_JS(int, WebMoneyReward_ConsumeEarned, (), {
+    const count = window.bowlingMoneyRewardEarnedCount | 0;
+    window.bowlingMoneyRewardEarnedCount = 0;
+    return count;
+});
+
+EM_JS(int, WebMoneyReward_ConsumeFinished, (), {
+    const count = window.bowlingMoneyRewardFinishedCount | 0;
+    window.bowlingMoneyRewardFinishedCount = 0;
+    return count;
+});
+
+EM_JS(int, WebMoneyReward_Ready, (), {
+    // H5's onReady can remain pending until Google has ad inventory. The
+    // reward card should still be visible; adBreak reports no fill on request.
+    return !!window.bowlingShowMoneyRewardAd && !!window.BOWLING_ADSENSE_CLIENT;
+});
+
+EM_JS(int, WebAds_HousePromo, (), {
+    return !!window.BOWLING_H5_HOUSE_PROMO && !window.BOWLING_ADS_TEST;
+});
 #endif
 
 #if defined(__APPLE__)
@@ -62,11 +91,15 @@ extern "C" void Tracker_NativeSetSongFileCallbacks(
     void (*saved)(int));
 #if TARGET_OS_IPHONE
 extern "C" void PlatformAds_ShowInterstitial(void);
+extern "C" bool PlatformAds_RewardedReady(void);
+extern "C" void PlatformAds_ShowMoneyReward(void);
 #endif
 #endif
 
 #if defined(__ANDROID__) || defined(ANDROID)
 extern "C" void PlatformAds_ShowInterstitial(void);
+extern "C" bool PlatformAds_RewardedReady(void);
+extern "C" void PlatformAds_ShowMoneyReward(void);
 extern "C" void Tracker_AndroidOpenSongFile(void);
 extern "C" void Tracker_AndroidSaveSongFile(const char *filename, const char *text);
 extern "C" void Tracker_AndroidPollSongFileResults(
@@ -85,6 +118,7 @@ extern "C" void Game_SetAdAudioPaused(int paused)
 #endif
 
 extern "C" void Game_OnInterstitialFinished(void);
+extern "C" void Game_OnMoneyRewardFinished(void);
 static inline void Game_ShowInterstitial(SDL_AudioDeviceID audioDevice, bool won)
 {
 #ifdef __EMSCRIPTEN__
@@ -109,13 +143,51 @@ static inline void Game_ShowInterstitial(SDL_AudioDeviceID audioDevice, bool won
 // paused. Apply accounting on the game thread when it resumes.
 static std::atomic<int> g_interstitialShownSignals{0};
 static std::atomic<int> g_interstitialFinishedSignals{0};
+static std::atomic<int> g_moneyRewardEarnedSignals{0};
+static std::atomic<int> g_moneyRewardFinishedSignals{0};
 extern "C" void Game_OnInterstitialShown(void)
 {
     g_interstitialShownSignals.fetch_add(1, std::memory_order_relaxed);
 }
+extern "C" void Game_OnMoneyRewardEarned(void)
+{
+    g_moneyRewardEarnedSignals.fetch_add(1, std::memory_order_relaxed);
+}
+extern "C" void Game_OnMoneyRewardFinished(void)
+{
+    g_moneyRewardFinishedSignals.fetch_add(1, std::memory_order_relaxed);
+}
 extern "C" void Game_OnInterstitialFinished(void)
 {
     g_interstitialFinishedSignals.fetch_add(1, std::memory_order_relaxed);
+}
+
+static inline bool Game_MoneyRewardReady()
+{
+#ifdef __EMSCRIPTEN__
+    return WebMoneyReward_Ready() != 0; // H5 fill is decided by adBreak on request.
+#elif defined(__ANDROID__) || defined(ANDROID) || (defined(__APPLE__) && TARGET_OS_IPHONE)
+    return PlatformAds_RewardedReady();
+#else
+    return false;
+#endif
+}
+
+static inline void Game_ShowMoneyReward(SDL_AudioDeviceID audioDevice)
+{
+#ifdef __EMSCRIPTEN__
+    (void)audioDevice;
+    WebMoneyReward_Show();
+#elif defined(__ANDROID__) || defined(ANDROID)
+    (void)audioDevice;
+    PlatformAds_ShowMoneyReward();
+#elif defined(__APPLE__) && TARGET_OS_IPHONE
+    g_lossAdAudioDevice.store(audioDevice);
+    PlatformAds_ShowMoneyReward();
+#else
+    (void)audioDevice;
+    Game_OnMoneyRewardFinished();
+#endif
 }
 
 #if __has_include("build/generated/build_version.h")
@@ -1136,6 +1208,17 @@ struct UserContext
     bool appFocusLost = false;
     bool appInactiveOverlayActive = false;
     AdPolicyState adPolicy;
+    bool moneyRewardInFlight = false;
+    bool moneyRewardEarnedPending = false;
+    uint64_t moneyRewardRequestBucketId = UINT64_MAX;
+    int hudMoneyDisplayed = 0;
+    int hudMoneyFrom = 0;
+    int hudMoneyTo = 0;
+    float hudMoneySpinElapsed = 0.0f;
+    float hudMoneyTickCooldown = 0.0f;
+    float hudMoneyBlinkTime = 0.0f;
+    bool hudMoneySpinning = false;
+    int pendingHudPayout = 0;
     bool pendingLossInterstitial = false;
     bool adInterstitialInFlight = false;
     bool trackerSongFilePickerActive = false;
@@ -11352,6 +11435,52 @@ static inline void AdPolicy_Tick(UserContext *usr)
         AdPolicy_Save(usr);
     if (finished > 0)
         usr->adInterstitialInFlight = false;
+
+    int rewardEarned = g_moneyRewardEarnedSignals.exchange(0, std::memory_order_relaxed);
+    int rewardFinished = g_moneyRewardFinishedSignals.exchange(0, std::memory_order_relaxed);
+#ifdef __EMSCRIPTEN__
+    rewardEarned += WebMoneyReward_ConsumeEarned();
+    rewardFinished += WebMoneyReward_ConsumeFinished();
+#endif
+    // The SDK can report the earned reward several game frames before the ad
+    // closes. Keep that signal until the matching finish callback arrives.
+    if (rewardEarned > 0 && usr->moneyRewardInFlight)
+        usr->moneyRewardEarnedPending = true;
+    if (rewardFinished > 0 && usr->moneyRewardInFlight)
+    {
+        usr->moneyRewardInFlight = false;
+        const bool earned = usr->moneyRewardEarnedPending;
+        usr->moneyRewardEarnedPending = false;
+        if (earned && AdPolicy_OnMoneyAdViewed(
+                usr->adPolicy, today, usr->moneyRewardRequestBucketId))
+        {
+            usr->ballShop.rewardCardConsumedThisOpen = true;
+            AdPolicy_Save(usr);
+            usr->carousel.bank += BALL_SHOP_REWARDED_COINS;
+            Progress_SaveUnlocksAndBank(usr);
+            int rewardCardIndex = -1;
+            if (usr->shouldShowShop && usr->ballShop.activeTab == BallShopTab_SHOP)
+            {
+                for (int i = 0; i < usr->carousel.cardCount; ++i)
+                    if (usr->carousel.items[i].id == BALL_SHOP_REWARDED_CARD_ID)
+                    {
+                        rewardCardIndex = i;
+                        break;
+                    }
+            }
+            if (rewardCardIndex >= 0)
+            {
+                usr->ballShop.removingCardActive = true;
+                usr->ballShop.removingCardId = BALL_SHOP_REWARDED_CARD_ID;
+                usr->ballShop.removingCardIndex = rewardCardIndex;
+                usr->ballShop.removingPayout = BALL_SHOP_REWARDED_COINS;
+                usr->ballShop.removingCardElapsed = 0.0f;
+                usr->ballShop.removingPayoutStarted = false;
+            }
+            else
+                usr->pendingHudPayout = BALL_SHOP_REWARDED_COINS;
+        }
+    }
 }
 
 static inline bool AdPolicy_ChargeOutcome(UserContext *usr, bool won)
@@ -11746,7 +11875,8 @@ static inline void Progress_SaveEquippedBall(UserContext *usr)
     usr->storage.setChar(Storage::EQUIPPED_BALL, buf, strlen(buf));
 }
 
-static inline void BallShop_RebuildInventoryCarousel(UserContext *usr, int preferredBallId);
+static inline void BallShop_RebuildInventoryCarousel(
+    UserContext *usr, int preferredBallId, int preferredIndex = -1);
 
 static inline void BallInventory_FormatReturnedBallsDetail(UserContext *usr, uint64_t restoredMask)
 {
@@ -12105,7 +12235,8 @@ static inline void BallShop_SelectCarouselItem(CarouselState *carousel, int idx)
         carousel->closest3rdBallIdx = idx + 2;
 }
 
-static inline void BallShop_RebuildInventoryCarousel(UserContext *usr, int preferredBallId = -1)
+static inline void BallShop_RebuildInventoryCarousel(
+    UserContext *usr, int preferredBallId, int preferredIndex)
 {
     if (!usr)
         return;
@@ -12129,6 +12260,8 @@ static inline void BallShop_RebuildInventoryCarousel(UserContext *usr, int prefe
             break;
         }
     }
+    if (preferredIndex >= 0 && usr->carousel.cardCount > 0)
+        focusIdx = glm::clamp(preferredIndex, 0, usr->carousel.cardCount - 1);
     BallShop_SelectCarouselItem(&usr->carousel, focusIdx);
     usr->ballShop.pendingFocusIndex = (usr->carousel.cardCount > 0) ? focusIdx : -1;
     usr->ballShop.carouselTab = BallShopTab_INVENTORY;
@@ -12143,6 +12276,16 @@ static inline void BallShop_RebuildShopCarousel(UserContext *usr)
         return;
 
     Carousel_ClearItems(&usr->carousel);
+    const bool offerReward =
+        !usr->ballShop.rewardCardConsumedThisOpen &&
+        AdPolicy_CanOfferMoneyAd(usr->adPolicy, usr->ballShop.stockBucketId) &&
+        Game_MoneyRewardReady();
+    if (offerReward)
+    {
+        CatalogItem reward{};
+        reward.id = BALL_SHOP_REWARDED_CARD_ID;
+        Carousel_AddCatalogItem(&usr->carousel, &reward);
+    }
     for (int i = 0; i < usr->ballShop.stockCount; ++i)
     {
         const CatalogItem &item = usr->ballShop.stock[i];
@@ -12156,6 +12299,7 @@ static inline void BallShop_RebuildShopCarousel(UserContext *usr)
     usr->ballShop.carouselTab = BallShopTab_SHOP;
     usr->ballShop.carouselOwnedMask = usr->unlockedBallMask;
     usr->ballShop.carouselBucketId = usr->ballShop.stockBucketId;
+    usr->ballShop.carouselRewardAvailable = offerReward;
     usr->ballShop.carouselValid = true;
 }
 
@@ -12209,17 +12353,147 @@ static inline void BallShop_SyncVisibleCarousel(UserContext *usr)
     if (!usr)
         return;
 
+    if (usr->ballShop.removingCardActive || usr->moneyRewardInFlight)
+        return;
+
+    const bool rewardAvailable =
+        usr->ballShop.activeTab == BallShopTab_SHOP &&
+        !usr->ballShop.rewardCardConsumedThisOpen &&
+        AdPolicy_CanOfferMoneyAd(usr->adPolicy, usr->ballShop.stockBucketId) &&
+        Game_MoneyRewardReady();
+
     const bool needsRebuild =
         !usr->ballShop.carouselValid ||
         usr->ballShop.carouselTab != usr->ballShop.activeTab ||
         usr->ballShop.carouselOwnedMask != usr->unlockedBallMask ||
+        (usr->ballShop.activeTab == BallShopTab_SHOP &&
+         usr->ballShop.carouselRewardAvailable != rewardAvailable) ||
         (usr->ballShop.activeTab == BallShopTab_SHOP &&
          usr->ballShop.carouselBucketId != usr->ballShop.stockBucketId);
 
     if (!needsRebuild)
         return;
 
+    const int selectedId =
+        usr->ballShop.activeTab == BallShopTab_SHOP &&
+        usr->carousel.closestBallIdx >= 0 &&
+        usr->carousel.closestBallIdx < usr->carousel.cardCount
+            ? usr->carousel.items[usr->carousel.closestBallIdx].id : -2;
     BallShop_SetTab(usr, usr->ballShop.activeTab);
+    if (usr->ballShop.activeTab == BallShopTab_SHOP && selectedId != -2)
+    {
+        for (int i = 0; i < usr->carousel.cardCount; ++i)
+        {
+            if (usr->carousel.items[i].id != selectedId) continue;
+            BallShop_SelectCarouselItem(&usr->carousel, i);
+            usr->ballShop.pendingFocusIndex = i;
+            break;
+        }
+    }
+}
+
+static inline void BallShop_StartPayoutVisual(
+    UserContext *usr, int payout, glm::vec2 source)
+{
+    if (!usr || payout <= 0)
+        return;
+    const glm::vec2 target = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
+    const int coins = glm::clamp(payout / 8, 12, 24);
+    for (int i = 0; i < coins; ++i)
+    {
+        const float a = 2.3999632f * (float)i;
+        const glm::vec2 offset(std::cos(a) * (8.0f + float(i % 4) * 3.0f),
+                               std::sin(a) * (8.0f + float(i % 4) * 3.0f));
+        (void)usr->coinLane.spawnFlyAnimation(
+            source + offset, target, CollectableVisualKind::Coin,
+            false, 45.0f + float(i % 5) * 7.0f, float(i) * 0.038f,
+            (i % 4) == 0, float(i) * 0.37f, 0.68f, true);
+    }
+    usr->hudMoneyFrom = glm::max(0, (int)std::lround(usr->carousel.bank) - payout);
+    usr->hudMoneyTo = (int)std::lround(usr->carousel.bank);
+    usr->hudMoneyDisplayed = usr->hudMoneyFrom;
+    usr->hudMoneySpinElapsed = 0.0f;
+    usr->hudMoneyTickCooldown = 0.0f;
+    usr->hudMoneyBlinkTime = 0.0f;
+    usr->hudMoneySpinning = true;
+}
+
+static inline void BallShop_TickPayoutVisual(
+    UserContext *usr, float dt, int screenWidth, int screenHeight)
+{
+    if (!usr)
+        return;
+    BallShopState &shop = usr->ballShop;
+    shop.rewardCardPulse += glm::max(0.0f, dt);
+    if (shop.removingCardActive)
+    {
+        shop.removingCardElapsed += glm::max(0.0f, dt);
+        if (!shop.removingPayoutStarted)
+        {
+            const Clay_BoundingBox cardBox =
+                Clay_GetElementData(CLAY_IDI("CarouselCard", shop.removingCardIndex)).boundingBox;
+            const glm::vec2 source = cardBox.width > 0.0f && cardBox.height > 0.0f
+                ? glm::vec2(cardBox.x + cardBox.width * 0.5f,
+                    float(screenHeight) - cardBox.y - cardBox.height * 0.5f)
+                : glm::vec2(float(screenWidth) * 0.5f, float(screenHeight) * 0.5f);
+            BallShop_StartPayoutVisual(usr, shop.removingPayout, source);
+            shop.removingPayoutStarted = true;
+        }
+    }
+    if (usr->pendingHudPayout > 0)
+    {
+        const int payout = usr->pendingHudPayout;
+        usr->pendingHudPayout = 0;
+        BallShop_StartPayoutVisual(usr, payout,
+            glm::vec2(float(screenWidth) * 0.5f, float(screenHeight) * 0.5f));
+    }
+    usr->hudMoneyBlinkTime = glm::max(0.0f, usr->hudMoneyBlinkTime - dt);
+    if (usr->hudMoneySpinning)
+    {
+        usr->hudMoneySpinElapsed += glm::max(0.0f, dt);
+        usr->hudMoneyTickCooldown = glm::max(0.0f, usr->hudMoneyTickCooldown - dt);
+        const float t = glm::clamp(usr->hudMoneySpinElapsed / 1.25f, 0.0f, 1.0f);
+        const float eased = 1.0f - std::pow(1.0f - t, 3.0f);
+        const int next = usr->hudMoneyFrom +
+            (int)std::lround(float(usr->hudMoneyTo - usr->hudMoneyFrom) * eased);
+        if (next > usr->hudMoneyDisplayed && usr->hudMoneyTickCooldown <= 0.0f)
+        {
+            usr->sound.playSfxCoinPickup();
+            usr->hudMoneyTickCooldown = 0.045f;
+        }
+        usr->hudMoneyDisplayed = next;
+        if (t >= 1.0f || next >= usr->hudMoneyTo)
+            usr->hudMoneySpinning = false;
+    }
+    // Keep the consumed card in its slot until the visible balance finishes
+    // counting. Only then rebuild and let the adjacent card slide into place.
+    if (shop.removingCardActive && shop.removingPayoutStarted &&
+        !usr->hudMoneySpinning && shop.removingCardElapsed >= 0.48f)
+    {
+        const int oldIndex = shop.removingCardIndex;
+        const bool rewardCard = shop.removingCardId == BALL_SHOP_REWARDED_CARD_ID;
+        shop.removingCardActive = false;
+        shop.removingPayoutStarted = false;
+        shop.removingCardId = -2;
+        shop.removingCardIndex = -1;
+        shop.removingPayout = 0;
+        if (rewardCard)
+            BallShop_RebuildShopCarousel(usr);
+        else
+            BallShop_RebuildInventoryCarousel(usr, usr->selectedBallId, oldIndex);
+        if (usr->carousel.cardCount > 0)
+        {
+            const int focus = glm::min(oldIndex, usr->carousel.cardCount - 1);
+            const bool fromRight = oldIndex < usr->carousel.cardCount;
+            BallShop_SelectCarouselItem(&usr->carousel, focus);
+            shop.pendingFocusIndex = -1;
+            float slot = Carousel_GetSlotWidth(&usr->carousel);
+            if (slot <= 1.0f) slot = 240.0f;
+            usr->carousel.scrollOffset = -float(focus) * slot +
+                (fromRight ? 0.42f : -0.42f) * slot;
+            usr->carousel.velocity = 0.0f;
+        }
+    }
 }
 
 static inline void BallShop_Open(UserContext *usr, BallShopTab initialTab)
@@ -12228,6 +12502,8 @@ static inline void BallShop_Open(UserContext *usr, BallShopTab initialTab)
         return;
 
     BallShop_RefreshStock(usr, (uint64_t)time(nullptr));
+    if (!usr->ballShop.removingCardActive)
+        usr->ballShop.rewardCardConsumedThisOpen = false;
     BallShop_SetTab(usr, initialTab);
     BallShop_BeginTransition(&usr->ballShop, (initialTab == BallShopTab_SHOP) ? 1.0f : -1.0f);
     usr->shouldShowShop = true;
@@ -22288,10 +22564,12 @@ void vtx::loop(vtx::VertexContext *ctx)
     if (usr->windowStack.shopSellConfirmed)
     {
         usr->windowStack.shopSellConfirmed = false;
-        if (usr->shouldShowShop && usr->ballShop.activeTab == BallShopTab_INVENTORY)
+        if (usr->shouldShowShop && usr->ballShop.activeTab == BallShopTab_INVENTORY &&
+            !usr->ballShop.removingCardActive)
         {
             // Use the quote's original bucket even if the shop renewed while
             // the player read the confirmation window.
+            const int soldIndex = usr->carousel.closestBallIdx;
             const int paid = BallShop_SellOwnedBall(
                 &usr->unlockedBallMask, &usr->carousel.bank,
                 usr->destroyedBallPendingReturnMask, usr->selectedBallId,
@@ -22299,7 +22577,12 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (paid > 0)
             {
                 Progress_SaveUnlocksAndBank(usr);
-                BallShop_RebuildInventoryCarousel(usr);
+                usr->ballShop.removingCardActive = true;
+                usr->ballShop.removingCardId = usr->windowStack.sellConfirmBallId;
+                usr->ballShop.removingCardIndex = soldIndex;
+                usr->ballShop.removingPayout = paid;
+                usr->ballShop.removingCardElapsed = 0.0f;
+                usr->ballShop.removingPayoutStarted = false;
             }
         }
         usr->windowStack.sellConfirmBallId = -1;
@@ -22352,7 +22635,19 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (idx >= 0 && idx < usr->carousel.cardCount)
             {
                 const CatalogItem *pickedBall = &usr->carousel.items[idx];
-                if (!BallInventory_IsDestroyedPendingReturn(usr, pickedBall->id) &&
+                if (pickedBall->id == BALL_SHOP_REWARDED_CARD_ID)
+                {
+                    if (!usr->moneyRewardInFlight && !usr->ballShop.removingCardActive &&
+                        AdPolicy_CanOfferMoneyAd(usr->adPolicy, usr->ballShop.stockBucketId) &&
+                        Game_MoneyRewardReady())
+                    {
+                        usr->moneyRewardInFlight = true;
+                        usr->moneyRewardEarnedPending = false;
+                        usr->moneyRewardRequestBucketId = usr->ballShop.stockBucketId;
+                        Game_ShowMoneyReward(usr->sound.audioDev);
+                    }
+                }
+                else if (!BallInventory_IsDestroyedPendingReturn(usr, pickedBall->id) &&
                     usr->carousel.bank >= pickedBall->price)
                 {
                     UnlockMask_AddBall(usr, pickedBall->id);
@@ -26843,7 +27138,9 @@ END_LINE:
 
                 // 2. Update all flying coin animations
                 int startedCoinFlySfxCount = 0;
-                const float flyAnimationDeltaTime = Chest_IsRewardActive(usr) ? deltaTime : gameplayDeltaTime;
+                const float flyAnimationDeltaTime =
+                    (Chest_IsRewardActive(usr) || usr->coinLane.hasActiveHudOverlayFly())
+                        ? deltaTime : gameplayDeltaTime;
                 float earned = usr->coinLane.updateFlyAnimations(flyAnimationDeltaTime, &startedCoinFlySfxCount);
                 for (int i = 0; i < startedCoinFlySfxCount; ++i)
                     usr->sound.playSfxCoinPickup();
@@ -27982,6 +28279,11 @@ END_LINE:
                                     CLAY_TEXT(playTime, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
                                 }
                                 Clay_ElementDeclaration moneyButton = CLAY_THEME_BTN_HUD;
+                                if (usr->hudMoneyBlinkTime > 0.0f)
+                                    moneyButton.backgroundColor = {
+                                        220.0f + 35.0f * usr->clayton.shopBalanceFlash01,
+                                        165.0f + 65.0f * usr->clayton.shopBalanceFlash01,
+                                        35.0f, 255.0f};
                                 moneyButton.layout.layoutDirection = CLAY_LEFT_TO_RIGHT;
                                 moneyButton.layout.childGap = 6;
                                 moneyButton.layout.childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER};
@@ -27989,7 +28291,8 @@ END_LINE:
                                 {
                                     char bankAmountBuf[64];
                                     (void)snprintf(
-                                        bankAmountBuf, sizeof(bankAmountBuf), "%d", usr->carousel.bank
+                                        bankAmountBuf, sizeof(bankAmountBuf), "%d",
+                                        usr->hudMoneySpinning ? usr->hudMoneyDisplayed : usr->carousel.bank
                                     );
                                     Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
                                     CLAY(
@@ -29405,6 +29708,11 @@ END_LINE:
 
         BallShop_RefreshStock(usr, (uint64_t)time(nullptr));
         ResultWindow_TickCoinSpin(usr, (float)deltaTime);
+        BallShop_TickPayoutVisual(usr, (float)deltaTime, ctx->screenWidth, ctx->screenHeight);
+        usr->clayton.shopDisplayedCoins = usr->hudMoneySpinning
+            ? usr->hudMoneyDisplayed : usr->carousel.bank;
+        usr->clayton.shopBalanceFlash01 = usr->hudMoneyBlinkTime > 0.0f
+            ? 0.5f + 0.5f * std::sin(usr->hudMoneyBlinkTime * 28.0f) : 0.0f;
         if (usr->shouldShowShop)
         {
             BallShop_TickTransition(&usr->ballShop, (float)deltaTime);
@@ -29413,7 +29721,21 @@ END_LINE:
 
         usr->clayton.botsActionLabel = (usr->selectorFlowStep == SelectorFlowStep::BOT) ? Txl_Get(usr->language, TXL_SELECT_ANGEL) : Txl_Get(usr->language, TXL_SELECT_BOT);
         usr->clayton.housesActionLabel = (usr->selectorFlowStep == SelectorFlowStep::HOUSE) ? Txl_Get(usr->language, TXL_SELECT_HOUSE) : Txl_Get(usr->language, TXL_SWITCH_HOUSE);
-        usr->clayton.shopActionLabel = (usr->ballShop.activeTab == BallShopTab_INVENTORY) ? Txl_Get(usr->language, TXL_SELECT_BALL) : Txl_Get(usr->language, TXL_BUY_NOW);
+        const bool rewardCardSelected = usr->shouldShowShop &&
+            usr->ballShop.activeTab == BallShopTab_SHOP &&
+            usr->carousel.closestBallIdx >= 0 &&
+            usr->carousel.closestBallIdx < usr->carousel.cardCount &&
+            usr->carousel.items[usr->carousel.closestBallIdx].id == BALL_SHOP_REWARDED_CARD_ID;
+        usr->clayton.shopActionLabel = rewardCardSelected
+            ? Txl_Get(usr->language,
+#ifdef __EMSCRIPTEN__
+                WebAds_HousePromo() ? TXL_WATCH_PROMO : TXL_WATCH_AD)
+#else
+                TXL_WATCH_AD)
+#endif
+            : (usr->ballShop.activeTab == BallShopTab_INVENTORY)
+                ? Txl_Get(usr->language, TXL_SELECT_BALL)
+                : Txl_Get(usr->language, TXL_BUY_NOW);
         usr->clayton.shopDisabledActionLabel = nullptr;
         usr->clayton.shopSellEnabled = false;
         usr->clayton.shopSellPrice = 0;
@@ -29474,13 +29796,24 @@ END_LINE:
             }
             else if (hasSelectedShopBall)
             {
-                usr->clayton.shopActionEnabled =
-                    !selectedShopBallLost && usr->carousel.bank >= usr->carousel.items[idx].price;
+                usr->clayton.shopActionEnabled = rewardCardSelected
+                    ? !usr->moneyRewardInFlight &&
+                      AdPolicy_CanOfferMoneyAd(usr->adPolicy, usr->ballShop.stockBucketId)
+                    : !selectedShopBallLost && usr->carousel.bank >= usr->carousel.items[idx].price;
+                if (rewardCardSelected &&
+                    (usr->moneyRewardInFlight || usr->ballShop.removingCardActive))
+                    usr->clayton.shopDisabledActionLabel =
+                        Txl_Get(usr->language, TXL_REWARD_LOADING);
                 if (selectedShopBallLost)
                     usr->clayton.shopDisabledActionLabel = "LOST";
             }
             else
                 usr->clayton.shopActionEnabled = false;
+            if (usr->ballShop.removingCardActive)
+            {
+                usr->clayton.shopActionEnabled = false;
+                usr->clayton.shopSellEnabled = false;
+            }
         }
 
             if (MiniGame_IsCrowdControl(usr))

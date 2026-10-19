@@ -25,6 +25,92 @@ static constexpr float SHOP_CARD_HEADER_HEIGHT = 32.0f;
 static constexpr float SHOP_CARD_PRICE_HEIGHT = 76.0f;
 static constexpr float SHOP_CARD_STATS_HEIGHT = 106.0f;
 static constexpr float SHOP_CAROUSEL_PAD_Y = 10.0f;
+static inline float Shop_CardPreviewHeightPx(float carouselBeltWidthPx);
+
+static inline void Shop_DrawGoldCard(Clayton *clayton, int index, float pulse, bool leaving)
+{
+    const float wave = 0.5f + 0.5f * std::sin(pulse * (leaving ? 28.0f : 4.0f));
+    const Clay_Color gold = {190.0f + 45.0f * wave, 137.0f + 50.0f * wave,
+                             23.0f + 15.0f * wave, 255};
+    const float previewHeight = Shop_CardPreviewHeightPx(
+        Clay_GetElementData(CLAY_ID("CarouselBelt")).boundingBox.width);
+    const float bodyHeight = previewHeight + SHOP_CARD_PRICE_HEIGHT + SHOP_CARD_STATS_HEIGHT;
+    Clay_TextElementConfig headerText = CLAY_THEME_TEXT_BODY;
+    Clay_TextElementConfig goldText = CLAY_THEME_TEXT_LARGE;
+    goldText.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+    goldText.textColor = {35, 25, 4, 255};
+    CLAY(CLAY_IDI("CarouselCard", index),
+         {.layout = {.sizing = {CLAY_SIZING_PERCENT(CAROUSEL_CARD_WIDTH), CLAY_SIZING_GROW()}}})
+    {
+        CLAY(CLAY_IDI("GoldRewardWrapper", index),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                         .padding = {(uint16_t)SHOP_CARD_WRAPPER_PAD_X,
+                                     (uint16_t)SHOP_CARD_WRAPPER_PAD_X,
+                                     (uint16_t)SHOP_CARD_WRAPPER_PAD_Y,
+                                     (uint16_t)SHOP_CARD_WRAPPER_PAD_Y}}})
+        {
+            CLAY(CLAY_IDI("GoldRewardCard", index), CLAY_THEME_CATALOG_ITEM)
+            {
+                CLAY(CLAY_IDI("GoldRewardHeader", index),
+                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(SHOP_CARD_HEADER_HEIGHT)},
+                                 .padding = {.left = 6},
+                                 .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}},
+                      .backgroundColor = {180, 180, 220, 180},
+                      .cornerRadius = {.topLeft = CLAY_RADIUS_LG, .topRight = CLAY_RADIUS_LG}})
+                {
+                    CLAY_TEXT(clayton->txl(TXL_REWARD_CARD), CLAY_TEXT_CONFIG(headerText));
+                }
+                CLAY(CLAY_IDI("GoldRewardBody", index),
+                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(bodyHeight)},
+                                 .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                      .backgroundColor = gold,
+                      .cornerRadius = {.bottomLeft = CLAY_RADIUS_LG, .bottomRight = CLAY_RADIUS_LG}})
+                {
+                    if (!leaving || wave > 0.25f)
+                    {
+                        CLAY(CLAY_IDI("GoldRewardGet", index),
+                             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                        { CLAY_TEXT(clayton->txl(TXL_GET_REWARD), CLAY_TEXT_CONFIG(goldText)); }
+                        CLAY(CLAY_IDI("GoldRewardPlay", index),
+                             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                        { CLAY_TEXT(CLAY_STRING("▶"), CLAY_TEXT_CONFIG(goldText)); }
+                        CLAY(CLAY_IDI("GoldRewardAmount", index),
+                             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                        {
+                            CLAY_TEXT(ClayArena_FormatString(&clayton->clayArena, "$%d", AdsConfig::MoneyReward),
+                                      CLAY_TEXT_CONFIG(goldText));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+static inline void Shop_DrawLeavingBallCard(int index, float elapsed)
+{
+    const float wave = 0.5f + 0.5f * std::sin(elapsed * 28.0f);
+    Clay_ElementDeclaration card = CLAY_THEME_CATALOG_ITEM;
+    card.backgroundColor = {255, 245, 180, 160.0f + 95.0f * wave};
+    const float previewHeight = Shop_CardPreviewHeightPx(
+        Clay_GetElementData(CLAY_ID("CarouselBelt")).boundingBox.width);
+    card.layout.sizing.height = CLAY_SIZING_FIXED(
+        SHOP_CARD_HEADER_HEIGHT + previewHeight + SHOP_CARD_PRICE_HEIGHT + SHOP_CARD_STATS_HEIGHT);
+    CLAY(CLAY_IDI("CarouselCard", index),
+         {.layout = {.sizing = {CLAY_SIZING_PERCENT(CAROUSEL_CARD_WIDTH), CLAY_SIZING_GROW()}}})
+    {
+        CLAY(CLAY_IDI("LeavingBallWrapper", index),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                         .padding = {(uint16_t)SHOP_CARD_WRAPPER_PAD_X,
+                                     (uint16_t)SHOP_CARD_WRAPPER_PAD_X,
+                                     (uint16_t)SHOP_CARD_WRAPPER_PAD_Y,
+                                     (uint16_t)SHOP_CARD_WRAPPER_PAD_Y}}})
+        { CLAY(CLAY_IDI("LeavingBallCard", index), card) {} }
+    }
+}
 
 static inline float Shop_CardPreviewHeightPx(float carouselBeltWidthPx)
 {
@@ -618,6 +704,25 @@ void Carousel_Render(
             for (int i = 0; i < carousel->cardCount; i++)
             {
                 const CatalogItem *item = &carousel->items[i];
+                if (ballShop && ballShop->removingCardActive &&
+                    ballShop->removingCardIndex == i)
+                {
+                    if (item->id == BALL_SHOP_REWARDED_CARD_ID)
+                        Shop_DrawGoldCard(clayton, i, ballShop->removingCardElapsed, true);
+                    else if (std::sin(ballShop->removingCardElapsed * 28.0f) < 0.0f)
+                        DrawCatalogItem(
+                            clayton, carousel, item->id, item->name, item->rarity,
+                            item->price, item->mass, item->spin, item->skid, item->bite,
+                            false, true, i);
+                    else
+                        Shop_DrawLeavingBallCard(i, ballShop->removingCardElapsed);
+                    continue;
+                }
+                if (item->id == BALL_SHOP_REWARDED_CARD_ID)
+                {
+                    Shop_DrawGoldCard(clayton, i, ballShop ? ballShop->rewardCardPulse : 0.0f, false);
+                    continue;
+                }
                 DrawCatalogItem(
                     clayton,
                     carousel,
@@ -710,12 +815,17 @@ inline void RenderShopWindow_Carousel(
                     int len =
                         snprintf(bankAmountBuf, sizeof(bankAmountBuf), "$ %d", data.playerCoins);
                     Clay_String bankAmount = ClayArena_AllocString(arena, bankAmountBuf);
+                    Clay_ElementDeclaration balancePad = {
+                        .layout = {
+                            .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
+                            .padding = {.left = 0, .right = 14, .top = 0, .bottom = 0},
+                        },
+                        .backgroundColor = {255, 225, 95,
+                            175.0f * clayton->shopBalanceFlash01},
+                    };
                     CLAY(
                         CLAY_ID("ShopTitleBalancePad"),
-                        {.layout = {
-                             .sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()},
-                             .padding = {.left = 0, .right = 14, .top = 0, .bottom = 0},
-                         }}
+                        balancePad
                     )
                     {
                         CLAY_TEXT(bankAmount, CLAY_TEXT_CONFIG(priceCfg));

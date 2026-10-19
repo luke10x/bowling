@@ -11,6 +11,7 @@
 #include <SDL.h>
 #include <stdint.h>
 #include <math.h>
+#include <cstdlib>
 #include <string.h>
 
 // This module must not depend on the giant context struct defined in game.cpp (not includable).
@@ -103,6 +104,8 @@ struct WindowStack
     bool shopPointerDown;
     int shopLastX;
     int shopLastY;
+    int shopRewardPressX;
+    bool shopRewardPress;
     bool shopBuyRequested;
     bool shopSellRequested;
     int shopSellBallId;
@@ -198,6 +201,8 @@ struct WindowStack
         shopPointerDown = false;
         shopLastX = 0;
         shopLastY = 0;
+        shopRewardPressX = 0;
+        shopRewardPress = false;
         shopBuyRequested = false;
         shopSellRequested = false;
         shopSellBallId = -1;
@@ -1811,6 +1816,10 @@ inline bool WindowStack::processShopWindowEvent(
         return false;
     }
 
+    // Keep the disappearing card in place until its payout animation starts.
+    if (ballShop && ballShop->removingCardActive)
+        return true;
+
     // Close / buy buttons are Clay clicks.
     if (isClaytonClicked(&clayton->closeShopClick, e))
     {
@@ -1859,6 +1868,12 @@ inline bool WindowStack::processShopWindowEvent(
 
     if (e.type == SDL_MOUSEBUTTONDOWN)
     {
+        const int idx = carousel ? carousel->closestBallIdx : -1;
+        self->shopRewardPress = ballShop && ballShop->activeTab == BallShopTab_SHOP &&
+            idx >= 0 && idx < carousel->cardCount &&
+            carousel->items[idx].id == BALL_SHOP_REWARDED_CARD_ID &&
+            Clay_PointerOver(CLAY_IDI("GoldRewardCard", idx));
+        self->shopRewardPressX = e.button.x;
         if (carousel)
         {
             // TODO: thread a "now time" value into processActiveWindowEvent so this matches game.cpp.
@@ -1877,17 +1892,26 @@ inline bool WindowStack::processShopWindowEvent(
             const int dy = e.motion.y - self->shopLastY;
             self->shopLastX = e.motion.x;
             self->shopLastY = e.motion.y;
+            if (std::abs(e.motion.x - self->shopRewardPressX) > CAROUSEL_MOVEMENT_THRESHOLD)
+                self->shopRewardPress = false;
             Carousel_OnPointerMove(carousel, dx, dy);
         }
         return true;
     }
     if (e.type == SDL_MOUSEBUTTONUP)
     {
+        const int idx = carousel ? carousel->closestBallIdx : -1;
+        const bool rewardClicked = self->shopRewardPress && clayton->shopActionEnabled &&
+            idx >= 0 && idx < carousel->cardCount &&
+            carousel->items[idx].id == BALL_SHOP_REWARDED_CARD_ID &&
+            Clay_PointerOver(CLAY_IDI("GoldRewardCard", idx));
+        self->shopRewardPress = false;
         if (carousel)
         {
             Carousel_OnPointerUp(carousel, e.button.x, e.button.y, 0.0f);
         }
         self->shopPointerDown = false;
+        if (rewardClicked) self->shopBuyRequested = true;
         return true;
     }
 
@@ -2596,7 +2620,8 @@ inline void WindowStack::renderShopWindow(Clayton *clayton, CarouselState *carou
     const float eased = 1.0f - (1.0f - transitionNorm) * (1.0f - transitionNorm);
 
     ShopWindowRenderData renderData = {
-        .playerCoins = carousel ? carousel->bank : 0,
+        .playerCoins = clayton->shopDisplayedCoins >= 0
+            ? clayton->shopDisplayedCoins : (carousel ? carousel->bank : 0),
         .countdownLabel = countdownBuf[0] ? countdownBuf : "--",
         .actionLabel = clayton->shopActionLabel ? clayton->shopActionLabel : Txl_Get(clayton->uiLanguage, TXL_BUY_NOW),
         .disabledActionLabel = clayton->shopDisabledActionLabel
@@ -2609,7 +2634,8 @@ inline void WindowStack::renderShopWindow(Clayton *clayton, CarouselState *carou
             : Txl_Get(clayton->uiLanguage, TXL_SHOP_EMPTY),
         .inventoryTabActive = inventoryTabActive,
         .hasCards = hasCards,
-        .actionEnabled = clayton->shopActionEnabled && (inventoryTabActive || canAfford),
+        .actionEnabled = clayton->shopActionEnabled &&
+            (inventoryTabActive || canAfford || (item && item->id == BALL_SHOP_REWARDED_CARD_ID)),
         .sellEnabled = inventoryTabActive && clayton->shopSellEnabled,
         .sellPrice = clayton->shopSellPrice,
         .transitionOffsetX = ballShop ? (ballShop->transitionDir * 72.0f * eased) : 0.0f,
@@ -3050,11 +3076,15 @@ inline void WindowStack::renderAdManagerWindow(Clayton *clayton, const AdPolicyS
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
     Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
-    Clay_String lines[7] = {};
+    Clay_String lines[10] = {};
     int lineCount = 0;
     ClayArena *arena = &clayton->clayArena;
     const TxlLanguage language = clayton->uiLanguage;
-    lines[lineCount++] = ClayArena_FormatString(arena, Txl_Get(language, TXL_AD_CREDIT_FMT), adPolicy->credit);
+    lines[lineCount++] = ClayArena_FormatString(arena, Txl_Get(language, TXL_AD_CREDIT_FMT),
+                                                adPolicy->credit, AdsConfig::CreditMax);
+    lines[lineCount++] = ClayArena_FormatString(arena, Txl_Get(language, TXL_AD_CREDIT_RULES_FMT),
+                                                (int)AdsConfig::WinCost, (int)AdsConfig::LossCost,
+                                                (int)AdsConfig::DailyLoginBonus);
     if (AdPolicy_OnHoliday(*adPolicy, now))
     {
         const int64_t remaining = adPolicy->holidayEndsAt - now;
@@ -3079,6 +3109,10 @@ inline void WindowStack::renderAdManagerWindow(Clayton *clayton, const AdPolicyS
                                                  std::max(0, kAdPolicyDailyInterstitialLimit - adPolicy->interstitialsToday));
     lines[lineCount++] = ClayArena_FormatString(arena, Txl_Get(language, TXL_AD_MONEY_TODAY_FMT),
                                                  adPolicy->moneyAdsToday, kAdPolicyDailyMoneyAdLimit);
+    lines[lineCount++] = ClayArena_FormatString(arena, Txl_Get(language, TXL_AD_MONEY_RULE_FMT),
+                                                 AdsConfig::MoneyReward, AdsConfig::MoneyPerRestockLimit);
+    lines[lineCount++] = ClayArena_FormatString(arena, Txl_Get(language, TXL_AD_HOLIDAY_RULE_FMT),
+                                                 AdsConfig::InterstitialDailyLimit, AdsConfig::HolidayHours);
 
     CLAY(CLAY_ID("AdManagerWindow"), CLAY_THEME_WINDOW_PANEL)
     {

@@ -5,11 +5,14 @@ IOS_PROJECT := $(IOS_ROOT)/ios-project/ios-project.xcodeproj
 IOS_DERIVED_DATA := $(IOS_ROOT)/build/ios/DerivedData
 IOS_APP := $(IOS_DERIVED_DATA)/Build/Products/Debug-iphoneos/ios-project.app
 IOS_ZIP := $(IOS_ROOT)/build/ios/bowling-ios-debug-unsigned.zip
+ADS_CONFIG_SCRIPT := $(IOS_ROOT)/scripts/generate_ads_config.py
+ADS_CONFIG_HEADER := $(IOS_ROOT)/ads_config.h
+ADS_IOS_GENERATED := $(IOS_ROOT)/ios-project/generated_ads.xcconfig
 
-.PHONY: build zip open
+.PHONY: build zip open ads-config
 
 # Build an unsigned device app. Select a signing team in Xcode to run it on an iPhone.
-build:
+build: $(ADS_IOS_GENERATED)
 	xcodebuild -quiet \
 		-project "$(IOS_PROJECT)" \
 		-scheme ios-project \
@@ -24,8 +27,13 @@ zip: build
 	ditto -c -k --sequesterRsrc --keepParent "$(IOS_APP)" "$(IOS_ZIP)"
 	@echo "iOS ZIP: $(IOS_ZIP)"
 
-open:
+open: $(ADS_IOS_GENERATED)
 	open -a Xcode "$(IOS_PROJECT)"
+
+ads-config: $(ADS_IOS_GENERATED)
+
+$(ADS_IOS_GENERATED): $(ADS_CONFIG_HEADER) $(ADS_CONFIG_SCRIPT)
+	python3 "$(ADS_CONFIG_SCRIPT)"
 
 FORCE:
 

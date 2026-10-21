@@ -27,6 +27,7 @@ enum TxlKey
     TXL_TRACKER,
     TXL_CREDITS,
     TXL_AD_MANAGER_TITLE,
+    TXL_AD_SPONSOR_PROMPT,
     TXL_AD_CREDIT_FMT,
     TXL_AD_CREDIT_RULES_FMT,
     TXL_AD_HOLIDAY_ACTIVE,
@@ -497,6 +498,7 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "Tracker",
     "Credits",
     "AD MANAGER",
+    "A word from our sponsors",
     "Ad credit: %.1f / %.0f",
     "Win: -%d, loss: -%d, daily login: +%d",
     "Ad holiday active",
@@ -849,11 +851,11 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "R",
     "Lost soul, you have entered The Heavens' gate.\nLearn runes and score one hundred before it is too late.\nLet strikes and spares reveal the road you seek.\nCount every mark, lest fortune make you weak.\n",
     "Will you enter training?\n",
-    "You did not reach the hundred-mark this day.\nPerchance your pride has led your hand astray.\nLet training teach the line your will denied.\nReturn more ready, with your aim as guide.\n",
+    "The hundred mark escaped your hand today;\nThe first gate holds; its lock will not give way.\nCome to my school; let patient lessons be\nA different key to what you long to see.\n",
     "Will you enter training now, or face The Heavens once more?\n",
-    "While you sought points, I lingered out of sight.\nYour throws were steady, and your aim was right.\nThrough all that time, I watched each passing throw.\nSoon you shall see the one you did not know.\n",
-    "Will you train first, or face Ezekiel now?\n",
-    "While you sought points, I lingered out of sight.\nYour throws were steady, and your aim was right.\nThrough all that time, I watched each passing throw.\nSoon you shall see the one you did not know.\n",
+    "Your hundred points have opened Heaven's door;\nYour steady skill has shown me something more.\nI am Ezekiel; come straight to me, if you dare;\nThe road is yours, and you will find me there.\n",
+    "Will you train first, or come straight to meet me?\n",
+    "Your hundred points have opened Heaven's door;\nYour steady skill has shown me something more.\nI am Ezekiel; come straight to me, if you dare;\nThe road is yours, and you will find me there.\n",
     "You cannot leave the training hall just yet.\nComplete the trials that before you are set.\n",
     "Are you sure?\nThis will cancel the current lesson attempt and start the selected lesson instead.\n",
     "Restart the current lesson?\nYour current attempt in this lesson will be reset.\n",
@@ -942,7 +944,7 @@ static constexpr const char *g_txl_en_us[TXL_KEY_COUNT] = {
     "Ezekiel",
 };
 
-static constexpr const char *g_txl_chars_en_us = "MENUCheatsnr igLumpAPIGVSRTWOQBKY/cDvkd:%.1f0-,loy+()w$HJFb?qx'!z;53>ė2Z46789X\nj";
+static constexpr const char *g_txl_chars_en_us = "MENUCheatsnr igLumpAPIGVSRTWOQBKY/cDvkdwof:%.10-,ly+()$HJFb?qx'!z;53>ė2Z46789X\nj";
 
 static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "MENIU",
@@ -968,6 +970,7 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Trekeris",
     "Kreditai",
     "REKLAMŲ VALDYMAS",
+    "Žodis mūsų sponsoriams",
     "Reklamų kreditas: %.1f / %.0f",
     "Laimėjimas: -%d, pralaimėjimas: -%d, prisijungimas: +%d",
     "Pertrauka nuo reklamų",
@@ -1320,11 +1323,11 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "R",
     "Čia Dausose, angelai stebi tavo metimą.\nŠimtas yra skaičius atrakinsiantis spyną.\nNedaryti klaidų, straikus ir spėrus atlikti.\nMokinkis skaičiuot tai tau padės nepaslysti\n",
     "Ar norėtum atlikti praktiką?\n",
-    "Man labai gaila bet šimto nesurinkai.\nViską regėjau tai tavo tuštybė tiktai.\nPatarčiau rinktis praktiką kuri tau gal padės\nJei tiktai tavo išdidumas ir puikybė išblės...\n",
+    "Šimto taškų šiandien nesurinkai,\nPirmuosius vartus dar užrakintus radai.\nUžeik į mano mokyklą; gal žinios tenai\nKitą raktą paduos, ir atsivers takai.\n",
     "Atlik praktiką arba bandyk dar kartą — ką renkiesi?\n",
-    "Kol bandei surinkti taškus, tu manęs nematei.\nMetimai tikrai taiklūs, atrodė neblogai.\nVisą tą laiką aš stebėjau tave,\nNetrukus ir tu pamatysi mane.\n",
-    "Ar atliksi praktiką, ar stosi prieš Ezekielį?\n",
-    "Kol bandei surinkti taškus, tu manęs nematei.\nMetimai tikrai taiklūs, atrodė neblogai.\nVisą tą laiką aš stebėjau tave,\nNetrukus ir tu pamatysi mane.\n",
+    "Šimtas taškų atvėrė vartus tau,\nTavo taiklumą visą laiką stebėjau.\nAš Ezekielis; eik tiesiai pas mane,\nKelias atviras – lauksiu tavęs tenai.\n",
+    "Ar pirma mokysiesi, ar eisi tiesiai pas mane?\n",
+    "Šimtas taškų atvėrė vartus tau,\nTavo taiklumą visą laiką stebėjau.\nAš Ezekielis; eik tiesiai pas mane,\nKelias atviras – lauksiu tavęs tenai.\n",
     "Dar negali palikti praktikos.\nPirma baik pamoką.\n",
     "Ar tikrai atšaukti šią pamoką ir eiti į kitą?\n",
     "Ar tikrai pradėti pamoką iš pradžių\n",
@@ -1413,7 +1416,7 @@ static constexpr const char *g_txl_lt_lt[TXL_KEY_COUNT] = {
     "Ezekielis",
 };
 
-static constexpr const char *g_txl_chars_lt_lt = "MENIUČytai įprkąKlbmnjAPJOSLYGRDĖTĄŠĮVŽegodsuŲų:%.1f/0ė-,+vB()žū$Ū!ę?šĘčZzc–F;53>wHCxh246789\n—„“\"";
+static constexpr const char *g_txl_chars_lt_lt = "MENIUČytai įprkąKlbmnjAPJOSLYGRDĖTĄŠĮVŽegodsuŲūų:%.1f/0ė-,+vB()ž$Ū!ę?šĘčZzc–F;53>wHCxh246789\n—„“\"";
 
 static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "メニュー",
@@ -1439,6 +1442,7 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "トラッカー",
     "クレジット",
     "広告管理",
+    "スポンサーからのお知らせ",
     "広告クレジット: %.1f / %.0f",
     "勝利: -%d、敗北: -%d、毎日ログイン: +%d",
     "広告休暇中",
@@ -1791,11 +1795,11 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "ル",
     "迷える魂よ、天の門に来たれり。\n符文を学べ、時尽きる前に百点を。\nストライクとスペアに、道を尋ねよ。\n一投ずつ数えよ、運に足をすくわれぬよう。\n",
     "まず修練を受けるか。\n",
-    "百点のしるしに、今日は届かず。\nおごりがその手を、迷わせたか。\n修練にて、拒んだ道を学べ。\n狙いを導きに、備えて戻れ。\n",
+    "百点には、今日は届かなかった。\n最初の門は、まだ固く閉ざされた。\nわが学び舎へ来るがよい。学びの中に\n別の鍵が、静かに待つやもしれぬ。\n",
     "いま修練に入るか、天の試しに再び挑むか。\n",
-    "点を求めし間、そなたはわれを見ず。\n投げる球は確か、狙いもよく冴えたり。\nその時のすべて、われはそなたを見守りたり。\nやがてそなたも、われの姿を見よう。\n",
-    "まず修練するか、いまエゼキエルに挑むか。\n",
-    "点を求めし間、そなたはわれを見ず。\n投げる球は確か、狙いもよく冴えたり。\nその時のすべて、われはそなたを見守りたり。\nやがてそなたも、われの姿を見よう。\n",
+    "百点を得て、天の門は開いた。\nそなたの確かな腕を、われは見届けた。\nわれはエゼキエル。まっすぐ会いに来るがよい。\n道はそなたのもの、門の先で待とう。\n",
+    "先に学ぶか、それとも今すぐわれに会いに来るか。\n",
+    "百点を得て、天の門は開いた。\nそなたの確かな腕を、われは見届けた。\nわれはエゼキエル。まっすぐ会いに来るがよい。\n道はそなたのもの、門の先で待とう。\n",
     "まだ学校を出られない。\n先にレッスンを終えよう。\n",
     "本当に？\n今のレッスン挑戦を中止し、選んだレッスンを始めます。\n",
     "今のレッスンをやり直す？\nこのレッスンの挑戦はリセットされます。\n",
@@ -1884,7 +1888,7 @@ static constexpr const char *g_txl_jp_jp[TXL_KEY_COUNT] = {
     "エゼキエル",
 };
 
-static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語キャンペレベルをやり直す勝利敗北中断スコアクリ時間戻るもう一度プイなし練習デバ共有ゲム設定ラッカジ広告管理: %.1f/0-d、毎日ログ+休暇はあません残分終了s（現地刻）今のでと件報酬$入荷ごに回後読み込見紹介ミ選択英国本サウド曲オボショハフタナエネギが足。ェ集めてださい続けか？こよそ「ィ」押画面対戦相手切替え売却元価格損失益在使用所持ぐ購空合セ品質変更モ緊急停止SDLァ音楽量状態マ情最大ダ減衰滑再資金不れ済たっ良！ポ近全上ヤ初記録試数範囲～高装飾追加視覚効果改版YMF実験的速源声起動性能解析計測結5秒表示3期化\n除含む消去新確認PWAブビ公開>接き適ザapeKl基礎OnGmrtogVywHu宝箱CixEJhcべ内蔵制作テ投げ皆感謝転(k)軽重ピ番ろ引放右移左進況前取目標ノ点2ゼ登場風力発電砂漠警4ガ氷硝子郊外6犬78木材ゾ森林9謁洞窟ちば工白墓灰色街車輪廃墟牛パ荒火炎ズ極河吹雪星ず雲宇宙虚ホUツ雷巨人根世界樹影深淵ヌ路特異潮ケヴ負策個必要爆散滅生存凍備配置稲妻強危険防衛敵攻撃球打破壊得意妨害跳ね口物群衆遊び差獲次挑補充始完途：守護者到達出天該当値削決迷魂門来符文尽百道尋つ運わぬ修受届お拒狙導求冴姿ら先ぶ触卒業端反応噛ど方向部倒塗半三二ほ響ぼ央保離線側事苦立眼下眠望戸誇才救罪偽奪揺軌穏覆跡乾野渇ふぎ塞油乳香潤清焼真裂隙傷横避板降光刃雨痛返砕蓄鳴与代宿激逃熱耐寒約束落身崩万支留胎逸冷割町ひ窓ゴ歩別領務域平和教知片裁待厳携会呼彼商訪ぞ店誰張己正収穫晶隠越秘盗黄燃吸満惜走抜陰鉱山々枝予成伐緑命阻役末女底闇迎疫病胸ゆ暗座ソ輝慈悲祈じ掘明渡閉熟機関養炉称何秤載迫壁法災翼貸煙昇塔答据古債帰閃悪死静魔私?ė";
+static constexpr const char *g_txl_chars_jp_jp = "メニューチト学校へ行く言語キャンペレベルをやり直す勝利敗北中断スコアクリ時間戻るもう一度プイなし練習デバ共有ゲム設定ラッカジ広告管理ポサからのお知せ: %.1f/0-d、毎日ログ+休暇はあまん残分終了s（現地刻）今でと件報酬$入荷ごに回後読み込見紹介ミ選択英国本ウド曲オボショハフタナエネギが足。ェ集めてださい続け？こよそ「ィ」押画面対戦相手切替え売却元価格損失益在使用所持ぐ購空合セ品質変更モ緊急停止SDLァ音楽量状態マ情最大ダ減衰滑再資金不れ済たっ良！近全上ヤ初記録試数範囲～高装飾追加視覚効果改版YMF実験的速源声起動性能解析計測結5秒表示3期化\n除含む消去新確認PWAブビ公開>接き適ザapeKl基礎OnGmrtogVywHu宝箱CixEJhcべ内蔵制作テ投げ皆感謝転(k)軽重ピ番ろ引放右移左進況前取目標ノ点2ゼ登場風力発電砂漠警4ガ氷硝子郊外6犬78木材ゾ森林9謁洞窟ちば工白墓灰色街車輪廃墟牛パ荒火炎ズ極河吹雪星ず雲宇宙虚ホUツ雷巨人根世界樹影深淵ヌ路特異潮ケヴ負策個必要爆散滅生存凍備配置稲妻強危険防衛敵攻撃球打破壊得意妨害跳ね口物群衆遊び差獲次挑補充始完途：守護者到達出天該当値削決迷魂門来符文尽百道尋つ運わぬ修受届固閉ざ舎別鍵静待腕会先ぶ触卒業端反応噛ど方向部倒塗半三二ほ響狙ぼ央保離線側事苦立眼下眠導望戸誇才救罪偽奪揺冴軌穏覆跡乾野渇ふぎ塞油乳香潤清焼真裂隙傷横避板降光刃雨痛返砕蓄鳴与代宿激逃熱耐寒約束落身崩万支留胎逸冷割町ひ窓ゴ歩領務域平和教片裁厳携呼彼商訪ぞ店誰張己正収穫晶隠越秘盗黄燃吸満惜走抜陰鉱山々枝予成伐緑命阻役末女底闇迎疫病胸ゆ暗座ソ輝慈悲祈じ掘明渡熟機関養炉称何秤載迫壁法災翼貸煙昇塔答据古債帰閃悪死魔私?";
 
 static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "菜单",
@@ -1910,6 +1914,7 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "音轨编辑",
     "制作名单",
     "广告管理",
+    "赞助商的话",
     "广告积分：%.1f / %.0f",
     "胜利：-%d，失败：-%d，每日登录：+%d",
     "广告假期进行中",
@@ -2262,11 +2267,11 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "符",
     "迷途之魂，今入天界之门。\n研习符文，及时取得百分。\n全中补中，自有前路可寻。\n细数每记，莫使侥幸欺心。\n",
     "可愿先入学堂修习？\n",
-    "今日未能取百分，\n想是骄心误汝行。\n且入学堂重习路，\n归来稳手定前程。\n",
+    "今日未取百分，首关依然紧闭。\n此路未能走通，莫让志气沉寂。\n且来吾之学堂，耐心习得新知；\n或有另一把钥，开启未见之地。\n",
     "如今先入学堂，还是再闯天界第一关？\n",
-    "你求取分数之时，未曾见吾身影。\n投球颇为精准，已显不凡技艺。\n那一段时光，吾始终默然注视。\n不久之后，你亦将见吾现身。\n",
-    "先行修习，还是此刻迎战以西结？\n",
-    "你求取分数之时，未曾见吾身影。\n投球颇为精准，已显不凡技艺。\n那一段时光，吾始终默然注视。\n不久之后，你亦将见吾现身。\n",
+    "百分既得，天门为你而开。\n投球精准，吾见你的风采。\n吾乃以西结；可直来与吾相会。\n路已在你脚下，吾在前方等待。\n",
+    "先去修习，还是现在直接来见吾？\n",
+    "百分既得，天门为你而开。\n投球精准，吾见你的风采。\n吾乃以西结；可直来与吾相会。\n路已在你脚下，吾在前方等待。\n",
     "你现在还不能离开学校。\n先把课程完成。\n",
     "确定吗？\n这会取消当前课程尝试，并开始你选择的课程。\n",
     "重新开始当前课程？\n本课程的当前尝试会被重置。\n",
@@ -2355,5 +2360,5 @@ static constexpr const char *g_txl_zh_cn[TXL_KEY_COUNT] = {
     "以西结",
 };
 
-static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言战役关卡重开胜利失败退出最高分通时间返回玩始无练习设备共享游戏置音轨编辑制名广告管理积：%.1f /0-d，每日登录+假期进行中当前没有剩余小钟结束s（本地）今距离还需金币奖励$次补货观看后休领取加载宣传选择Englih文立陶宛声歌曲油道球库商店自由赛再试一能量不足。拾宝石你想继续打保龄吗？欢迎来到这款点击“准”以聚焦画面天使对手切换售得获比原价亏损收益用存即购买已个形象为空未解锁过正在频模式合成器闭急停SDL缓冲乐状态图信息大带衰减滑度推力新上额暂刚的数入错局！超了近排榜家第吧尝范围细节更多和装饰特效改版YMF实验性速；将启动析帧耗及5秒计报3恢复厂会清除包括记、符\n应检查PWA网站安构建发布…是可>线请连接络法服务只页支持程序美术apeK角色基础型OGmrtoVywHu箱CxJc所均内追踪别感谢位测并投人课瞄质给旋与全路公斤轻转咬普稀史诗说目标把尽向拉现放右移左先掉里碑达2西风电场沙漠警4玻璃冰霓虹郊区6狗7字塔8木材森林9水晶觐见洞窟喙煤气工白墓园灰城市之轮废墟牛烬荒强烈焰滚火钩炼狱怒凤凰升霜寒意极漂川暴雪王星尘云宇宙虚黑U氙光藤蔓雷橡泰坦根世界树暗影深渊归零者子奇潮汐礁海妖维神谕偏低调至弯拖少要爆炸蒸扛闪瓶冻巡逻部署激活骷髅命住块砖混凝土枚但险防守敌方攻让变狠破障三阻挡刻弹起它快栏添口故事刺师群控确定否下步完途卫生首级门总输码氮架稍删认碍迷魂研百寻莫侥幸欺心愿堂修骄误汝且稳如闯求曾吾身颇精显凡技艺那段终默然注视久亦此消被讲都己几颗而毕业也必须很好或端算随恭喜反像样参响屏幕做就朝某倒才条约半二长覆盖着满明些馆窗我们何往任跟走从袋另侧亮吃经乃落藏于其若引磨傲骨掷眼底资助拯救罪妄早占据锋芒循既漫温旧痕渴灼遍壅塞负乳香涂抹涤烧直撞便两旁隙留伤弧免困却干燥润待受苦碎雨般痛予片机眠圆环施唤醒舍审令迸鸣创称裂毁炽焚断避霆热浪飞脚许诺夺万物依凭灵境孕育处皆难谨疏忽仍预座倾扇越蛾摩彼岸掌疆职责伯绝非太平碰篇钮裁教导等严酷召容迟他各同秉按赴艰谁孽竟化尚踏沉苏窃黄燃抽份板骤穿辛携阴矿井拥斩枝叶逐真伐青绿居拦撒弗末护索染瘟疫渐凋净写罗耀因怜悯祈交封熟养炉又盗私秤笼罩外众盈送知降果翼浓烟颓矜答判债恶诸唯独亡历寂静遂拒魔?ė";
+static constexpr const char *g_txl_chars_zh_cn = "菜单作弊去学校语言战役关卡重开胜利失败退出最高分通时间返回玩始无练习设备共享游戏置音轨编辑制名广告管理赞助商的话积：%.1f /0-d，每日登录+假期进行中当前没有剩余小钟结束s（本地）今距离还需金币奖励$次补货观看后休领取加载宣传选择Englih文立陶宛声歌曲油道球库店自由赛再试一能量不足。拾宝石你想继续打保龄吗？欢迎来到这款点击“准”以聚焦画面天使对手切换售得获比原价亏损收益用存即购买已个形象为空未解锁过正在频模式合成器闭急停SDL缓冲乐状态图信息大带衰减滑度推力新上额暂刚数入错局！超了近排榜家第吧尝范围细节更多和装饰特效改版YMF实验性速；将启动析帧耗及5秒计报3恢复厂会清除包括记、符\n应检查PWA网站安构建发布…是可>线请连接络法服务只页支持程序美术apeK角色基础型OGmrtoVywHu箱CxJc所均内追踪别感谢位测并投人课瞄质给旋与全路公斤轻转咬普稀史诗说目标把尽向拉现放右移左先掉里碑达2西风电场沙漠警4玻璃冰霓虹郊区6狗7字塔8木材森林9水晶觐见洞窟喙煤气工白墓园灰城市之轮废墟牛烬荒强烈焰滚火钩炼狱怒凤凰升霜寒意极漂川暴雪王星尘云宇宙虚黑U氙光藤蔓雷橡泰坦根世界树暗影深渊归零者子奇潮汐礁海妖维神谕偏低调至弯拖少要爆炸蒸扛闪瓶冻巡逻部署激活骷髅命住块砖混凝土枚但险防守敌方攻让变狠破障三阻挡刻弹起它快栏添口故事刺师群控确定否下步完途卫生首级门总输码氮架稍删认碍迷魂研百寻莫侥幸欺心愿堂修依然紧此走志沉寂且吾耐知或另钥如闯既而精采乃直相脚等待消被讲都己几颗毕业也必须很好端算随恭喜反像样参响屏幕做就朝某倒才条约半二长覆盖着满明显些馆身窗我们何往任跟那从袋侧亮吃经曾落默藏于其若引磨傲骨掷眼底资拯救罪妄早占据稳锋芒循漫温旧痕渴灼遍壅塞亦负乳香涂抹涤烧骄撞便两旁隙留伤弧免困却干燥润受苦碎雨般痛予片机眠圆环施唤醒舍审令迸鸣创称裂毁炽焚断避霆热浪飞许诺夺万物凭灵境孕育处皆难谨疏忽仍预座倾扇越蛾摩彼岸掌疆职责伯绝非太平碰篇钮裁教导终严酷召容迟他各同秉按赴艰谁孽竟化尚踏苏窃黄燃抽份板骤穿辛携阴矿井拥斩枝叶逐真伐青绿居拦撒弗末护索染瘟疫渐凋净写罗耀因怜悯祈求交封熟养炉又盗私秤笼罩外众盈送降果翼浓烟颓矜答判债注视凡恶诸唯独亡历静遂拒魔?";
 

@@ -490,6 +490,9 @@ struct Clayton
     void loadFontsForLanguage(TxlLanguage language)
     {
         uiLanguage = language;
+        const char *locale = language == TXL_LANG_ZH_CN ? "zh_cn" :
+                             language == TXL_LANG_LT_LT ? "lt_lt" :
+                             language == TXL_LANG_JP_JP ? "jp_jp" : "en_us";
         // CJK locales need considerably more glyphs than the Latin UI.  Keep
         // every requested translation glyph in the atlas: otherwise the
         // later entries (such as the post-campaign block and NOS markers)
@@ -502,7 +505,7 @@ struct Clayton
         const TxlEmbeddedFont monoFont = Txl_MonoFont();
 
         char uiCharsBuf[8192];
-        snprintf(
+        const int requestedBytes = snprintf(
             uiCharsBuf,
             sizeof(uiCharsBuf),
             "%s%s%s",
@@ -510,6 +513,12 @@ struct Clayton
             Txl_CharsForLanguage(language),
             Story_AllCharsForLanguage(language)
         );
+        if (requestedBytes < 0 || requestedBytes >= (int)sizeof(uiCharsBuf))
+        {
+            fprintf(stderr, "Font character list for language %d exceeds %zu bytes\n",
+                    (int)language, sizeof(uiCharsBuf));
+            abort();
+        }
 
         if (!Stb_LoadFontBytesWithChars(
                 &this->renderer.fontTextures[0],
@@ -521,7 +530,13 @@ struct Clayton
                 atlasH,
                 uiCharsBuf
             ))
+        {
+            fprintf(stderr, "Failed to load UI font atlas for language %d\n", (int)language);
             abort();
+        }
+        char atlasLabel[48];
+        snprintf(atlasLabel, sizeof(atlasLabel), "%s UI", locale);
+        Stb_LogFontAtlasUsage(&this->stbFonts[0], atlasLabel);
 
 
         if (!Stb_LoadFontBytesWithChars(
@@ -534,9 +549,11 @@ struct Clayton
                 atlasH,
                 // Navigation/check symbols used by tracker controls and compact HUD widgets.
                 "◀▶▼▲✓"
-                "+-%✕÷"
+                "+-%÷"
             ))
             abort();
+        snprintf(atlasLabel, sizeof(atlasLabel), "%s symbols", locale);
+        Stb_LogFontAtlasUsage(&this->stbFonts[1], atlasLabel);
 
         if (!Stb_LoadFontBytesWithChars(
                 &this->renderer.fontTextures[2],
@@ -549,6 +566,8 @@ struct Clayton
                 k_txl_shared_chars
             ))
             abort();
+        snprintf(atlasLabel, sizeof(atlasLabel), "%s mono", locale);
+        Stb_LogFontAtlasUsage(&this->stbFonts[2], atlasLabel);
 
     }
 

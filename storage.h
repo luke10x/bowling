@@ -167,7 +167,7 @@ struct Storage
         "0",     // SCHOOL_DONE
         "0",     // GREETINGS_SEEN
         "en_us", // LANGUAGE
-        "20",    // BANK
+        "0",     // BANK
         "0",     // GAMEPLAY_TIME
         "0",     // UNLOCKED_BALLS
         "0",     // UNLOCKED_HOUSES

@@ -29,9 +29,9 @@ EM_JS(void, WebPerfLogFab_SetVisible, (int enabled), {
         window.setPerfLogFabVisible(!!enabled);
 });
 
-EM_JS(void, WebGameAd_Show, (int won), {
+EM_JS(void, WebGameAd_Show, (int won, const char *prompt), {
     if (window.bowlingShowGameAd)
-        window.bowlingShowGameAd(won ? 'win' : 'loss');
+        window.bowlingShowGameAd(won ? 'win' : 'loss', UTF8ToString(prompt));
     else
         window.bowlingInterstitialFinishedCount = (window.bowlingInterstitialFinishedCount | 0) + 1;
 });
@@ -119,22 +119,25 @@ extern "C" void Game_SetAdAudioPaused(int paused)
 
 extern "C" void Game_OnInterstitialFinished(void);
 extern "C" void Game_OnMoneyRewardFinished(void);
-static inline void Game_ShowInterstitial(SDL_AudioDeviceID audioDevice, bool won)
+static inline void Game_ShowInterstitial(SDL_AudioDeviceID audioDevice, bool won, const char *prompt)
 {
 #ifdef __EMSCRIPTEN__
     (void)audioDevice;
-    WebGameAd_Show(won ? 1 : 0);
+    WebGameAd_Show(won ? 1 : 0, prompt);
 #elif defined(__ANDROID__) || defined(ANDROID)
     (void)audioDevice;
     (void)won;
+    (void)prompt;
     PlatformAds_ShowInterstitial();
 #elif defined(__APPLE__) && TARGET_OS_IPHONE
     (void)won;
+    (void)prompt;
     g_lossAdAudioDevice.store(audioDevice);
     PlatformAds_ShowInterstitial();
 #else
     (void)audioDevice;
     (void)won;
+    (void)prompt;
     Game_OnInterstitialFinished();
 #endif
 }
@@ -689,7 +692,7 @@ struct CampaignLevelConfig
 // clang-format off
 static constexpr CampaignLevelConfig kCampaignLevels[] = {
     // level, title,             subtitle,              biome,                       opponent,                mode,               win type,                          target, skill,  ball, example, start, end,  collectable pattern,      count, bank, reward,    unlock,                                  ball, house, opponent
-    { 1,     TXL_LEVEL1_TITLE,  TXL_LEVEL1_SUBTITLE,   CampaignBiome::NORMAL,         CampaignOpponent::NONE,   CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100,    0.0f,   kBallEmberStrike,  0,       40,    20,   CoinPattern::Static,       7,     20,   "20 bank", "Unlock Classic House and Ezekiel",     kBallEmberStrike, 0,     CampaignOpponent::MALACH },
+    { 1,     TXL_LEVEL1_TITLE,  TXL_LEVEL1_SUBTITLE,   CampaignBiome::NORMAL,         CampaignOpponent::NONE,   CampaignMode::SOLO, CampaignWinType::SCORE_AT_LEAST, 100,    0.0f,   kBallEmberStrike,  0,       0,     20,   CoinPattern::Static,       7,     20,   "20 bank", "Unlock Classic House and Ezekiel",     kBallEmberStrike, 0,     CampaignOpponent::MALACH },
     { 2,     TXL_LEVEL2_TITLE,  TXL_LEVEL2_SUBTITLE,   CampaignBiome::WIND_FARM,      CampaignOpponent::MALACH, CampaignMode::BOT,  CampaignWinType::BEAT_OPPONENT,  0,      0.30f,  kBallBlazeHook,    0,       3002,  3102, CoinPattern::SideToSide,   7,     25,   "25 bank", "Unlock Dry Fronts",                    kBallBlazeHook, 1,     CampaignOpponent::NONE },
     { 3,     TXL_LEVEL3_TITLE,  TXL_LEVEL3_SUBTITLE,   CampaignBiome::RED_DESERT,     CampaignOpponent::MALACH, CampaignMode::BOT,  CampaignWinType::BEAT_OPPONENT,  0,      0.60f,  kBallNeonStrike,   0,       3003,  3103, CoinPattern::SideSweep,    8,     30,   "30 bank", "Unlock Long Oil",                      kBallGlacierBite, 2,     CampaignOpponent::NONE },
     { 4,     TXL_LEVEL4_TITLE,  TXL_LEVEL4_SUBTITLE,   CampaignBiome::ICE,            CampaignOpponent::MALACH, CampaignMode::BOT,  CampaignWinType::BEAT_OPPONENT,  0,      0.65f,  kBallFrostGlide,   0,       3004,  3104, CoinPattern::WaveOrbit,    8,     35,   "35 bank", "Ezekiel has one more lesson for you", -1,    -1,    CampaignOpponent::NONE },
@@ -1221,6 +1224,9 @@ struct UserContext
     int pendingHudPayout = 0;
     bool pendingLossInterstitial = false;
     bool adInterstitialInFlight = false;
+    // 1 = win, -1 = loss. A charged ad waits for the end-story's final choice.
+    int pendingOutcomeInterstitialAfterStory = 0;
+    int32_t deferredStoryEventAfterInterstitial = EVENT_NONE;
     bool trackerSongFilePickerActive = false;
     int trackerSongFilePickerFocusGraceFrames = 0;
     // Tracks whether the first SOLO game was actually completed (10 frames).
@@ -11483,6 +11489,20 @@ static inline void AdPolicy_Tick(UserContext *usr)
     }
 }
 
+static inline void Campaign_ShowOutcomeInterstitialAfterStory(UserContext *usr)
+{
+    if (!usr || usr->pendingOutcomeInterstitialAfterStory == 0)
+        return;
+    const bool won = usr->pendingOutcomeInterstitialAfterStory > 0;
+    usr->pendingOutcomeInterstitialAfterStory = 0;
+    // The choice is applied after the ad. Otherwise school or the next level
+    // can start another story beneath the browser's full-screen overlay.
+    usr->deferredStoryEventAfterInterstitial = usr->dialog.consumeEvent();
+    usr->adInterstitialInFlight = true;
+    Game_ShowInterstitial(usr->sound.audioDev, won,
+                          Txl_Get(usr->language, TXL_AD_SPONSOR_PROMPT));
+}
+
 static inline bool AdPolicy_ChargeOutcome(UserContext *usr, bool won)
 {
     if (!usr) return false;
@@ -11492,6 +11512,29 @@ static inline bool AdPolicy_ChargeOutcome(UserContext *usr, bool won)
     if (usr->adPolicy.credit != previousCredit)
         AdPolicy_Save(usr);
     return show;
+}
+
+static inline void Game_ScheduleOutcomeInterstitial(UserContext *usr, bool won, bool hasEndStory)
+{
+    if (!usr) return;
+    usr->pendingLossInterstitial = false;
+    const OutcomeInterstitialPlacement placement = Campaign_OutcomeInterstitialPlacement(
+        AdPolicy_ChargeOutcome(usr, won), won, hasEndStory);
+    switch (placement)
+    {
+        case OutcomeInterstitialPlacement::AfterEndStory:
+            usr->pendingOutcomeInterstitialAfterStory = won ? 1 : -1;
+            break;
+        case OutcomeInterstitialPlacement::Immediately:
+            Game_ShowInterstitial(usr->sound.audioDev, won,
+                                  Txl_Get(usr->language, TXL_AD_SPONSOR_PROMPT));
+            break;
+        case OutcomeInterstitialPlacement::OnRetry:
+            usr->pendingLossInterstitial = true;
+            break;
+        case OutcomeInterstitialPlacement::None:
+            break;
+    }
 }
 
 static inline void Progress_SaveUnlocksAndBank(UserContext *usr)
@@ -12078,13 +12121,15 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     usr->campaignStartStoryLevelShown = 0;
     usr->campaignStartStoryAttemptCountAtSetup = 0;
     usr->pendingCampaignEndStoryId = 0;
+    usr->pendingOutcomeInterstitialAfterStory = 0;
+    usr->deferredStoryEventAfterInterstitial = EVENT_NONE;
     usr->pendingCampaignEndgameSummaryWindow = false;
     usr->pendingCampaignPostgameChoiceDialog = false;
     usr->campaignEndgameAwaitingResultDismissal = false;
     usr->campaignEndStoryShopAdvancePending = false;
     if (resetInventory)
     {
-        usr->carousel.bank = 20.0f;
+        usr->carousel.bank = 0.0f;
         usr->unlockedBallMask = BallShop_StarterOwnedMask();
     }
     usr->unlockedHouseMask = 0;
@@ -12176,6 +12221,8 @@ static inline void Progress_ResetFull(UserContext *usr)
     usr->adPolicy = AdPolicyState{};
     usr->pendingLossInterstitial = false;
     usr->adInterstitialInFlight = false;
+    usr->pendingOutcomeInterstitialAfterStory = 0;
+    usr->deferredStoryEventAfterInterstitial = EVENT_NONE;
     usr->school = School{};
     School_Init(&usr->school);
     School_ClayInit(&usr->school, &usr->clayton, usr->desiredMass);
@@ -13723,6 +13770,8 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
         return;
     // A loss ad belongs only to the Retry action for the result just left.
     usr->pendingLossInterstitial = false;
+    usr->pendingOutcomeInterstitialAfterStory = 0;
+    usr->deferredStoryEventAfterInterstitial = EVENT_NONE;
 
     if (usr->campaignPostgameFreeplayActive && usr->campaignRunStarted &&
         usr->phase != UserContext::Phase::RESULT)
@@ -13933,6 +13982,8 @@ static inline void Run_ResetBoardsAndMode(UserContext *usr, UserContext::GameMod
         return;
     usr->pendingLossInterstitial = false;
     usr->gameMode = gameMode;
+    usr->pendingOutcomeInterstitialAfterStory = 0;
+    usr->deferredStoryEventAfterInterstitial = EVENT_NONE;
     usr->phase = UserContext::Phase::IDLE;
     usr->turnOwner = UserContext::TurnOwner::PLAYER;
     usr->enemyAutoTimer = 0.0f;
@@ -19658,8 +19709,6 @@ void vtx::init(vtx::VertexContext *ctx)
             Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
             break;
     }
-    if (usr->carousel.bank <= 0.0f)
-        usr->carousel.bank = 20.0f;
     usr->resultRunBankAtStart = (int)std::lround(usr->carousel.bank);
     if (starterUnlocksUpdated)
     {
@@ -19968,6 +20017,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             if (usr->pendingCampaignBotResultWindow &&
                 !MiniGame_IsActive(usr) &&
                 !usr->dialog.active &&
+                usr->pendingOutcomeInterstitialAfterStory == 0 &&
+                !usr->adInterstitialInFlight &&
+                usr->deferredStoryEventAfterInterstitial == EVENT_NONE &&
                 usr->windowStack.count == 0)
             {
                 if (usr->playerRoute == PlayerRoute::FREESTYLE)
@@ -19986,7 +20038,12 @@ void vtx::loop(vtx::VertexContext *ctx)
             // If a story dialog is active, it owns the end-of-game flow; only show Play Again after it closes.
             // Also: never steal focus from other modals (Oil/Hiscore/etc). Only show Play Again
             // when no other windows are currently open.
-            if (!usr->dialog.active && usr->windowStack.count == 0 &&
+            if (Campaign_CanRevealResultsAfterStory(
+                    usr->dialog.active,
+                    usr->windowStack.count != 0,
+                    usr->pendingOutcomeInterstitialAfterStory != 0,
+                    usr->adInterstitialInFlight,
+                    usr->deferredStoryEventAfterInterstitial != EVENT_NONE) &&
                 !usr->pendingCampaignEndgameSummaryWindow &&
                 !usr->pendingCampaignPostgameChoiceDialog)
                 usr->windowStack.windowStackPushNewGameWindow(usr->clayton.newGameIsResult);
@@ -19994,7 +20051,9 @@ void vtx::loop(vtx::VertexContext *ctx)
             {
                 // Put the hi-score window above the play-again window.
                 // But never show other windows while a story dialog is running.
-                if (!usr->dialog.active)
+                if (!usr->dialog.active &&
+                    usr->pendingOutcomeInterstitialAfterStory == 0 &&
+                    !usr->adInterstitialInFlight)
                     usr->windowStack.windowStackPushLocalHiscoreWindow();
             }
         }
@@ -21072,6 +21131,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     if (usr->dialog.closeRequested)
                     {
                         usr->dialog.finalizeClose();
+                        Campaign_ShowOutcomeInterstitialAfterStory(usr);
                     }
                     continue;
                 }
@@ -21881,7 +21941,13 @@ void vtx::loop(vtx::VertexContext *ctx)
     // Story dialog events (emitted once when a storyline node finishes typing, or when an option triggers).
     // Kept here (after SDL polling) so a dialog can emit an event and the game reacts on the next tick.
 	    {
-	        const int32_t storyEvent = usr->dialog.consumeEvent();
+	        int32_t storyEvent = usr->dialog.consumeEvent();
+                if (storyEvent == EVENT_NONE && !usr->adInterstitialInFlight &&
+                    usr->deferredStoryEventAfterInterstitial != EVENT_NONE)
+                {
+                    storyEvent = usr->deferredStoryEventAfterInterstitial;
+                    usr->deferredStoryEventAfterInterstitial = EVENT_NONE;
+                }
 		        if (storyEvent != EVENT_NONE)
 		        {
                     SchoolServices schoolSvc = {};
@@ -22744,7 +22810,8 @@ void vtx::loop(vtx::VertexContext *ctx)
         {
             usr->pendingLossInterstitial = false;
             usr->adInterstitialInFlight = true;
-            Game_ShowInterstitial(usr->sound.audioDev, false);
+            Game_ShowInterstitial(usr->sound.audioDev, false,
+                                  Txl_Get(usr->language, TXL_AD_SPONSOR_PROMPT));
         }
         const bool repeatCampaignLevel = Campaign_ShouldRepeatResultLevel(
             usr->windowStack.resultRepeatRequested,
@@ -24445,12 +24512,12 @@ swing_checks_done:
                                             Campaign_SavePostgameStats(usr);
                                         }
                                         // A chapter's victory dialogue precedes results.
-                                        const bool showBowlingResult = !clearedFullCampaign &&
-                                            !Campaign_HasVictoryEndStory(
-                                                usr->playerRoute == PlayerRoute::CAMPAIGN,
-                                                playerWins,
-                                                usr->campaignPostgameFreeplayActive,
-                                                cfg.endStoryId);
+                                        const bool hasEndStory = !clearedFullCampaign && Campaign_HasVictoryEndStory(
+                                            usr->playerRoute == PlayerRoute::CAMPAIGN,
+                                            playerWins,
+                                            usr->campaignPostgameFreeplayActive,
+                                            cfg.endStoryId);
+                                        const bool showBowlingResult = !clearedFullCampaign && !hasEndStory;
                                         if (usr->playerRoute == PlayerRoute::FREESTYLE)
                                         {
                                             LocalHi_SubmitScore(
@@ -24529,16 +24596,7 @@ swing_checks_done:
                                         if (showBowlingResult)
                                             usr->windowStack.windowStackPushNewGameWindow(usr->clayton.newGameIsResult);
                                         ResultWindow_ApplyReturnedBallsNotice(usr);
-                                        usr->pendingLossInterstitial = false;
-                                        if (playerWins)
-                                        {
-                                            if (AdPolicy_ChargeOutcome(usr, true))
-                                                Game_ShowInterstitial(usr->sound.audioDev, true);
-                                        }
-                                        else
-                                        {
-                                            usr->pendingLossInterstitial = AdPolicy_ChargeOutcome(usr, false);
-                                        }
+                                        Game_ScheduleOutcomeInterstitial(usr, playerWins, hasEndStory);
 	                                        if (usr->playerRoute == PlayerRoute::CAMPAIGN &&
                                             playerWins &&
                                             !usr->campaignPostgameFreeplayActive &&
@@ -24596,13 +24654,8 @@ swing_checks_done:
                                     }
                                     if (passed)
                                         Campaign_AdvanceIfWon(usr, cfg);
-                                    if (passed && cfg.endStoryId != 0)
-                                    {
-                                        usr->pendingCampaignEndStoryId =
-                                            (cfg.levelNumber == 1 && usr->schoolDone && cfg.endStoryId == 20)
-                                                ? 22
-                                                : cfg.endStoryId;
-                                    }
+                                    usr->pendingCampaignEndStoryId = Campaign_SoloEndStoryIdForResult(
+                                        cfg.levelNumber, cfg.endStoryId, passed, usr->schoolDone);
                                     ResultWindow_ConfigureBowling(
                                         usr,
                                         passed,
@@ -24611,16 +24664,8 @@ swing_checks_done:
                                         ResultWindow_CoinsSinceRunStart(usr),
 	                                        Txl_Get(usr->language, passed ? TXL_NEXT : TXL_RETRY)
                                     );
-                                    usr->pendingLossInterstitial = false;
-                                    if (passed)
-                                    {
-                                        if (AdPolicy_ChargeOutcome(usr, true))
-                                            Game_ShowInterstitial(usr->sound.audioDev, true);
-                                    }
-                                    else
-                                    {
-                                        usr->pendingLossInterstitial = AdPolicy_ChargeOutcome(usr, false);
-                                    }
+                                    Game_ScheduleOutcomeInterstitial(
+                                        usr, passed, usr->pendingCampaignEndStoryId != 0);
                                 }
                                 else
                                 {
@@ -30170,6 +30215,7 @@ END_LINE:
             if (usr->dialog.closeRequested)
             {
                 usr->dialog.finalizeClose();
+                Campaign_ShowOutcomeInterstitialAfterStory(usr);
             }
         }
 

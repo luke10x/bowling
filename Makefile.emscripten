@@ -19,6 +19,7 @@ TXL_FONT_ROBOTO_MONO := $(PWD)/tegel/generated/txl_font_roboto_mono_regular.h
 TXL_FONT_GENERATED := $(TXL_FONT_ROBOTO) $(TXL_FONT_NOTO) $(TXL_FONT_NOTO_JP) $(TXL_FONT_NOTO_SC) $(TXL_FONT_ROBOTO_MONO)
 
 FORCE:
+include $(PWD)/scripts/font_atlas_audit.mk
 
 $(VERSION_HEADER): FORCE $(VERSION_SCRIPT)
 	@bash $(VERSION_SCRIPT)
@@ -229,7 +230,7 @@ $(MINIGAME_ANIM_CACHE_HEADER): $(ASSMAN) $(MINIGAME_ANIM_CACHE_CFG) $(MINIGAME_A
 $(PWD)/wasm/ads_config.js $(PWD)/wasm/ads.txt: $(PWD)/ads_config.h $(PWD)/scripts/generate_ads_config.py
 	python3 $(PWD)/scripts/generate_ads_config.py
 
-main: $(JOLT_LIB) imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(STAMPED_SW) $(PWA_LOGO_OUTPUT) $(PWA_ICON_192) $(PWA_ICON_512) $(TXL_GENERATED) $(TXL_FONT_GENERATED) $(MINIGAME_ANIM_CACHE_HEADER) $(PWD)/wasm/ads_config.js $(PWD)/wasm/ads.txt
+main: $(JOLT_LIB) imgui-lib $(VERSION_HEADER) $(VERSION_JSON) $(STAMPED_SW) $(PWA_LOGO_OUTPUT) $(PWA_ICON_192) $(PWA_ICON_512) $(TXL_GENERATED) $(TXL_FONT_GENERATED) $(MINIGAME_ANIM_CACHE_HEADER) $(PWD)/wasm/ads_config.js $(PWD)/wasm/ads.txt font-audit
 	mkdir -p build/emscripten/www
 
 	time $(CXX) $(CXXFLAGS) \

@@ -12,6 +12,8 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "tegel/txl_runtime.h"
 
 #define SPEAKER_DEVIL 1
@@ -85,7 +87,8 @@ struct StoryChoiceOption
 // --- Story content (first game outro; branches by final score) ---
 static constexpr StorylineNode STORYLINES[] = {
     // clang-format off
-    // Intro (first frame)
+    // Legacy Level 1 intro nodes, retained for story ID compatibility.
+    // Campaign level 1 no longer routes to a start story.
     {
         /*storyline_id=*/1,
         /*speaker=*/SPEAKER_ANGEL,
@@ -330,7 +333,7 @@ static constexpr StorylineNode STORYLINES[] = {
         /*choice_group=*/CHOICE_SCHOOL_OK,
         /*next_storyline=*/0,
     },
-    // Used when replaying Level 1 after a failed attempt while school remains unfinished.
+    // Legacy Level 1 replay intro, retained for story ID compatibility.
     {
         /*storyline_id=*/40,
         /*speaker=*/SPEAKER_ANGEL,
@@ -1000,7 +1003,11 @@ static inline const char *Story_AllCharsForLanguage(TxlLanguage language)
 
     auto append_codepoint_utf8 = [&](uint32_t cp) {
         if (len + 4 >= cap)
-            return;
+        {
+            fprintf(stderr, "Story font character list for language %d exceeds %zu bytes\n",
+                    (int)language, cap);
+            abort();
+        }
         if (cp < 0x80)
         {
             buf[len++] = (char)cp;

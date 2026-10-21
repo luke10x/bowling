@@ -43,6 +43,7 @@ TXL_GAME_SETTINGS = "Game Settings"; // Used in: main menu (clayton/menu_clay.h)
 TXL_TRACKER = "Tracker"; // Used in: main menu (clayton/menu_clay.h)
 TXL_CREDITS = "Credits"; // Used in: campaign and results windows (clayton/win_stack.h), main menu (clayton/menu_clay.h)
 TXL_AD_MANAGER_TITLE = "AD MANAGER"; // Used in: cheat-only ad manager window (clayton/win_stack.h)
+TXL_AD_SPONSOR_PROMPT = "A word from our sponsors"; // Browser interstitial prompt
 TXL_AD_CREDIT_FMT = "Ad credit: %.1f / %.0f"; // Used in: ad manager window
 TXL_AD_CREDIT_RULES_FMT = "Win: -%d, loss: -%d, daily login: +%d"; // Ad manager rules
 TXL_AD_HOLIDAY_ACTIVE = "Ad holiday active"; // Used in: ad manager window
@@ -404,24 +405,24 @@ TXL_STORY_1 =
     "Count every mark, lest fortune make you weak.\n"; // Context: Speaker: Ezekiel. Level 1's first-attempt introduction.
 TXL_STORY_2 = "Will you enter training?\n"; // Context: Speaker: Ezekiel. Follow-up prompt offering training from the first Level 1 introduction.
 TXL_STORY_10 =
-    "You did not reach the hundred-mark this day.\n"
-    "Perchance your pride has led your hand astray.\n"
-    "Let training teach the line your will denied.\n"
-    "Return more ready, with your aim as guide.\n"; // Context: Speaker: Ezekiel. Level 1 failure message after scoring below 100.
+    "The hundred mark escaped your hand today;\n"
+    "The first gate holds; its lock will not give way.\n"
+    "Come to my school; let patient lessons be\n"
+    "A different key to what you long to see.\n"; // Ezekiel: Level 1 loss; school hints at another path beyond this gate.
 TXL_STORY_11 = "Will you enter training now, or face The Heavens once more?\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
-// Context: Speaker: Ezekiel (not yet seen by the player). After winning Level 1 with 100+ points while school is unfinished; promises an upcoming meeting. Automatically continues to story 21 for the training-or-Level-2 choice.
+// Ezekiel: Level 1 win with school unfinished; praises the player's skill and invites a direct meeting. Continues to story 21 for the training-or-Level-2 choice.
 TXL_STORY_20 =
-    "While you sought points, I lingered out of sight.\n"
-    "Your throws were steady, and your aim was right.\n"
-    "Through all that time, I watched each passing throw.\n"
-    "Soon you shall see the one you did not know.\n";
-TXL_STORY_21 = "Will you train first, or face Ezekiel now?\n"; // Context: Speaker: Ezekiel. Immediately after story 20, before Level 2: choose training or facing Ezekiel.
-// Context: Speaker: Ezekiel (not yet seen by the player). After winning Level 1 with 100+ points when school is already complete; promises an upcoming meeting. Replaces stories 20 and 21, without offering training again.
+    "Your hundred points have opened Heaven's door;\n"
+    "Your steady skill has shown me something more.\n"
+    "I am Ezekiel; come straight to me, if you dare;\n"
+    "The road is yours, and you will find me there.\n";
+TXL_STORY_21 = "Will you train first, or come straight to meet me?\n"; // Ezekiel: choice between school and meeting him in Level 2.
+// Ezekiel: Level 1 win after school is complete; same invitation without another school offer.
 TXL_STORY_22 =
-    "While you sought points, I lingered out of sight.\n"
-    "Your throws were steady, and your aim was right.\n"
-    "Through all that time, I watched each passing throw.\n"
-    "Soon you shall see the one you did not know.\n";
+    "Your hundred points have opened Heaven's door;\n"
+    "Your steady skill has shown me something more.\n"
+    "I am Ezekiel; come straight to me, if you dare;\n"
+    "The road is yours, and you will find me there.\n";
 TXL_STORY_30 =
     "You cannot leave the training hall just yet.\n"
     "Complete the trials that before you are set.\n"; // Context: Speaker: Ezekiel. Attempt to leave mandatory training before completing it.
@@ -487,7 +488,7 @@ TXL_STORY_40 =
     "I am Ezekiel; I watched you fall and rise.\n"
     "The Heavens hold runes beneath their watching skies.\n"
     "Score one hundred, lest the first gate stay closed.\n"
-    "If guidance calls, let training be disclosed.\n"; // Context: Speaker: Ezekiel. Level 1 replay introduction after a failed attempt, before training is finished.
+    "If guidance calls, let training be disclosed.\n"; // Legacy Level 1 replay introduction; no longer routed.
 
 // Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself and promises that the player can save the world; the promise is deceptive (see lore.md).
 TXL_STORY_3002 =
@@ -673,7 +674,7 @@ TXL_STORY_32000 =
 TXL_STORY_OPTION_ENTER_TRAINING = "Enter training"; // Context: Choice button in Level 1 introductions/outros and the Level 2 recovery introduction: enter school.
 TXL_STORY_OPTION_YES = "Yes"; // Context: Confirmation button for switching school lessons; tutorial confirmation uses the separate YES_TUTORIAL key.
 TXL_STORY_OPTION_NO = "No"; // Context: Cancel button for switching school lessons; tutorial refusal uses the separate NO_TUTORIAL key.
-TXL_STORY_OPTION_NOT_NOW = "Not now"; // Context: Choice after failing Level 1 or during its replay introduction: decline training and try Level 1 again.
+TXL_STORY_OPTION_NOT_NOW = "Not now"; // Context: Choice after failing Level 1: decline training and try Level 1 again.
 TXL_STORY_OPTION_COMPETE_VS_EZEKIEL = "Compete vs Ezekiel"; // Context: Choice after passing Level 1 or in the Level 2 recovery introduction: proceed to face Ezekiel in Level 2.
 TXL_STORY_OPTION_OK = "OK"; // Context: Acknowledgement button for campaign dialogue and school instructions.
 TXL_STORY_OPTION_NEXT = "Next"; // Context: School lesson completion button: advance to the next lesson; after Lesson 5, leave school.

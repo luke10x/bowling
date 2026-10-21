@@ -44,6 +44,7 @@ TXL_GAME_SETTINGS = "Nustatymai"; // Used in: main menu (clayton/menu_clay.h), g
 TXL_TRACKER = "Trekeris"; // Used in: main menu (clayton/menu_clay.h)
 TXL_CREDITS = "Kreditai"; // Used in: campaign and results windows (clayton/win_stack.h), main menu (clayton/menu_clay.h)
 TXL_AD_MANAGER_TITLE = "REKLAMŲ VALDYMAS"; // Naudojama: reklamų valdymo lange
+TXL_AD_SPONSOR_PROMPT = "Žodis mūsų sponsoriams"; // Naršyklės reklamos mygtukas
 TXL_AD_CREDIT_FMT = "Reklamų kreditas: %.1f / %.0f"; // Naudojama: reklamų valdymo lange
 TXL_AD_CREDIT_RULES_FMT = "Laimėjimas: -%d, pralaimėjimas: -%d, prisijungimas: +%d"; // Reklamų taisyklės
 TXL_AD_HOLIDAY_ACTIVE = "Pertrauka nuo reklamų"; // Naudojama: reklamų valdymo lange
@@ -405,24 +406,24 @@ TXL_STORY_1 =
     "Mokinkis skaičiuot tai tau padės nepaslysti\n"; // Context: Speaker: Ezekiel. Level 1's first-attempt introduction.
 TXL_STORY_2 = "Ar norėtum atlikti praktiką?\n"; // Context: Speaker: Ezekiel. Follow-up prompt offering training from the first Level 1 introduction.
 TXL_STORY_10 =
-    "Man labai gaila bet šimto nesurinkai.\n"
-    "Viską regėjau tai tavo tuštybė tiktai.\n"
-    "Patarčiau rinktis praktiką kuri tau gal padės\n"
-    "Jei tiktai tavo išdidumas ir puikybė išblės...\n"; // Context: Speaker: Ezekiel. Level 1 failure message after scoring below 100.
+    "Šiandien šimto taškų tu nesurinkai,\n"
+    "Pirmuosius vartus dar užrakintus radai.\n"
+    "Patarčiau tau į mokyklą užsukti\n"
+    "Gal žinios padės į kitą lygį prasmukti...\n"; // Ezekiel: Level 1 loss; school hints at another path beyond this gate.
 TXL_STORY_11 = "Atlik praktiką arba bandyk dar kartą — ką renkiesi?\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
-// Context: Speaker: Ezekiel (not yet seen by the player). After winning Level 1 with 100+ points while school is unfinished; promises an upcoming meeting. Automatically continues to story 21 for the training-or-Level-2 choice.
+// Ezekiel: Level 1 win with school unfinished; direct meeting invitation, then the school-or-Level-2 choice.
 TXL_STORY_20 =
-    "Kol bandei surinkti taškus, tu manęs nematei.\n"
-    "Metimai tikrai taiklūs, atrodė neblogai.\n"
-    "Visą tą laiką aš stebėjau tave,\n"
-    "Netrukus ir tu pamatysi mane.\n";
-TXL_STORY_21 = "Ar atliksi praktiką, ar stosi prieš Ezekielį?\n"; // Context: Speaker: Ezekiel. Immediately after story 20, before Level 2: choose training or facing Ezekiel.
-// Context: Speaker: Ezekiel (not yet seen by the player). After winning Level 1 with 100+ points when school is already complete; promises an upcoming meeting. Replaces stories 20 and 21, without offering training again.
+    "Šimtas taškų tau atvėrė vartus,\n"
+    "Kiekvienas tavo metimas buvo taiklus.\n"
+    "Aš Ezekielis; eik tiesiai pas mane,\n"
+    "Šis lygis pereitas – lauksiu tavęs kitame.\n";
+TXL_STORY_21 = "Ar vistik mokysiesi, ar eisi tiesiai pas mane?\n"; // Ezekiel: choice between school and meeting him in Level 2.
+// Ezekiel: Level 1 win after school is complete; same invitation without another school offer.
 TXL_STORY_22 =
-    "Kol bandei surinkti taškus, tu manęs nematei.\n"
-    "Metimai tikrai taiklūs, atrodė neblogai.\n"
-    "Visą tą laiką aš stebėjau tave,\n"
-    "Netrukus ir tu pamatysi mane.\n";
+    "Šimtas taškų tau atvėrė vartus,\n"
+    "Kiekvienas tavo metimas buvo taiklus.\n"
+    "Aš Ezekielis; eik tiesiai pas mane,\n"
+    "Šis lygis pereitas – lauksiu tavęs kitame.\n";
 TXL_STORY_30 =
     "Dar negali palikti praktikos.\n"
     "Pirma baik pamoką.\n"; // Context: Speaker: Ezekiel. Attempt to leave mandatory training before completing it.
@@ -436,9 +437,9 @@ TXL_STORY_1010 = "Puiku! Įsisisavinta pamoka apie masę.\n"; // Context: Speake
 TXL_STORY_1012 =
     "Kad islaikytum testa, mases slankikli nustatyk i lengva arba sunku gala.\n"
     "Metimas per viduri i pazanga neiskaiciuojamas.\n"; // Context: Speaker: Ezekiel. Lesson 2 reminder to use a light or heavy ball.
-TXL_STORY_1013 = "Gerai. Dabar perjunk slankikli i sunku gala ir pataikyk i keglius.\n"; // Context: Speaker: Ezekiel. Lesson 2 prompt to use the heavy ball.
-TXL_STORY_1014 = "Gerai. Dabar perjunk slankikli i lengva gala ir pataikyk i keglius.\n"; // Context: Speaker: Ezekiel. Lesson 2 prompt to use the light ball.
-TXL_STORY_1030 = "I mokykla gali grizti bet kada.\n"; // Context: Speaker: Ezekiel. General return-to-school message after a lesson.
+TXL_STORY_1013 = "Gerai. Dabar perjunk slankikli i sunkų galą ir pataikyk i kėglius.\n"; // Context: Speaker: Ezekiel. Lesson 2 prompt to use the heavy ball.
+TXL_STORY_1014 = "Gerai. Dabar perjunk slankikli i lengvą galą ir pataikyk i kėglius.\n"; // Context: Speaker: Ezekiel. Lesson 2 prompt to use the light ball.
+TXL_STORY_1030 = "Į mokyklą gali grizti bet kada.\n"; // Context: Speaker: Ezekiel. General return-to-school message after a lesson.
 TXL_STORY_1020 =
     "Sveikinu. Sukimosi testa islaikei.\n"
     "Kiekvienas kamuolys savaip reaguoja i sukima.\n"
@@ -478,7 +479,7 @@ TXL_STORY_1080 =
 TXL_STORY_1021 =
     "Sukimą gali dar treniruoti zigzago pamokoje.\n"
     "3 pamoka dabar atrakinta.\n"; // Context: Speaker: Ezekiel. Lesson 3 unlock notification after the zig-zag gold lesson.
-TXL_STORY_40 = "Nelabai kaip sekasi? Gal verčiau atlikime praktiką, jeigu surinkti šimtą tau per sunku...\n"; // Context: Speaker: Ezekiel. Level 1 replay introduction after a failed attempt, before training is finished.
+TXL_STORY_40 = "Nelabai kaip sekasi? Gal verčiau atlikime praktiką, jeigu surinkti šimtą tau per sunku...\n"; // Legacy Level 1 replay introduction; no longer routed.
 
 // Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself and promises that the player can save the world; the promise is deceptive (see lore.md).
 TXL_STORY_3002 =
@@ -665,7 +666,7 @@ TXL_STORY_32000 =
 TXL_STORY_OPTION_ENTER_TRAINING = "Eiti į praktiką"; // Context: Choice button in Level 1 introductions/outros and the Level 2 recovery introduction: enter school.
 TXL_STORY_OPTION_YES = "Yes"; // Context: Confirmation button for switching school lessons; tutorial confirmation uses the separate YES_TUTORIAL key.
 TXL_STORY_OPTION_NO = "No"; // Context: Cancel button for switching school lessons; tutorial refusal uses the separate NO_TUTORIAL key.
-TXL_STORY_OPTION_NOT_NOW = "Ne dabar"; // Context: Choice after failing Level 1 or during its replay introduction: decline training and try Level 1 again.
+TXL_STORY_OPTION_NOT_NOW = "Ne dabar"; // Context: Choice after failing Level 1: decline training and try Level 1 again.
 TXL_STORY_OPTION_COMPETE_VS_EZEKIEL = "Varžytis su Ezekieliu"; // Context: Choice after passing Level 1 or in the Level 2 recovery introduction: proceed to face Ezekiel in Level 2.
 TXL_STORY_OPTION_OK = "Gerai"; // Context: Acknowledgement button for campaign dialogue and school instructions.
 TXL_STORY_OPTION_NEXT = "Toliau"; // Context: School lesson completion button: advance to the next lesson; after Lesson 5, leave school.

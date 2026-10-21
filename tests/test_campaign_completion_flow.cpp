@@ -270,6 +270,32 @@ TEST_CASE("Level 2 victory dialogue opens before results")
     CHECK_FALSE(Campaign_CanOpenEndStoryBeforeResults(0, false, false, false));
 }
 
+TEST_CASE("Charged outcome ads wait for either end-story choice")
+{
+    CHECK(Campaign_OutcomeInterstitialPlacement(true, true, true) ==
+          OutcomeInterstitialPlacement::AfterEndStory);
+    CHECK(Campaign_OutcomeInterstitialPlacement(true, false, true) ==
+          OutcomeInterstitialPlacement::AfterEndStory);
+    CHECK(Campaign_OutcomeInterstitialPlacement(true, true, false) ==
+          OutcomeInterstitialPlacement::Immediately);
+    CHECK(Campaign_OutcomeInterstitialPlacement(true, false, false) ==
+          OutcomeInterstitialPlacement::OnRetry);
+    CHECK(Campaign_OutcomeInterstitialPlacement(false, true, true) ==
+          OutcomeInterstitialPlacement::None);
+    CHECK(Campaign_OutcomeInterstitialPlacement(false, false, true) ==
+          OutcomeInterstitialPlacement::None);
+}
+
+TEST_CASE("Results wait until the story choice and ad finish")
+{
+    CHECK(Campaign_CanRevealResultsAfterStory(false, false, false, false, false));
+    CHECK_FALSE(Campaign_CanRevealResultsAfterStory(true, false, false, false, false));
+    CHECK_FALSE(Campaign_CanRevealResultsAfterStory(false, true, false, false, false));
+    CHECK_FALSE(Campaign_CanRevealResultsAfterStory(false, false, true, false, false));
+    CHECK_FALSE(Campaign_CanRevealResultsAfterStory(false, false, false, true, false));
+    CHECK_FALSE(Campaign_CanRevealResultsAfterStory(false, false, false, false, true));
+}
+
 TEST_CASE("Only ordinary campaign victories have a chapter completion dialogue")
 {
     CHECK(Campaign_HasVictoryEndStory(true, true, false, 3103));

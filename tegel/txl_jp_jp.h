@@ -88,6 +88,7 @@ TXL_GAME_SETTINGS = "ゲーム設定"; // Used in: main menu (clayton/menu_clay.
 TXL_TRACKER = "トラッカー"; // Used in: main menu (clayton/menu_clay.h)
 TXL_CREDITS = "クレジット"; // Used in: campaign and results windows (clayton/win_stack.h), main menu (clayton/menu_clay.h)
 TXL_AD_MANAGER_TITLE = "広告管理"; // 広告管理ウィンドウ
+TXL_AD_SPONSOR_PROMPT = "スポンサーからのお知らせ"; // ブラウザー広告のボタン
 TXL_AD_CREDIT_FMT = "広告クレジット: %.1f / %.0f"; // 広告管理ウィンドウ
 TXL_AD_CREDIT_RULES_FMT = "勝利: -%d、敗北: -%d、毎日ログイン: +%d"; // 広告ルール
 TXL_AD_HOLIDAY_ACTIVE = "広告休暇中"; // 広告管理ウィンドウ
@@ -449,24 +450,24 @@ TXL_STORY_1 =
     "一投ずつ数えよ、運に足をすくわれぬよう。\n"; // Context: Speaker: Ezekiel. Level 1's first-attempt introduction.
 TXL_STORY_2 = "まず修練を受けるか。\n"; // Context: Speaker: Ezekiel. Follow-up prompt offering training from the first Level 1 introduction.
 TXL_STORY_10 =
-    "百点のしるしに、今日は届かず。\n"
-    "おごりがその手を、迷わせたか。\n"
-    "修練にて、拒んだ道を学べ。\n"
-    "狙いを導きに、備えて戻れ。\n"; // Context: Speaker: Ezekiel. Level 1 failure message after scoring below 100.
+    "百点には、今日は届かなかった。\n"
+    "最初の門は、まだ固く閉ざされた。\n"
+    "わが学び舎へ来るがよい。学びの中に\n"
+    "別の鍵が、静かに待つやもしれぬ。\n"; // Ezekiel: Level 1 loss; school hints at another path beyond this gate.
 TXL_STORY_11 = "いま修練に入るか、天の試しに再び挑むか。\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
-// Context: Speaker: Ezekiel (not yet seen by the player). After winning Level 1 with 100+ points while school is unfinished; promises an upcoming meeting. Automatically continues to story 21 for the training-or-Level-2 choice.
+// Ezekiel: Level 1 win with school unfinished; direct meeting invitation, then the school-or-Level-2 choice.
 TXL_STORY_20 =
-    "点を求めし間、そなたはわれを見ず。\n"
-    "投げる球は確か、狙いもよく冴えたり。\n"
-    "その時のすべて、われはそなたを見守りたり。\n"
-    "やがてそなたも、われの姿を見よう。\n";
-TXL_STORY_21 = "まず修練するか、いまエゼキエルに挑むか。\n"; // Context: Speaker: Ezekiel. Immediately after story 20, before Level 2: choose training or facing Ezekiel.
-// Context: Speaker: Ezekiel (not yet seen by the player). After winning Level 1 with 100+ points when school is already complete; promises an upcoming meeting. Replaces stories 20 and 21, without offering training again.
+    "百点を得て、天の門は開いた。\n"
+    "そなたの確かな腕を、われは見届けた。\n"
+    "われはエゼキエル。まっすぐ会いに来るがよい。\n"
+    "道はそなたのもの、門の先で待とう。\n";
+TXL_STORY_21 = "先に学ぶか、それとも今すぐわれに会いに来るか。\n"; // Ezekiel: choice between school and meeting him in Level 2.
+// Ezekiel: Level 1 win after school is complete; same invitation without another school offer.
 TXL_STORY_22 =
-    "点を求めし間、そなたはわれを見ず。\n"
-    "投げる球は確か、狙いもよく冴えたり。\n"
-    "その時のすべて、われはそなたを見守りたり。\n"
-    "やがてそなたも、われの姿を見よう。\n";
+    "百点を得て、天の門は開いた。\n"
+    "そなたの確かな腕を、われは見届けた。\n"
+    "われはエゼキエル。まっすぐ会いに来るがよい。\n"
+    "道はそなたのもの、門の先で待とう。\n";
 TXL_STORY_30 =
     "まだ学校を出られない。\n"
     "先にレッスンを終えよう。\n"; // Context: Speaker: Ezekiel. Attempt to leave mandatory training before completing it.
@@ -532,7 +533,7 @@ TXL_STORY_40 =
     "われはエゼキエル、つまずきも立ち直りも見たり。\n"
     "天の眼差しの下に、符文は眠る。\n"
     "百点を得よ、初めの門を開くため。\n"
-    "導きを望むなら、修練の戸は開いている。\n"; // Context: Speaker: Ezekiel. Level 1 replay introduction after a failed attempt, before training is finished.
+    "導きを望むなら、修練の戸は開いている。\n"; // Legacy Level 1 replay introduction; no longer routed.
 
 // Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself and promises that the player can save the world; the promise is deceptive (see lore.md).
 TXL_STORY_3002 =
@@ -718,7 +719,7 @@ TXL_STORY_32000 =
 TXL_STORY_OPTION_ENTER_TRAINING = "学校へ行く"; // Context: Choice button in Level 1 introductions/outros and the Level 2 recovery introduction: enter school.
 TXL_STORY_OPTION_YES = "はい"; // Context: Confirmation button for switching school lessons; tutorial confirmation uses the separate YES_TUTORIAL key.
 TXL_STORY_OPTION_NO = "いいえ"; // Context: Cancel button for switching school lessons; tutorial refusal uses the separate NO_TUTORIAL key.
-TXL_STORY_OPTION_NOT_NOW = "今はやめる"; // Context: Choice after failing Level 1 or during its replay introduction: decline training and try Level 1 again.
+TXL_STORY_OPTION_NOT_NOW = "今はやめる"; // Context: Choice after failing Level 1: decline training and try Level 1 again.
 TXL_STORY_OPTION_COMPETE_VS_EZEKIEL = "エゼキエルと対戦"; // Context: Choice after passing Level 1 or in the Level 2 recovery introduction: proceed to face Ezekiel in Level 2.
 TXL_STORY_OPTION_OK = "確認"; // Context: Acknowledgement button for campaign dialogue and school instructions.
 TXL_STORY_OPTION_NEXT = "次へ"; // Context: School lesson completion button: advance to the next lesson; after Lesson 5, leave school.

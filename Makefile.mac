@@ -13,6 +13,7 @@ TXL_FONT_ROBOTO_MONO := $(PWD)/tegel/generated/txl_font_roboto_mono_regular.h
 TXL_FONT_GENERATED := $(TXL_FONT_ROBOTO) $(TXL_FONT_NOTO) $(TXL_FONT_NOTO_JP) $(TXL_FONT_NOTO_SC) $(TXL_FONT_ROBOTO_MONO)
 
 FORCE:
+include $(PWD)/scripts/font_atlas_audit.mk
 
 $(VERSION_HEADER): FORCE $(VERSION_SCRIPT)
 	@bash $(VERSION_SCRIPT)
@@ -237,7 +238,7 @@ endif
 
 runtime: $(VERSION_HEADER) $(TXL_GENERATED) $(TXL_FONT_GENERATED) $(MINIGAME_ANIM_CACHE_HEADER)
 
-main: runtime $(VERSION_HEADER) $(TXL_GENERATED) $(TXL_FONT_GENERATED) $(MINIGAME_ANIM_CACHE_HEADER)
+main: runtime $(VERSION_HEADER) $(TXL_GENERATED) $(TXL_FONT_GENERATED) $(MINIGAME_ANIM_CACHE_HEADER) font-audit
 ifeq ($(strip $(HOT_RELOAD)),1)
 	echo 🔥 Building executable with swappable runtime
 	time $(CXX) \
@@ -297,6 +298,7 @@ doctest:
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_campaign_completion_flow.cpp -o tests/test_campaign_completion_flow && tests/test_campaign_completion_flow
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_campaign_record.cpp -o tests/test_campaign_record && tests/test_campaign_record
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_story_progression.cpp -o tests/test_story_progression && tests/test_story_progression
+	$(CXX) -std=c++20 -I. -I./build/_deps/stb-src tests/test_font_atlas_coverage.cpp -o tests/test_font_atlas_coverage && tests/test_font_atlas_coverage
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include tests/test_numkeypad.cpp -o tests/test_numkeypad && tests/test_numkeypad
 	$(CXX) -std=c++20 -I. -I./3rdparty/glm -I./build/_deps/clay-src -I./3rdparty/SDL/include -I../eggsfm -I../ymfm/src tests/test_tracker_song_io.cpp -o tests/test_tracker_song_io && tests/test_tracker_song_io
 

@@ -64,6 +64,7 @@ TXL_GAME_SETTINGS = "游戏设置"; // Used in: main menu (clayton/menu_clay.h),
 TXL_TRACKER = "音轨编辑"; // Used in: main menu (clayton/menu_clay.h)
 TXL_CREDITS = "制作名单"; // Used in: campaign and results windows (clayton/win_stack.h), main menu (clayton/menu_clay.h)
 TXL_AD_MANAGER_TITLE = "广告管理"; // 用于广告管理窗口
+TXL_AD_SPONSOR_PROMPT = "赞助商的话"; // 浏览器插页广告按钮
 TXL_AD_CREDIT_FMT = "广告积分：%.1f / %.0f"; // 用于广告管理窗口
 TXL_AD_CREDIT_RULES_FMT = "胜利：-%d，失败：-%d，每日登录：+%d"; // 广告规则
 TXL_AD_HOLIDAY_ACTIVE = "广告假期进行中"; // 用于广告管理窗口
@@ -425,24 +426,24 @@ TXL_STORY_1 =
     "细数每记，莫使侥幸欺心。\n"; // Context: Speaker: Ezekiel. Level 1's first-attempt introduction.
 TXL_STORY_2 = "可愿先入学堂修习？\n"; // Context: Speaker: Ezekiel. Follow-up prompt offering training from the first Level 1 introduction.
 TXL_STORY_10 =
-    "今日未能取百分，\n"
-    "想是骄心误汝行。\n"
-    "且入学堂重习路，\n"
-    "归来稳手定前程。\n"; // Context: Speaker: Ezekiel. Level 1 failure message after scoring below 100.
+    "今日未取百分，首关依然紧闭。\n"
+    "此路未能走通，莫让志气沉寂。\n"
+    "且来吾之学堂，耐心习得新知；\n"
+    "或有另一把钥，开启未见之地。\n"; // Ezekiel: Level 1 loss; school hints at another path beyond this gate.
 TXL_STORY_11 = "如今先入学堂，还是再闯天界第一关？\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
-// Context: Speaker: Ezekiel (not yet seen by the player). After winning Level 1 with 100+ points while school is unfinished; promises an upcoming meeting. Automatically continues to story 21 for the training-or-Level-2 choice.
+// Ezekiel: Level 1 win with school unfinished; direct meeting invitation, then the school-or-Level-2 choice.
 TXL_STORY_20 =
-    "你求取分数之时，未曾见吾身影。\n"
-    "投球颇为精准，已显不凡技艺。\n"
-    "那一段时光，吾始终默然注视。\n"
-    "不久之后，你亦将见吾现身。\n";
-TXL_STORY_21 = "先行修习，还是此刻迎战以西结？\n"; // Context: Speaker: Ezekiel. Immediately after story 20, before Level 2: choose training or facing Ezekiel.
-// Context: Speaker: Ezekiel (not yet seen by the player). After winning Level 1 with 100+ points when school is already complete; promises an upcoming meeting. Replaces stories 20 and 21, without offering training again.
+    "百分既得，天门为你而开。\n"
+    "投球精准，吾见你的风采。\n"
+    "吾乃以西结；可直来与吾相会。\n"
+    "路已在你脚下，吾在前方等待。\n";
+TXL_STORY_21 = "先去修习，还是现在直接来见吾？\n"; // Ezekiel: choice between school and meeting him in Level 2.
+// Ezekiel: Level 1 win after school is complete; same invitation without another school offer.
 TXL_STORY_22 =
-    "你求取分数之时，未曾见吾身影。\n"
-    "投球颇为精准，已显不凡技艺。\n"
-    "那一段时光，吾始终默然注视。\n"
-    "不久之后，你亦将见吾现身。\n";
+    "百分既得，天门为你而开。\n"
+    "投球精准，吾见你的风采。\n"
+    "吾乃以西结；可直来与吾相会。\n"
+    "路已在你脚下，吾在前方等待。\n";
 TXL_STORY_30 =
     "你现在还不能离开学校。\n"
     "先把课程完成。\n"; // Context: Speaker: Ezekiel. Attempt to leave mandatory training before completing it.
@@ -508,7 +509,7 @@ TXL_STORY_40 =
     "吾乃以西结，曾见你起落。\n"
     "天界默然，符文藏于其间。\n"
     "取得百分，第一道门方启。\n"
-    "若需引路，且入学堂磨炼。\n"; // Context: Speaker: Ezekiel. Level 1 replay introduction after a failed attempt, before training is finished.
+    "若需引路，且入学堂磨炼。\n"; // Legacy Level 1 replay introduction; no longer routed.
 
 // Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself and promises that the player can save the world; the promise is deceptive (see lore.md).
 TXL_STORY_3002 =
@@ -694,7 +695,7 @@ TXL_STORY_32000 =
 TXL_STORY_OPTION_ENTER_TRAINING = "去学校"; // Context: Choice button in Level 1 introductions/outros and the Level 2 recovery introduction: enter school.
 TXL_STORY_OPTION_YES = "是"; // Context: Confirmation button for switching school lessons; tutorial confirmation uses the separate YES_TUTORIAL key.
 TXL_STORY_OPTION_NO = "否"; // Context: Cancel button for switching school lessons; tutorial refusal uses the separate NO_TUTORIAL key.
-TXL_STORY_OPTION_NOT_NOW = "现在先不去"; // Context: Choice after failing Level 1 or during its replay introduction: decline training and try Level 1 again.
+TXL_STORY_OPTION_NOT_NOW = "现在先不去"; // Context: Choice after failing Level 1: decline training and try Level 1 again.
 TXL_STORY_OPTION_COMPETE_VS_EZEKIEL = "和以西结对战"; // Context: Choice after passing Level 1 or in the Level 2 recovery introduction: proceed to face Ezekiel in Level 2.
 TXL_STORY_OPTION_OK = "确定"; // Context: Acknowledgement button for campaign dialogue and school instructions.
 TXL_STORY_OPTION_NEXT = "下一步"; // Context: School lesson completion button: advance to the next lesson; after Lesson 5, leave school.

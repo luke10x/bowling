@@ -39,12 +39,30 @@ TEST_CASE("Story: win path can route to BOT via EVENT_GO_TO_BOT")
     CHECK(found);
 }
 
-TEST_CASE("Campaign school reminder only appears on a failed level 1 replay")
+TEST_CASE("Campaign level 1 never starts with a story, including retries")
 {
     CHECK(Campaign_StartStoryIdForState(1, 40, 0, false, false, false, false) == 0);
-    CHECK(Campaign_StartStoryIdForState(1, 40, 1, false, false, false, false) == 40);
+    CHECK(Campaign_StartStoryIdForState(1, 40, 1, false, false, false, false) == 0);
     CHECK(Campaign_StartStoryIdForState(1, 40, 1, true, false, false, false) == 0);
     CHECK(Campaign_StartStoryIdForState(1, 40, 1, false, true, false, false) == 0);
+    CHECK(Campaign_StartStoryIdForState(1, 40, 3, false, false, false, false) == 0);
+}
+
+TEST_CASE("Campaign level 1 ends with its existing failure or victory poem")
+{
+    CHECK(Campaign_SoloEndStoryIdForResult(1, 20, false, false) == 10);
+    CHECK(Campaign_SoloEndStoryIdForResult(1, 20, false, true) == 10);
+    CHECK(Campaign_SoloEndStoryIdForResult(1, 20, true, false) == 20);
+    CHECK(Campaign_SoloEndStoryIdForResult(1, 20, true, true) == 22);
+    // Other solo levels keep their victory-only rule.
+    CHECK(Campaign_SoloEndStoryIdForResult(2, 3102, false, false) == 0);
+    CHECK(Campaign_SoloEndStoryIdForResult(2, 3102, true, false) == 3102);
+    const StorylineNode *failure = Story_FindNode(10);
+    REQUIRE(failure != nullptr);
+    CHECK(failure->next_storyline == 11);
+    CHECK(Campaign_CanOpenEndStoryBeforeResults(10, false, false, false));
+    CHECK(Story_FindNode(20) != nullptr);
+    CHECK(Story_FindNode(22) != nullptr);
 }
 
 TEST_CASE("Persisted campaign resume preserves both valid Level 1 completion routes")
@@ -67,9 +85,10 @@ TEST_CASE("Campaign start stories respect school and completed resume flow")
     CHECK(Campaign_StartStoryIdForState(13, 3012, 3, true, false, true, true) == 0);
 }
 
-TEST_CASE("Campaign routed start story nodes exist")
+TEST_CASE("Campaign story nodes used by level 1 and later introductions exist")
 {
-    REQUIRE(Story_FindNode(40) != nullptr);
+    REQUIRE(Story_FindNode(10) != nullptr);
+    REQUIRE(Story_FindNode(20) != nullptr);
     REQUIRE(Story_FindNode(3002) != nullptr);
 }
 

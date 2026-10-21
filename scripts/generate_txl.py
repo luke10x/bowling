@@ -103,7 +103,10 @@ def main():
         lines.append("};")
         lines.append("")
 
-        chars = dedupe_chars([value for _, value in entries] + [EXTRA_WHITELISTED_CHARS])
+        # This extra glyph is for Lithuanian dynamic UI text. Requiring it in
+        # CJK fonts would silently skip a glyph those fonts need not contain.
+        extras = EXTRA_WHITELISTED_CHARS if lang == "lt_lt" else ""
+        chars = dedupe_chars([value for _, value in entries] + [extras])
         lines.append(
             f"static constexpr const char *g_txl_chars_{lang} = {c_string_literal(chars)};"
         )

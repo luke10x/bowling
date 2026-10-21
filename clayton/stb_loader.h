@@ -97,6 +97,7 @@ typedef struct Stb_FontData
     int *codepointToIndex;         // hash table: codepoint -> atlas index (sparse)
     int codepointTableSize;        // size of the hash table
     int usedPixelCount;            // number of non-zero pixels in the baked atlas
+    int packedPixelCount;          // glyph area plus the packer's one-pixel padding
 } Stb_FontData;
 
 // Forward declaration
@@ -327,6 +328,7 @@ static inline bool Stb_LoadFontBytesWithChars(
     fontOut->codepointToIndex = NULL;
     fontOut->codepointTableSize = 0;
     fontOut->usedPixelCount = 0;
+    fontOut->packedPixelCount = 0;
 
     // Count characters if custom string provided
     int numChars = 0;
@@ -371,6 +373,14 @@ static inline bool Stb_LoadFontBytesWithChars(
 
     // temporary atlas memory
     unsigned char *atlas = (unsigned char *)malloc(atlasW * atlasH);
+    if (!atlas) {
+        fprintf(stderr, "Cannot allocate %d x %d font atlas\n", atlasW, atlasH);
+        free(fontOut->pdata);
+        free(fontOut->cdata);
+        fontOut->pdata = NULL;
+        fontOut->cdata = NULL;
+        return false;
+    }
     memset(atlas, 0, atlasW * atlasH);
 
     int res;
@@ -386,12 +396,30 @@ static inline bool Stb_LoadFontBytesWithChars(
 
         /* Decode all codepoints first */
         fontOut->customCodepoints = (uint32_t *)malloc(sizeof(uint32_t) * numChars);
+        if (!fontOut->customCodepoints) {
+            fprintf(stderr, "Cannot allocate font codepoints\n");
+            free(atlas);
+            free(fontOut->pdata);
+            fontOut->pdata = NULL;
+            return false;
+        }
         p = customChars;
         end = customChars + strlen(customChars);
         while (p < end && validCharCount < numChars) {
             uint32_t cp = Stb_DecodeUTF8(&p, end);
-            if (cp == 0) continue;
-            if (stbtt_FindGlyphIndex(&fi, cp) <= 0) continue;
+            // Layout controls do not occupy atlas space. Shared navigation
+            // symbols are checked when the dedicated fallback font is packed.
+            if (cp < 0x20) continue;
+            if (stbtt_FindGlyphIndex(&fi, cp) <= 0) {
+                if (Stb_IsSharedUiSymbol(cp)) continue;
+                fprintf(stderr, "Font is missing required glyph U+%04X\n", cp);
+                free(atlas);
+                free(fontOut->customCodepoints);
+                free(fontOut->pdata);
+                fontOut->customCodepoints = NULL;
+                fontOut->pdata = NULL;
+                return false;
+            }
             fontOut->customCodepoints[validCharCount] = cp;
             validCharCount++;
         }
@@ -400,7 +428,15 @@ static inline bool Stb_LoadFontBytesWithChars(
         fontOut->customCharCount = validCharCount;
 
         /* Pack all characters at once using stbtt_PackFontRanges */
-        stbtt_PackBegin(&spc, atlas, atlasW, atlasH, 0, 1, NULL);
+        if (!stbtt_PackBegin(&spc, atlas, atlasW, atlasH, 0, 1, NULL)) {
+            fprintf(stderr, "Cannot initialize font atlas packer\n");
+            free(atlas);
+            free(fontOut->customCodepoints);
+            free(fontOut->pdata);
+            fontOut->customCodepoints = NULL;
+            fontOut->pdata = NULL;
+            return false;
+        }
         stbtt_PackSetOversampling(&spc, 1, 1);
         stbtt_PackSetSkipMissingCodepoints(&spc, true);
 
@@ -411,9 +447,19 @@ static inline bool Stb_LoadFontBytesWithChars(
         range.num_chars = validCharCount;
         range.chardata_for_range = fontOut->pdata;
 
-        stbtt_PackFontRanges(&spc, ttfData, 0, &range, 1);
+        const int allPacked = stbtt_PackFontRanges(&spc, ttfData, 0, &range, 1);
 
         stbtt_PackEnd(&spc);
+        if (!allPacked) {
+            fprintf(stderr, "Font atlas %d x %d cannot fit all %d required glyphs\n",
+                    atlasW, atlasH, validCharCount);
+            free(atlas);
+            free(fontOut->customCodepoints);
+            free(fontOut->pdata);
+            fontOut->customCodepoints = NULL;
+            fontOut->pdata = NULL;
+            return false;
+        }
 
         /* Build hash table for fast lookup */
         fontOut->codepointTableSize = fontOut->customCharCount * 2; /* 50% load factor */
@@ -495,10 +541,32 @@ static inline bool Stb_LoadFontBytesWithChars(
             usedPixels++;
     }
     fontOut->usedPixelCount = usedPixels;
+    if (fontOut->useCustomChars) {
+        for (int i = 0; i < fontOut->customCharCount; ++i) {
+            const stbtt_packedchar &glyph = fontOut->pdata[i];
+            fontOut->packedPixelCount += (glyph.x1 - glyph.x0 + 1) *
+                                         (glyph.y1 - glyph.y0 + 1);
+        }
+    } else {
+        for (int i = 0; i < fontOut->charCount; ++i) {
+            const stbtt_bakedchar &glyph = fontOut->cdata[i];
+            fontOut->packedPixelCount += (glyph.x1 - glyph.x0) * (glyph.y1 - glyph.y0);
+        }
+    }
 
     free(atlas);
 
     return true;
+}
+
+static inline void Stb_LogFontAtlasUsage(const Stb_FontData *font, const char *name)
+{
+    const int total = font->atlasW * font->atlasH;
+    fprintf(stderr,
+            "[font atlas] %s: %dx%d, %d glyphs, packed %d/%d px (%.1f%%), ink %d/%d px (%.1f%%)\n",
+            name, font->atlasW, font->atlasH, font->charCount,
+            font->packedPixelCount, total, 100.0 * font->packedPixelCount / total,
+            font->usedPixelCount, total, 100.0 * font->usedPixelCount / total);
 }
 
 static inline Clay_Dimensions

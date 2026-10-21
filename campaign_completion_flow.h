@@ -57,6 +57,25 @@ struct CampaignResultActions
     bool next = false;
 };
 
+enum class OutcomeInterstitialPlacement
+{
+    None,
+    Immediately,
+    AfterEndStory,
+    OnRetry,
+};
+
+static inline OutcomeInterstitialPlacement Campaign_OutcomeInterstitialPlacement(
+    bool charged,
+    bool won,
+    bool hasEndStory)
+{
+    if (!charged) return OutcomeInterstitialPlacement::None;
+    if (hasEndStory) return OutcomeInterstitialPlacement::AfterEndStory;
+    return won ? OutcomeInterstitialPlacement::Immediately
+               : OutcomeInterstitialPlacement::OnRetry;
+}
+
 // Progress can already point at the next chapter when results are displayed.
 // Repeat uses the chapter actually played, including final-level replays where
 // subtracting one from progress would select the wrong chapter.
@@ -88,6 +107,19 @@ static inline bool Campaign_HasVictoryEndStory(
            configuredEndStoryId != 0;
 }
 
+// The opening solo level ends with a story on either outcome. Later levels
+// retain their existing victory-only end-story rule.
+static inline int Campaign_SoloEndStoryIdForResult(
+    int levelNumber,
+    int configuredEndStoryId,
+    bool passed,
+    bool schoolDone)
+{
+    if (levelNumber == 1)
+        return passed ? (schoolDone && configuredEndStoryId == 20 ? 22 : configuredEndStoryId) : 10;
+    return passed ? configuredEndStoryId : 0;
+}
+
 static inline bool Campaign_CanOpenEndStoryBeforeResults(
     int pendingStoryId,
     bool miniGameActive,
@@ -95,6 +127,19 @@ static inline bool Campaign_CanOpenEndStoryBeforeResults(
     bool windowOpen)
 {
     return pendingStoryId != 0 && !miniGameActive && !dialogActive && !windowOpen;
+}
+
+// A charged outcome ad waits for the end-story's final button. Results stay
+// hidden until that ad finishes and any story choice has been handled.
+static inline bool Campaign_CanRevealResultsAfterStory(
+    bool dialogActive,
+    bool windowOpen,
+    bool outcomeAdWaitingForStory,
+    bool adInFlight,
+    bool deferredStoryChoice)
+{
+    return !dialogActive && !windowOpen && !outcomeAdWaitingForStory &&
+           !adInFlight && !deferredStoryChoice;
 }
 
 static inline CampaignResultActions Campaign_ResultActionsForState(
@@ -265,16 +310,14 @@ static inline int Campaign_StartStoryIdForState(
         CampaignResumeFlow::CurrentLevel)
         return 0;
 
-    // School is a recovery lesson, not an opening interruption.  The Angel
-    // only mentions it after a player has failed the first milestone and
-    // deliberately starts level 1 again.  A passed milestone (including the
-    // school-graduation pass) and a finished school silence that reminder.
+    // Level 1 has no start story, including retries and resumed attempts.
+    // Its outcome story is selected when the solo round finishes instead.
     if (levelNumber == 1)
-    {
-        if (schoolDone || levelOnePassed || attemptCountBeforeThisSetup <= 0)
-            return 0;
-        return configuredStartStoryId;
-    }
+        return 0;
+
+    (void)attemptCountBeforeThisSetup;
+    (void)schoolDone;
+    (void)levelOnePassed;
 
     return configuredStartStoryId;
 }

@@ -236,7 +236,7 @@
                     }, 1000);
                 }
 
-                window.bowlingShowGameAd = function (placement) {
+                window.bowlingShowGameAd = function (placement, prompt) {
                     if (document.getElementById('loss-ad-overlay')) {
                         window.bowlingInterstitialFinishedCount = (window.bowlingInterstitialFinishedCount | 0) + 1;
                         return;
@@ -245,8 +245,8 @@
                     overlay.id = 'loss-ad-overlay';
                     overlay.style.cssText = 'position:fixed;inset:0;z-index:2000;background:#111b;color:white;display:flex;align-items:center;justify-content:center';
                     var button = document.createElement('button');
-                    button.textContent = 'Continue';
-                    button.style.cssText = 'font:600 24px sans-serif;padding:20px 48px;border:0;border-radius:12px;background:#fff;color:#111';
+                    button.textContent = prompt || 'Continue';
+                    button.style.cssText = 'font:600 24px sans-serif;padding:20px 48px;border:0;border-radius:12px;background:#fff;color:#111;max-width:calc(100vw - 32px);white-space:normal';
                     overlay.appendChild(button);
                     document.body.appendChild(overlay);
                     button.addEventListener('click', function () {

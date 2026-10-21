@@ -289,6 +289,7 @@ static inline void Game_ShowMoneyReward(SDL_AudioDeviceID audioDevice)
 #include "school/school_clay.h"
 #include "settings/settings.h"
 #include "tracker/tracker.h"
+#include "tracker/tracker_effect_memory.h"
 #include "sounds/builtin_sfx_runtime.h"
 #include "tracker/tracker_clay.h"
 #include "tracker/tracker_diagrams.h"
@@ -21198,6 +21199,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->tracker.editorWindowRequested)
                 {
                     usr->tracker.editorWindowRequested = false;
+                    Tracker_AnalyzeEffectMemory(&usr->tracker, &usr->sound);
                     usr->windowStack.windowStackPushTrackerEditorWindow();
                 }
                 if (usr->tracker.selectionEditWindowRequested)

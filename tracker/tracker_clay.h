@@ -1100,6 +1100,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                 {
                     CLAY(CLAY_ID("TrackerEffectEditor"), CLAY_THEME_SECTION)
                     {
+                        CLAY_TEXT(CLAY_STRING("SCHEDULED IN THIS CELL"), CLAY_TEXT_CONFIG(bodyCfg));
                         auto paramSlider = [&](const char *label, int paramValue, int minValue, int maxValue, int hardMax, bool inRange, Clay_ElementId barId, Clay_ElementId fillId, Clayton_Click *valueClick) {
                             int denom = std::max(1, maxValue - minValue);
                             float t = (float)(paramValue - minValue) / (float)denom;
@@ -1241,6 +1242,97 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                                 CLAY_ID("TrackerEffectParamBFill"),
                                 &self->effectParamValueButtons[1]
                             );
+                        }
+                    }
+
+                    int visibleMemoryRows = 0;
+                    for (int i = 0; i < self->effectMemoryCount; ++i)
+                        if (Tracker_EffectMemoryVisible(self, self->effectMemoryRows[i])) visibleMemoryRows++;
+                    Clay_ElementData memoryViewportData = Clay_GetElementData(CLAY_ID("TrackerEffectMemoryViewport"));
+                    const float memoryViewportHeight = memoryViewportData.found ? memoryViewportData.boundingBox.height : 240.0f;
+                    const float memoryRowHeight = 52.0f;
+                    const float memoryMaxScroll = std::max(0.0f, visibleMemoryRows * memoryRowHeight - memoryViewportHeight);
+                    self->effectMemoryScrollY = std::max(0.0f, std::min(memoryMaxScroll, self->effectMemoryScrollY));
+                    CLAY(
+                        CLAY_ID("TrackerEffectMemorySection"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                    .padding = {10, 10, 10, 10}, .childGap = 8,
+                                    .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                         .backgroundColor = CLAY_COLOR_PANEL_SECTION,
+                         .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG, CLAY_RADIUS_LG}}
+                    )
+                    {
+                        CLAY_TEXT(CLAY_STRING("EFFECTS IN ACTION FROM EARLIER ROWS"), CLAY_TEXT_CONFIG(bodyCfg));
+                        Clay_TextElementConfig memoryText = bodyCfg;
+                        memoryText.fontSize = 14;
+                        memoryText.textColor = {205, 211, 227, 255};
+                        Clay_TextElementConfig headerText = memoryText;
+                        headerText.textColor = {160, 171, 198, 255};
+                        CLAY(
+                            CLAY_ID("TrackerEffectMemoryHeader"),
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(28)},
+                                        .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                             .backgroundColor = {35, 40, 57, 255}}
+                        )
+                        {
+                            CLAY(CLAY_ID("TrackerMemoryHeadEffect"), {.layout = {.sizing = {CLAY_SIZING_PERCENT(0.21f), CLAY_SIZING_GROW()}}})
+                                { CLAY_TEXT(CLAY_STRING("Effect"), CLAY_TEXT_CONFIG(headerText)); }
+                            CLAY(CLAY_ID("TrackerMemoryHeadInitial"), {.layout = {.sizing = {CLAY_SIZING_PERCENT(0.10f), CLAY_SIZING_GROW()}}})
+                                { CLAY_TEXT(CLAY_STRING("Initial"), CLAY_TEXT_CONFIG(headerText)); }
+                            CLAY(CLAY_ID("TrackerMemoryHeadAge"), {.layout = {.sizing = {CLAY_SIZING_PERCENT(0.11f), CLAY_SIZING_GROW()}}})
+                                { CLAY_TEXT(CLAY_STRING("Rows ago"), CLAY_TEXT_CONFIG(headerText)); }
+                            CLAY(CLAY_ID("TrackerMemoryHeadEffective"), {.layout = {.sizing = {CLAY_SIZING_PERCENT(0.26f), CLAY_SIZING_GROW()}}})
+                                { CLAY_TEXT(CLAY_STRING("At row start"), CLAY_TEXT_CONFIG(headerText)); }
+                            CLAY(CLAY_ID("TrackerMemoryHeadModel"), {.layout = {.sizing = {CLAY_SIZING_PERCENT(0.32f), CLAY_SIZING_GROW()}}})
+                                { CLAY_TEXT(CLAY_STRING("Memory model"), CLAY_TEXT_CONFIG(headerText)); }
+                        }
+                        if (self->effectMemoryUnavailable || visibleMemoryRows == 0)
+                        {
+                            CLAY_TEXT(
+                                self->effectMemoryUnavailable
+                                    ? CLAY_STRING("Playback state unavailable for this row")
+                                    : CLAY_STRING("No effects from earlier rows are active here"),
+                                CLAY_TEXT_CONFIG(memoryText));
+                        }
+                        else
+                        {
+                            CLAY(
+                                CLAY_ID("TrackerEffectMemoryViewport"),
+                                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                            .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                                 .clip = {.vertical = true, .childOffset = {0, -self->effectMemoryScrollY}}}
+                            )
+                            {
+                                CLAY(CLAY_ID("TrackerEffectMemoryRows"),
+                                    {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                                .layoutDirection = CLAY_TOP_TO_BOTTOM}})
+                                {
+                                    int displayIndex = 0;
+                                    for (int i = 0; i < self->effectMemoryCount; ++i)
+                                    {
+                                        const TrackerEffectMemoryRow &memory = self->effectMemoryRows[i];
+                                        if (!Tracker_EffectMemoryVisible(self, memory)) continue;
+                                        const int id = displayIndex++;
+                                        CLAY(CLAY_IDI("TrackerEffectMemoryRow", id),
+                                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(memoryRowHeight)},
+                                                        .padding = {4, 4, 5, 5},
+                                                        .layoutDirection = CLAY_LEFT_TO_RIGHT},
+                                             .backgroundColor = (id & 1) ? Clay_Color{31, 35, 49, 255} : Clay_Color{38, 43, 59, 255}})
+                                        {
+                                            CLAY(CLAY_IDI("TrackerMemoryEffect", id), {.layout = {.sizing = {CLAY_SIZING_PERCENT(0.21f), CLAY_SIZING_GROW()}}})
+                                                { CLAY_TEXT(ClayArena_AllocString(arena, memory.effect), CLAY_TEXT_CONFIG(memoryText)); }
+                                            CLAY(CLAY_IDI("TrackerMemoryInitial", id), {.layout = {.sizing = {CLAY_SIZING_PERCENT(0.10f), CLAY_SIZING_GROW()}}})
+                                                { CLAY_TEXT(ClayArena_FormatString(arena, "%02X", memory.initialValue), CLAY_TEXT_CONFIG(memoryText)); }
+                                            CLAY(CLAY_IDI("TrackerMemoryAge", id), {.layout = {.sizing = {CLAY_SIZING_PERCENT(0.11f), CLAY_SIZING_GROW()}}})
+                                                { CLAY_TEXT(ClayArena_FormatString(arena, "%d", memory.rowsAgo), CLAY_TEXT_CONFIG(memoryText)); }
+                                            CLAY(CLAY_IDI("TrackerMemoryEffective", id), {.layout = {.sizing = {CLAY_SIZING_PERCENT(0.26f), CLAY_SIZING_GROW()}}})
+                                                { CLAY_TEXT(ClayArena_AllocString(arena, memory.effective), CLAY_TEXT_CONFIG(memoryText)); }
+                                            CLAY(CLAY_IDI("TrackerMemoryModel", id), {.layout = {.sizing = {CLAY_SIZING_PERCENT(0.32f), CLAY_SIZING_GROW()}}})
+                                                { CLAY_TEXT(ClayArena_AllocString(arena, memory.model), CLAY_TEXT_CONFIG(memoryText)); }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -5574,6 +5666,54 @@ inline bool Tracker_HandleSelectionEditWindowEvent(Tracker *self, const SDL_Even
 inline bool Tracker_HandleEditorWindowEvent(Tracker *self, const SDL_Event &e)
 {
     if (!self || !self->editorOpen) return false;
+
+    if (self->editorTab == 1)
+    {
+        Clay_ElementData memoryData = Clay_GetElementData(CLAY_ID("TrackerEffectMemoryViewport"));
+        const float viewportHeight = memoryData.found ? memoryData.boundingBox.height : 0.0f;
+        int visibleRows = 0;
+        for (int i = 0; i < self->effectMemoryCount; ++i)
+            if (Tracker_EffectMemoryVisible(self, self->effectMemoryRows[i])) visibleRows++;
+        const float maxScroll = std::max(0.0f, visibleRows * 52.0f - viewportHeight);
+        auto clampMemoryScroll = [&]() {
+            self->effectMemoryScrollY = std::max(0.0f, std::min(maxScroll, self->effectMemoryScrollY));
+        };
+        if (e.type == SDL_MOUSEWHEEL && memoryData.found &&
+            Clay_PointerOver(CLAY_ID("TrackerEffectMemoryViewport")))
+        {
+            self->effectMemoryScrollY -= e.wheel.y * 42.0f;
+            clampMemoryScroll();
+            return true;
+        }
+        if (e.type == SDL_FINGERDOWN && memoryData.found)
+        {
+            Clay_BoundingBox root = Clay_GetElementData(CLAY_ID("Root")).boundingBox;
+            const float x = root.x + e.tfinger.x * root.width;
+            const float y = root.y + e.tfinger.y * root.height;
+            if (Tracker_PointInBox(x, y, memoryData.boundingBox))
+            {
+                self->effectMemoryTouchDragging = true;
+                self->effectMemoryTouchFingerId = e.tfinger.fingerId;
+                self->effectMemoryTouchLastY = y;
+                return true;
+            }
+        }
+        if (self->effectMemoryTouchDragging &&
+            (e.type == SDL_FINGERMOTION || e.type == SDL_FINGERUP) &&
+            e.tfinger.fingerId == self->effectMemoryTouchFingerId)
+        {
+            if (e.type == SDL_FINGERMOTION)
+            {
+                Clay_BoundingBox root = Clay_GetElementData(CLAY_ID("Root")).boundingBox;
+                const float y = root.y + e.tfinger.y * root.height;
+                self->effectMemoryScrollY -= y - self->effectMemoryTouchLastY;
+                self->effectMemoryTouchLastY = y;
+                clampMemoryScroll();
+            }
+            else self->effectMemoryTouchDragging = false;
+            return true;
+        }
+    }
 
     if (isClaytonClicked(&self->editorCloseButton, e) ||
         isClaytonClicked(&self->editorCancelButton, e))

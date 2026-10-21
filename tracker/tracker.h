@@ -387,6 +387,19 @@ inline const int32_t *Tracker_EffectNumEditAllowedValues(int32_t *outCount)
     return values;
 }
 
+static constexpr int TRACKER_EFFECT_MEMORY_MAX_ROWS = 96;
+
+struct TrackerEffectMemoryRow
+{
+    uint8_t code = TRACKER_EFFECT_CODE_NONE;
+    uint8_t initialValue = 0;
+    int sourceRow = -1;
+    int rowsAgo = 0;
+    char effect[40] = {};
+    char effective[80] = {};
+    const char *model = "";
+};
+
 struct Tracker
 {
     bool active = false;
@@ -664,6 +677,13 @@ struct Tracker
     int editEffect = 0;
     int editEffectParamA = 0;
     int editEffectParamB = 0;
+    TrackerEffectMemoryRow effectMemoryRows[TRACKER_EFFECT_MEMORY_MAX_ROWS] = {};
+    int effectMemoryCount = 0;
+    bool effectMemoryUnavailable = false;
+    float effectMemoryScrollY = 0.0f;
+    bool effectMemoryTouchDragging = false;
+    SDL_FingerID effectMemoryTouchFingerId = 0;
+    float effectMemoryTouchLastY = 0.0f;
     bool editEffectActive[TRACKER_MAX_EFFECT_SLOTS] = {};
     uint8_t editEffectCodes[TRACKER_MAX_EFFECT_SLOTS] = {};
     uint8_t editEffectValues[TRACKER_MAX_EFFECT_SLOTS] = {};
@@ -1358,6 +1378,28 @@ inline uint8_t Tracker_SelectedEffectValue(const Tracker *self)
 inline bool Tracker_SelectedEffectActive(const Tracker *self)
 {
     return Tracker_FindActiveEffectSlot(self, Tracker_SelectedEffectCode(self)) >= 0;
+}
+
+inline bool Tracker_EffectMemoryVisible(const Tracker *self, const TrackerEffectMemoryRow &entry)
+{
+    if (!self || entry.sourceRow < 0) return false;
+    if (Tracker_FindActiveEffectSlot(self, entry.code) >= 0) return false;
+    // New notes discard the previous arpeggio unless this row schedules one.
+    if (entry.code == 0x00 && self->editSpecial == 0) return false;
+    // An explicit patch reload replaces the earlier live-register edits.
+    const uint8_t code = entry.code;
+    const bool patchRegister = ((code >= 0x11 && code <= 0x16) ||
+        (code >= 0x19 && code <= 0x1D) || (code >= 0x50 && code <= 0x63));
+    if (patchRegister && self->editInstrumentExplicit) return false;
+    if ((code == 0x01 || code == 0x02) &&
+        (Tracker_FindActiveEffectSlot(self, 0x03) >= 0 ||
+         Tracker_FindActiveEffectSlot(self, 0xE1) >= 0 ||
+         Tracker_FindActiveEffectSlot(self, 0xE2) >= 0)) return false;
+    if ((code == 0xE1 || code == 0xE2) &&
+        (Tracker_FindActiveEffectSlot(self, 0x01) >= 0 ||
+         Tracker_FindActiveEffectSlot(self, 0x02) >= 0 ||
+         Tracker_FindActiveEffectSlot(self, 0x03) >= 0)) return false;
+    return true;
 }
 
 inline void Tracker_SetSelectedEffectValue(Tracker *self, uint8_t value)

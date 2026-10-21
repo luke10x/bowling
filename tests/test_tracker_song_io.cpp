@@ -16,6 +16,7 @@
 #include "../sounds/sounds.cpp"
 #include "../clayton/keypad.h"
 #include "../tracker/tracker.h"
+#include "../tracker/tracker_effect_memory.h"
 #include "../tracker/tracker_song_io.h"
 
 extern "C" {
@@ -112,6 +113,93 @@ TEST_CASE("New XFM modules follow the selected YMFM backend")
     REQUIRE(upstream != nullptr);
     CHECK_FALSE(upstream->chip->use_patched);
     xfm_module_destroy(upstream);
+}
+
+TEST_CASE("Effects memory lists running prior commands and skips row-only effects")
+{
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT,
+        "4\n"
+        "C-400400A100820|.......EC01|.......|.......|.......|.......\n"
+        ".......|.......|.......|.......|.......|.......\n"
+        ".......|.......|.......|.......|.......|.......\n"
+        ".......|.......|.......|.......|.......|.......\n", "Memory test");
+    tracker.editRow = 3;
+    tracker.editChannel = 0;
+    tracker.editSpecial = 4;
+    tracker.editPatches[0] = Tracker_DefaultPatch();
+    tracker.editPatchValid[0] = true;
+    Tracker_AnalyzeEffectMemory(&tracker, nullptr);
+    CHECK_FALSE(tracker.effectMemoryUnavailable);
+    bool foundSlide = false;
+    bool foundPan = false;
+    for (int i = 0; i < tracker.effectMemoryCount; ++i)
+    {
+        const TrackerEffectMemoryRow &entry = tracker.effectMemoryRows[i];
+        CHECK(entry.code != 0xEC);
+        if (entry.code == 0x0A)
+        {
+            foundSlide = true;
+            CHECK(entry.initialValue == 0x10);
+            CHECK(entry.rowsAgo == 3);
+            CHECK(std::strcmp(entry.effective, "volume 67/127 (+1/row)") == 0);
+        }
+        if (entry.code == 0x08)
+        {
+            foundPan = true;
+            CHECK(std::strcmp(entry.effective, "left") == 0);
+        }
+    }
+    CHECK(foundSlide);
+    CHECK(foundPan);
+}
+
+TEST_CASE("Effects memory follows tracker loop reset and retained chip LFO")
+{
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT,
+        "4\n"
+        "C-400400820|.......|.......|.......|.......|.......\n"
+        ".......|.......|.......|.......|.......|.......\n"
+        "C-400400820|.......|.......|.......|.......|.......\n"
+        ".......1012|.......|.......|.......|.......|.......\n", "Loop memory test");
+    tracker.loopEnabled = true;
+    tracker.loopStart = 2;
+    tracker.loopEnd = 3;
+    tracker.editChannel = 0;
+    tracker.editSpecial = 4;
+    tracker.editPatches[0] = Tracker_DefaultPatch();
+    tracker.editPatchValid[0] = true;
+
+    tracker.editRow = 2;
+    Tracker_AnalyzeEffectMemory(&tracker, nullptr);
+    CHECK_FALSE(tracker.effectMemoryUnavailable);
+    bool foundLfo = false;
+    for (int i = 0; i < tracker.effectMemoryCount; ++i)
+    {
+        const TrackerEffectMemoryRow &entry = tracker.effectMemoryRows[i];
+        CHECK(entry.code != 0x08);
+        if (entry.code == 0x10)
+        {
+            foundLfo = true;
+            CHECK(entry.sourceRow == 3);
+            CHECK(entry.rowsAgo == 1);
+            CHECK(std::strcmp(entry.effective, "on, freq 2") == 0);
+        }
+    }
+    CHECK(foundLfo);
+
+    tracker.editRow = 3;
+    Tracker_AnalyzeEffectMemory(&tracker, nullptr);
+    bool foundPan = false;
+    for (int i = 0; i < tracker.effectMemoryCount; ++i)
+        if (tracker.effectMemoryRows[i].code == 0x08)
+        {
+            foundPan = true;
+            CHECK(tracker.effectMemoryRows[i].sourceRow == 2);
+            CHECK(tracker.effectMemoryRows[i].rowsAgo == 1);
+        }
+    CHECK(foundPan);
 }
 
 TEST_CASE("Tracker grid note audition uses cell note with inherited instrument and volume")

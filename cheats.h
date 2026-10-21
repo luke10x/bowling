@@ -140,6 +140,15 @@ static inline bool Cheats_ApplyCode(UserContext *usr, const char *code, int32_t 
         activated = true;
     }
 
+    if (Cheats_TextMatchesCaseInsensitive(code, codeLen, "DAY"))
+    {
+        // Re-arm today's loyalty offer for the next app activation.
+        usr->loyalty.claimedDay = 0;
+        usr->loyaltyWindowPending = false;
+        Loyalty_Save(usr);
+        activated = true;
+    }
+
     // School cheat codes: SC1..SC5 unlock/complete lessons.
     const bool isSc =
         (code && codeLen == 3 &&

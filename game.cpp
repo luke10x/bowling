@@ -276,6 +276,7 @@ static inline void Game_ShowMoneyReward(SDL_AudioDeviceID audioDevice)
 #include "sounds/sounds.h"
 #include "storage.h"
 #include "ad_policy.h"
+#include "loyalty.h"
 #include "transition.h"
 #include "tritest.h"
 #include "thunder.h"
@@ -1211,6 +1212,8 @@ struct UserContext
     bool appFocusLost = false;
     bool appInactiveOverlayActive = false;
     AdPolicyState adPolicy;
+    LoyaltyState loyalty;
+    bool loyaltyWindowPending = false;
     bool moneyRewardInFlight = false;
     bool moneyRewardEarnedPending = false;
     uint64_t moneyRewardRequestBucketId = UINT64_MAX;
@@ -11537,6 +11540,32 @@ static inline void AdPolicy_Save(UserContext *usr)
     usr->storage.setChar(Storage::AD_POLICY, saved, std::strlen(saved));
 }
 
+static inline void Loyalty_Save(UserContext *usr)
+{
+    if (!usr) return;
+    char saved[48];
+    std::snprintf(saved, sizeof(saved), "%d,%d,%d", usr->loyalty.lastSeenDay,
+                  usr->loyalty.streak, usr->loyalty.claimedDay);
+    usr->storage.setChar(Storage::LOYALTY, saved, std::strlen(saved));
+}
+
+static inline void Loyalty_Activate(UserContext *usr)
+{
+    if (!usr) return;
+    const int today = AdPolicy_LocalDay(static_cast<int64_t>(std::time(nullptr)));
+    usr->loyaltyWindowPending = Loyalty_OnActivation(usr->loyalty, today);
+    Loyalty_Save(usr);
+}
+
+static inline void Loyalty_StartNewCampaign(UserContext *usr)
+{
+    if (!usr) return;
+    const int today = AdPolicy_LocalDay(static_cast<int64_t>(std::time(nullptr)));
+    usr->loyalty = {today, 1, today};
+    usr->loyaltyWindowPending = false;
+    Loyalty_Save(usr);
+}
+
 static inline void AdPolicy_Tick(UserContext *usr)
 {
     if (!usr) return;
@@ -12319,6 +12348,7 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     usr->schoolDone = false;
     usr->schoolExitLocked = false;
     usr->storage.setChar(Storage::SCHOOL_DONE, "0", 1);
+    Loyalty_StartNewCampaign(usr);
     Campaign_SaveCurrentLevel(usr);
     Progress_SaveUnlocksAndBank(usr);
     Progress_SaveGameplayTime(usr);
@@ -18821,6 +18851,7 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
     if (appRefocused && usr->appFocusLost)
     {
         usr->appFocusLost = false;
+        Loyalty_Activate(usr);
         if (usr->appInactiveOverlayActive &&
             !Tracker_IsSongFilePickerFocusMuted(usr) && !greetingMuteActive)
         {
@@ -19469,6 +19500,7 @@ void vtx::init(vtx::VertexContext *ctx)
     initClaytonClick(&usr->clayton.campaignEndgameCreditsClick, "campaignEndgameCredits");
     initClaytonClick(&usr->clayton.creditsCloseClick, "creditsClose");
     initClaytonClick(&usr->clayton.adManagerCloseClick, "adManagerClose");
+    initClaytonClick(&usr->clayton.loyaltyActionClick, "loyaltyAction");
     initClaytonClick(&usr->clayton.greetingsReadyClick, "greetingsReady");
     initClaytonClick(&usr->dialog.optionClicks[0], "StoryOpt0");
     initClaytonClick(&usr->dialog.optionClicks[1], "StoryOpt1");
@@ -19483,6 +19515,21 @@ void vtx::init(vtx::VertexContext *ctx)
         char saved[128] = {};
         if (usr->storage.getChar(Storage::AD_POLICY, saved, sizeof(saved)) > 0)
             AdPolicy_Parse(usr->adPolicy, saved);
+        const int previousLoginDay = usr->adPolicy.lastLoginDay;
+        char loyaltySaved[48] = {};
+        if (usr->storage.getChar(Storage::LOYALTY, loyaltySaved, sizeof(loyaltySaved)) > 0)
+            Loyalty_Parse(usr->loyalty, loyaltySaved);
+        if (usr->loyalty.lastSeenDay == 0)
+        {
+            const int today = AdPolicy_LocalDay(static_cast<int64_t>(std::time(nullptr)));
+            // Existing players can receive a reward on their next day. A new
+            // campaign's first day starts claimed, without a free $100.
+            if (previousLoginDay > 0 && previousLoginDay < today)
+                usr->loyalty = {previousLoginDay, 1, previousLoginDay};
+            else
+                usr->loyalty = {today, 1, today};
+        }
+        Loyalty_Activate(usr);
         AdPolicy_Tick(usr);
     }
     {
@@ -19909,6 +19956,11 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->windowStack.windowStackPushGreetingsWindow(usr->greetingsResumeMessageRequested);
         usr->greetingsWindowRequested = false;
         usr->greetingsResumeMessageRequested = false;
+    }
+    if (usr->loyaltyWindowPending && usr->windowStack.count == 0 && !usr->dialog.active)
+    {
+        usr->windowStack.windowStackPushLoyaltyRewardWindow(usr->loyalty.streak);
+        usr->loyaltyWindowPending = false;
     }
     AppInactiveOverlayRepairOrClear(usr);
 
@@ -20580,6 +20632,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->appFocusLost)
                 {
                     usr->appFocusLost = false;
+                    Loyalty_Activate(usr);
                     if (usr->sound.audioStoppedBecauseWindowLeave || usr->sound.browserAudioSuspended || !usr->sound.audioDev)
                         usr->sound.resumeFromBrowser(usr->sound.getSongPlaybackPattern(usr->sound.currentSongIndex));
                     if (usr->appInactiveOverlayActive &&
@@ -20791,6 +20844,28 @@ void vtx::loop(vtx::VertexContext *ctx)
                     if (usr->sound.audioStoppedBecauseWindowLeave || usr->sound.browserAudioSuspended || !usr->sound.audioDev)
                         usr->sound.resumeFromBrowser(usr->sound.getSongPlaybackPattern(usr->sound.currentSongIndex));
                     usr->storage.setChar(Storage::GREETINGS_SEEN, "1", 1);
+                }
+                if (usr->windowStack.loyaltyAcceptRequested)
+                {
+                    usr->windowStack.loyaltyAcceptRequested = false;
+                    const int today = AdPolicy_LocalDay(static_cast<int64_t>(std::time(nullptr)));
+                    if (!usr->windowStack.loyaltyPayoutActive &&
+                        usr->loyalty.claimedDay != today)
+                    {
+                        usr->loyalty.claimedDay = today;
+                        Loyalty_Save(usr);
+                        const int previousBank = (int)std::lround(usr->carousel.bank);
+                        usr->carousel.bank += kLoyaltyDailyReward;
+                        Progress_SaveUnlocksAndBank(usr);
+                        usr->hudMoneyFrom = previousBank;
+                        usr->hudMoneyTo = (int)std::lround(usr->carousel.bank);
+                        usr->hudMoneyDisplayed = previousBank;
+                        usr->hudMoneySpinElapsed = 0.0f;
+                        usr->hudMoneyTickCooldown = 0.0f;
+                        usr->hudMoneyBlinkTime = 0.0f;
+                        usr->hudMoneySpinning = true;
+                        usr->windowStack.loyaltyPayoutActive = true;
+                    }
                 }
                 if (usr->windowStack.menuRenameRequested)
                 {
@@ -29898,6 +29973,17 @@ END_LINE:
         BallShop_RefreshStock(usr, (uint64_t)time(nullptr));
         ResultWindow_TickCoinSpin(usr, (float)deltaTime);
         BallShop_TickPayoutVisual(usr, (float)deltaTime, ctx->screenWidth, ctx->screenHeight);
+        if (usr->windowStack.loyaltyPayoutActive)
+        {
+            usr->windowStack.loyaltyRemaining = glm::max(0,
+                usr->hudMoneyTo - usr->hudMoneyDisplayed);
+            if (!usr->hudMoneySpinning)
+            {
+                usr->windowStack.loyaltyRemaining = 0;
+                usr->windowStack.loyaltyReadyToContinue = true;
+                usr->windowStack.loyaltyPayoutActive = false;
+            }
+        }
         usr->clayton.shopDisplayedCoins = usr->hudMoneySpinning
             ? usr->hudMoneyDisplayed : usr->carousel.bank;
         usr->clayton.shopBalanceFlash01 = usr->hudMoneyBlinkTime > 0.0f

@@ -39,6 +39,7 @@
 #include "../clayton/slider.h"
 #include "../settings/settings.h"
 #include "../ad_policy.h"
+#include "../loyalty.h"
 #include "../settings/settings_clay.h"
 #include "language_clay.h"
 #include "menu_clay.h"
@@ -75,6 +76,7 @@ enum WindowKind // I like it
     WindowKind_CampaignPostgameSettings,
     WindowKind_Credits,
     WindowKind_AdManager,
+    WindowKind_LoyaltyReward,
     WindowKind_Settings,
     WindowKind_SettingsResetConfirm,
     WindowKind_MiniGameExitConfirm,
@@ -170,6 +172,11 @@ struct WindowStack
     int botSelectedKind;
     bool greetingsReadyRequested;
     bool greetingsResumeMessage;
+    bool loyaltyAcceptRequested;
+    bool loyaltyPayoutActive;
+    bool loyaltyReadyToContinue;
+    int loyaltyStreak;
+    int loyaltyRemaining;
 
     // BOT result modal (shown after BOT games, before hiscore window).
     int botResultPlayerScore;
@@ -255,6 +262,11 @@ struct WindowStack
         botSelectedKind = 0;
         greetingsReadyRequested = false;
         greetingsResumeMessage = false;
+        loyaltyAcceptRequested = false;
+        loyaltyPayoutActive = false;
+        loyaltyReadyToContinue = false;
+        loyaltyStreak = 1;
+        loyaltyRemaining = kLoyaltyDailyReward;
         botResultPlayerScore = 0;
         botResultAngelScore = 0;
         botResultPlayerWon = false;
@@ -338,6 +350,15 @@ struct WindowStack
     inline void windowStackPushLanguageWindow() { windowStackPushWindow_(WindowKind_LanguageSelect); }
     inline void windowStackPushCreditsWindow() { windowStackPushWindow_(WindowKind_Credits); }
     inline void windowStackPushAdManagerWindow() { windowStackPushWindow_(WindowKind_AdManager); }
+    inline void windowStackPushLoyaltyRewardWindow(int streak)
+    {
+        loyaltyStreak = std::max(1, streak);
+        loyaltyRemaining = kLoyaltyDailyReward;
+        loyaltyPayoutActive = false;
+        loyaltyReadyToContinue = false;
+        loyaltyAcceptRequested = false;
+        windowStackPushWindow_(WindowKind_LoyaltyReward);
+    }
     inline void windowStackPushSellBallConfirmWindow() { windowStackPushWindow_(WindowKind_SellBallConfirm); }
     inline void windowStackPushTrackerEditorWindow() { windowStackPushWindow_(WindowKind_TrackerEditor); }
     inline void windowStackPushTrackerSelectionEditWindow() { windowStackPushWindow_(WindowKind_TrackerSelectionEdit); }
@@ -616,6 +637,7 @@ private:
     static bool processLanguageWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processCreditsWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processAdManagerWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
+    static bool processLoyaltyRewardWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processBotResultWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processCampaignEndgameSummaryWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
     static bool processCampaignLevelSelectWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e);
@@ -655,6 +677,7 @@ private:
     static void renderLanguageWindow(Clayton *clayton);
     static void renderCreditsWindow(Clayton *clayton);
     static void renderAdManagerWindow(Clayton *clayton, const AdPolicyState *adPolicy, int64_t now);
+    static void renderLoyaltyRewardWindow(WindowStack *self, Clayton *clayton);
     static void renderBotResultWindow(WindowStack *self, Clayton *clayton);
     static void renderCampaignEndgameSummaryWindow(WindowStack *self, Clayton *clayton);
     static void renderCampaignLevelSelectWindow(WindowStack *self, Clayton *clayton);
@@ -831,6 +854,9 @@ inline bool WindowStack::processActiveWindowEvent(
     case WindowKind_AdManager:
         consumed = processAdManagerWindowEvent(this, clayton, e);
         return consumed;
+
+    case WindowKind_LoyaltyReward:
+        return processLoyaltyRewardWindowEvent(this, clayton, e);
 
     case WindowKind_BotResult:
         consumed = processBotResultWindowEvent(this, clayton, e);
@@ -1150,6 +1176,9 @@ inline void WindowStack::renderWindowStack(
                     case WindowKind_AdManager:
                         renderAdManagerWindow(clayton, adPolicy, adNow);
                         break;
+                    case WindowKind_LoyaltyReward:
+                        renderLoyaltyRewardWindow(this, clayton);
+                        break;
                     case WindowKind_Settings:
                         renderSettingsWindow(clayton, settings);
                         break;
@@ -1299,6 +1328,9 @@ inline void WindowStack::renderWindowStack(
                         break;
                     case WindowKind_AdManager:
                         renderAdManagerWindow(clayton, adPolicy, adNow);
+                        break;
+                    case WindowKind_LoyaltyReward:
+                        renderLoyaltyRewardWindow(this, clayton);
                         break;
                     case WindowKind_MassEditor:
                         renderMassEditorWindow(clayton, massSlider);
@@ -1605,6 +1637,23 @@ inline bool WindowStack::processAdManagerWindowEvent(WindowStack *self, Clayton 
     if (isClaytonClicked(&clayton->adManagerCloseClick, e))
     {
         self->windowStackPopTopWindow_();
+        return true;
+    }
+    return e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP ||
+           e.type == SDL_MOUSEMOTION || e.type == SDL_MOUSEWHEEL ||
+           e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP ||
+           e.type == SDL_FINGERMOTION;
+}
+
+inline bool WindowStack::processLoyaltyRewardWindowEvent(WindowStack *self, Clayton *clayton, SDL_Event e)
+{
+    if (!self || !clayton) return false;
+    if (isClaytonClicked(&clayton->loyaltyActionClick, e))
+    {
+        if (self->loyaltyReadyToContinue)
+            self->windowStackPopTopWindow_();
+        else if (!self->loyaltyPayoutActive)
+            self->loyaltyAcceptRequested = true;
         return true;
     }
     return e.type == SDL_MOUSEBUTTONDOWN || e.type == SDL_MOUSEBUTTONUP ||
@@ -3136,6 +3185,48 @@ inline void WindowStack::renderAdManagerWindow(Clayton *clayton, const AdPolicyS
         {
             for (int i = 0; i < lineCount; ++i)
                 CLAY_TEXT(lines[i], CLAY_TEXT_CONFIG(bodyCfg));
+        }
+    }
+}
+
+inline void WindowStack::renderLoyaltyRewardWindow(WindowStack *self, Clayton *clayton)
+{
+    if (!self || !clayton) return;
+    ClayArena *arena = &clayton->clayArena;
+    const float wave = 0.5f + 0.5f * std::sin(float(SDL_GetTicks()) * 0.004f);
+    const Clay_Color gold = {190.0f + 45.0f * wave, 137.0f + 50.0f * wave,
+                             23.0f + 15.0f * wave, 255};
+    Clay_TextElementConfig awardText = CLAY_THEME_TEXT_LARGE;
+    awardText.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+    awardText.textColor = {245, 205, 65, 255};
+    Clay_ElementDeclaration action = CLAY_THEME_BTN_PRIMARY;
+    if (self->loyaltyReadyToContinue)
+    {
+        Clay_ElementDeclaration success = CLAY_THEME_BTN_SUCCESS;
+        action = success;
+    }
+    if (!self->loyaltyReadyToContinue)
+        action.backgroundColor = gold;
+    CLAY(CLAY_ID("LoyaltyRewardWindow"), CLAY_THEME_WINDOW_PANEL)
+    {
+        CLAY(CLAY_ID("LoyaltyRewardContent"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                         .childGap = 20,
+                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
+                         .layoutDirection = CLAY_TOP_TO_BOTTOM}})
+        {
+            CLAY_TEXT(clayton->txl(TXL_LOYALTY_TITLE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+            CLAY_TEXT(ClayArena_FormatString(arena,
+                Txl_Get(clayton->uiLanguage, TXL_LOYALTY_STREAK_FMT), self->loyaltyStreak),
+                CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+            CLAY_TEXT(ClayArena_FormatString(arena,
+                Txl_Get(clayton->uiLanguage, TXL_LOYALTY_AWARD_FMT), self->loyaltyRemaining),
+                CLAY_TEXT_CONFIG(awardText));
+            CLAY(clayton->loyaltyActionClick.clayId, action)
+            {
+                CLAY_TEXT(clayton->txl(self->loyaltyReadyToContinue ? TXL_CONTINUE : TXL_LOYALTY_ACCEPT),
+                          CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON));
+            }
         }
     }
 }

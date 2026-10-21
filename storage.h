@@ -113,6 +113,7 @@ struct Storage
         HIGH_DETAILS,
         PATCHED_YMFM,
         AD_POLICY,
+        LOYALTY,
         KEY_COUNT
     };
 
@@ -157,7 +158,8 @@ struct Storage
         "audio_buffer_manual",
         "high_details",
         "patched_ymfm",
-        "ad_policy"
+        "ad_policy",
+        "loyalty"
     };
 
     static constexpr const char *defaultValues[] = {
@@ -201,7 +203,8 @@ struct Storage
         "0",     // AUDIO_BUFFER_MANUAL
         "1",     // HIGH_DETAILS
         "1",     // PATCHED_YMFM
-        "50.000,0,0,0,0,0" // AD_POLICY
+        "50.000,0,0,0,0,0", // AD_POLICY
+        "0,0,0" // LOYALTY
     };
     static_assert(sizeof(keyNames) / sizeof(keyNames[0]) == KEY_COUNT,
                   "Every storage enum needs a persistent key name.");

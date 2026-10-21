@@ -87,7 +87,7 @@ Teach that ball mass changes feel and roll, and make the player try extremes.
 ### Passing criteria
 
 - Required hits per side:
-  - `REQUIRED_HITS_EACH = 4`.
+  - `REQUIRED_HITS_EACH = 2`.
 - A “hit” counts only if the throw knocks down at least one pin.
 - Passing requires both:
   - Light hits >= required AND Heavy hits >= required.
@@ -104,10 +104,11 @@ When in lesson 1 and a throw completes:
 
 ### HUD
 
-- Bottom-left non-interactive HUD shows two progress bars:
-  - `Light ball test` and `Heavy ball test`.
-  - Each bar has a green `Passed` label when completed.
-- HUD is visible while the lesson 1 session is active; it disappears when the session is marked completed.
+- The school panel shows a Light and Heavy box: grey before selecting that
+  side, red at zero hits when selected, yellow after one hit, and green after two.
+- The full-width mass meter blinks red when the slider is between the
+  Light and Heavy ranges or remains on a completed side. Tapping it opens
+  the mass slider.
 
 ## Lesson 2 — Spin Ball (Coins)
 

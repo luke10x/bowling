@@ -33,7 +33,8 @@ struct SchoolMassTuning
     static constexpr float TWO_LBS_KG = 0.90718474f;
     static constexpr float LIGHT_TEST_MAX_KG = MASS_MIN_KG + TWO_LBS_KG;
     static constexpr float HEAVY_TEST_MIN_KG = MASS_MAX_KG - TWO_LBS_KG;
-    static constexpr int REQUIRED_HITS_EACH = 3;
+    // One hit turns the side yellow; the second completes it in green.
+    static constexpr int REQUIRED_HITS_EACH = 2;
 };
 
 struct SchoolSpinTuning
@@ -47,9 +48,12 @@ struct SchoolSpinTuning
     static constexpr float Z_STEP = 7.0f;
     static constexpr float Z0 = Z_LAST - (COINS_PER_LEVEL - 1) * Z_STEP;
 
-    static constexpr float AMP_LVL1 = 0.15f;
-    static constexpr float AMP_LVL2 = 0.20f;
-    static constexpr float AMP_LVL3 = 0.25;
+    // The first round's targets sit near center; a smaller pickup area still
+    // asks for a little side movement without demanding a large spin.
+    static constexpr float AMP_LVL1 = 0.22f;
+    static constexpr float FIRST_ROUND_PICKUP_RADIUS_SCALE = 0.75f;
+    static constexpr float AMP_LVL2 = 0.42f;
+    static constexpr float MOVING_TARGET_MIN_ABS_X = 0.32f;
 
     static constexpr float LAUNCH_SPEED_CAP = 4.5f;
     static constexpr float THROW_TIMEOUT_S = 45.0f;
@@ -59,7 +63,7 @@ struct SchoolSpinTuning
 
 struct SchoolAimTuning
 {
-    static constexpr int REQUIRED_POINTS = 4;
+    static constexpr int REQUIRED_POINTS = 3;
     static constexpr float PULL_ENOUGH_THRESHOLD = 0.92f;
     static constexpr float CENTER_X_MAX_ABS = 0.12f; // stricter: must be near center to qualify
 };
@@ -70,7 +74,7 @@ inline float SchoolSpin_AmpForLevel(int level)
         return SchoolSpinTuning::AMP_LVL1;
     if (level == 2)
         return SchoolSpinTuning::AMP_LVL2;
-    return SchoolSpinTuning::AMP_LVL3;
+    return SchoolSpinTuning::AMP_LVL2;
 }
 
 // Values School is allowed to modify in game state (passed from game.cpp).

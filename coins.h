@@ -452,8 +452,9 @@ struct CoinLane {
 
     // === Per-frame update: pattern movement + collision detection ===
     // ✅ Called BEFORE client spawns fly animations
-    void updateStars(const glm::vec3& prevBallPos, const glm::vec3& ballPos, 
-                     float globalTime, float deltaTime) 
+    void updateStars(const glm::vec3& prevBallPos, const glm::vec3& ballPos,
+                     float globalTime, float deltaTime, bool moveTargets = true,
+                     float minTargetAbsX = 0.0f, float pickupRadiusScale = 1.0f)
     {
         (void)prevBallPos;  // Reserved for continuous collision (segment test) if needed later
         
@@ -462,7 +463,11 @@ struct CoinLane {
             if (c.state != CoinState::Active) continue;
             
             // 1️⃣ Apply pattern movement (timestep-independent via globalTime)
-            applyPattern(c, globalTime);
+            if (moveTargets)
+                applyPattern(c, globalTime);
+            if (minTargetAbsX > 0.0f)
+                c.position.x = std::copysign(std::max(std::abs(c.position.x), minTargetAbsX),
+                                             c.basePosition.x);
             
             // 2️⃣ Update visual rotation (timestep-independent)
             c.rotation += ROTATION_SPEED * deltaTime;
@@ -471,7 +476,7 @@ struct CoinLane {
             // 3️⃣ Collision detection: point-in-radius (sufficient for typical bowling ball speed)
             // ✅ Fixed: removed erroneous 10x multiplier from original code
             const glm::vec3 toBall = ballPos - c.position;
-            if (glm::dot(toBall, toBall) < PICKUP_RADIUS_SQ) {
+            if (glm::dot(toBall, toBall) < PICKUP_RADIUS_SQ * pickupRadiusScale * pickupRadiusScale) {
                 c.state = CoinState::Collected;
                 c.flyTriggered = false;  // Client will set true after successful spawn
                 // ⚠️ Do NOT hide coin here — client controls rendering based on flyTriggered flag

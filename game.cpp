@@ -2799,10 +2799,10 @@ static inline void School_UpdateMassGuidanceUi(UserContext *usr)
     const bool isLight = m <= SchoolMassTuning::LIGHT_TEST_MAX_KG;
     const bool isHeavy = m >= SchoolMassTuning::HEAVY_TEST_MIN_KG;
 
-    bool accepted = false;
+    // Once a side is complete, the meter prompts a move to the unfinished side.
+    const bool accepted = (needsLight && isLight) || (needsHeavy && isHeavy);
     if (needsLight && needsHeavy)
     {
-        accepted = isLight || isHeavy;
         std::snprintf(
             usr->clayton.massLessonGuidanceText,
             sizeof(usr->clayton.massLessonGuidanceText),
@@ -2811,7 +2811,6 @@ static inline void School_UpdateMassGuidanceUi(UserContext *usr)
     }
     else if (needsLight)
     {
-        accepted = isLight;
         std::snprintf(
             usr->clayton.massLessonGuidanceText,
             sizeof(usr->clayton.massLessonGuidanceText),
@@ -2820,7 +2819,6 @@ static inline void School_UpdateMassGuidanceUi(UserContext *usr)
     }
     else if (needsHeavy)
     {
-        accepted = isHeavy;
         std::snprintf(
             usr->clayton.massLessonGuidanceText,
             sizeof(usr->clayton.massLessonGuidanceText),
@@ -3268,6 +3266,113 @@ static inline Clay_ElementId BallChargeHudId()
     return CLAY_ID("BallChargeHud");
 }
 
+static inline void BuildBallChargeHud(UserContext *usr, float deltaTime)
+{
+    ClayArena *arena = &usr->clayton.clayArena;
+    const float charge01 = usr->electroBall.getCharge01();
+    const float pulse01 = usr->electroBall.getPickupPulse01();
+    const bool charged = charge01 > 0.001f;
+    const bool highlighted = pulse01 > charge01 + 0.001f;
+    usr->ballChargeFill01 = HudEased01(usr->ballChargeFill01, charge01, deltaTime, 10.0f);
+    Clay_TextElementConfig chargeTextCfg = CLAY_THEME_TEXT_BUTTON;
+    chargeTextCfg.fontSize = CLAY_FONT_SIZE_SM;
+    chargeTextCfg.textColor = highlighted ? (Clay_Color){250, 252, 255, 255} :
+                              charged ? (Clay_Color){235, 248, 255, 255} :
+                                        (Clay_Color){190, 190, 200, 230};
+    Clay_Color chargeBase = charged ? (Clay_Color){22, 26, 42, 225} : (Clay_Color){28, 28, 28, 190};
+    Clay_Color chargeFill = highlighted ? (Clay_Color){180, 245, 255, 240} :
+                            charged ? (Clay_Color){86, 205, 255, 225} :
+                                      (Clay_Color){86, 86, 96, 180};
+    if (charge01 >= 0.999f || pulse01 >= 0.999f)
+        chargeFill = (Clay_Color){180, 245, 255, 240};
+    const Clay_Color chargeBorder = highlighted ? (Clay_Color){180, 245, 255, 240} :
+                                    charged ? (Clay_Color){80, 205, 255, 180} : CLAY_COLOR_BORDER;
+    Clay_String chargeLabel = ClayArena_AllocString(arena, Txl_Get(usr->language, TXL_BALL_CHARGE_FMT));
+    BuildHudProgressButton(
+        BallChargeHudId(), CLAY_ID("BallChargeFill"), CLAY_ID("BallChargeRest"),
+        CLAY_ID("BallChargeLabel"), chargeLabel, usr->ballChargeFill01,
+        chargeBase, chargeFill, (Clay_Color){0, 0, 0, 0}, chargeBorder,
+        chargeTextCfg, &usr->clayton.hudDiamondImage, CLAY_ID("BallChargeDiamondIcon")
+    );
+}
+
+static inline void BuildSchoolMassHud(UserContext *usr)
+{
+    const float mass = usr->school.massSlider.value;
+    const float fill01 = glm::clamp(
+        (mass - SchoolMassTuning::MASS_MIN_KG) /
+        (SchoolMassTuning::MASS_MAX_KG - SchoolMassTuning::MASS_MIN_KG), 0.0f, 1.0f);
+    const float blink01 = glm::clamp(usr->clayton.massLessonAttentionBlink01, 0.0f, 1.0f);
+    const bool accepted = usr->clayton.massLessonMassAccepted;
+    const Clay_Color base = accepted ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_HUD;
+    const Clay_Color warn = {220, 35, 58, 230};
+    const Clay_Color fill = ClayColorMix(
+        accepted ? (Clay_Color){85, 225, 140, 230} : (Clay_Color){245, 184, 86, 230},
+        warn, blink01);
+    const Clay_Color border = accepted ? (Clay_Color){85, 245, 150, 235}
+                                      : (Clay_Color){255, 80, 90, 180 + 60.0f * blink01};
+    const Clay_String label = ClayArena_FormatString(
+        &usr->clayton.clayArena, Txl_Get(usr->language, TXL_MASS_FMT), (double)mass);
+    BuildHudProgressButton(
+        CLAY_ID("SchoolMassEditorOpen"), CLAY_ID("SchoolMassFill"),
+        CLAY_ID("SchoolMassRest"), CLAY_ID("SchoolMassLabel"), label, fill01,
+        ClayColorMix(base, warn, blink01), fill, (Clay_Color){0, 0, 0, 0},
+        border, CLAY_THEME_TEXT_BUTTON, nullptr, CLAY_ID("SchoolMassNoIcon")
+    );
+}
+
+static inline void BuildSchoolAimPullHud(UserContext *usr)
+{
+    const float pull01 = glm::clamp(usr->school.aimPull01, 0.0f, 1.0f);
+    const bool pulledEnough = pull01 >= SchoolAimTuning::PULL_ENOUGH_THRESHOLD;
+    const bool ready = pulledEnough && usr->school.aimCenteredEnough;
+    const bool moveToCenter = pulledEnough && !usr->school.aimCenteredEnough;
+    Clay_String label = usr->clayton.txl(TXL_PULL_BALL_BACK);
+    if (ready)
+        label = usr->clayton.txl(TXL_LET_IT_GO_NOW);
+    else if (moveToCenter)
+        label = usr->clayton.txl(usr->enjoy.ndc.x < 0.0f ? TXL_MOVE_RIGHT : TXL_MOVE_LEFT);
+    Clay_TextElementConfig textCfg = CLAY_THEME_TEXT_BUTTON;
+    textCfg.textColor = {255, 255, 255, 245};
+    BuildHudProgressButton(
+        CLAY_ID("SchoolAimPullHud"), CLAY_ID("SchoolAimPullFill"),
+        CLAY_ID("SchoolAimPullRest"), CLAY_ID("SchoolAimPullLabel"),
+        label, pull01,
+        (Clay_Color){38, 25, 35, 210},
+        ready ? (Clay_Color){60, 200, 120, 225} :
+        moveToCenter ? (Clay_Color){205, 160, 50, 225} : (Clay_Color){200, 60, 60, 215},
+        (Clay_Color){0, 0, 0, 40},
+        ready ? (Clay_Color){80, 230, 140, 230} :
+        moveToCenter ? (Clay_Color){240, 190, 70, 230} : (Clay_Color){225, 95, 95, 210},
+        textCfg, nullptr, CLAY_ID("SchoolAimPullNoIcon")
+    );
+}
+
+static inline void BuildSchoolOilHud(UserContext *usr, float oilFill01, float deltaTime)
+{
+    usr->oilButtonFill01 = HudEased01(usr->oilButtonFill01, oilFill01, deltaTime, 7.5f);
+    const float blink01 = usr->school.selectedLesson == 5
+        ? OilLowBlink_Amount01(usr)
+        : glm::clamp(usr->clayton.oilLessonAttentionBlink01, 0.0f, 1.0f);
+    const Clay_Color oilFill = {70, 205, 245, 230};
+    const Clay_Color base = ClayColorMix(
+        (Clay_Color){36, 34, 55, 205}, (Clay_Color){150, 18, 28, 220}, blink01);
+    const Clay_Color fill = ClayColorMix(
+        oilFill, (Clay_Color){245, 42, 48, 230}, blink01);
+    const Clay_Color rest = ClayColorMix(
+        (Clay_Color){10, 12, 22, 0}, (Clay_Color){80, 8, 16, 60}, blink01);
+    const Clay_Color border = ClayColorMix(
+        (Clay_Color){95, 220, 255, 210}, (Clay_Color){255, 72, 78, 230}, blink01);
+    Clay_TextElementConfig textCfg = CLAY_THEME_TEXT_BUTTON;
+    textCfg.textColor = (Clay_Color){245, 250, 255, 255};
+    BuildHudProgressButton(
+        CLAY_ID("SchoolOilWindowOpen"), CLAY_ID("SchoolOilFill"),
+        CLAY_ID("SchoolOilRest"), CLAY_ID("SchoolOilLabel"), usr->clayton.txl(TXL_OIL),
+        usr->oilButtonFill01, base, fill, rest, border, textCfg,
+        nullptr, CLAY_ID("SchoolOilNoIcon")
+    );
+}
+
 static inline SecretMenuUnlock::Area SecretMenu_HudAreaAt(const UserContext *usr, float x, float y)
 {
     if (!usr || usr->windowStack.count > 0 || usr->dialog.active ||
@@ -3327,7 +3432,17 @@ static inline bool EventHitsAnyHudOpenButton(UserContext *usr, const SDL_Event &
         return Clay_PointerOver(id) || EventHitsClayButton(e, id, pointerToLayoutScale);
     };
 
-    if (usr->gameMode != UserContext::GameMode::TRACKER && !MiniGame_IsActive(usr) && hits(BallChargeHudId()))
+    if (usr->gameMode != UserContext::GameMode::TRACKER && !MiniGame_IsActive(usr) &&
+        !(usr->gameMode == UserContext::GameMode::SCHOOL &&
+          (usr->school.selectedLesson == 1 || usr->school.selectedLesson == 2 ||
+           usr->school.selectedLesson == 4)) &&
+        hits(BallChargeHudId()))
+        return true;
+
+    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+        ((usr->school.selectedLesson == 2 && hits(CLAY_ID("SchoolMassEditorOpen"))) ||
+         ((usr->school.selectedLesson == 4 || usr->school.selectedLesson == 5) &&
+          hits(CLAY_ID("SchoolOilWindowOpen")))))
         return true;
 
     if (MiniGame_IsActive(usr) &&
@@ -21295,9 +21410,16 @@ void vtx::loop(vtx::VertexContext *ctx)
             (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_MOUSEBUTTONUP) ||
             (e.type == SDL_MOUSEMOTION) || (e.type == SDL_FINGERDOWN) ||
             (e.type == SDL_FINGERUP) || (e.type == SDL_FINGERMOTION);
+        const bool chargeMeterHit = EventHitsClayButton(e, BallChargeHudId(), pixelRatio) ||
+            ((e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION) &&
+             PointHitsClayButton(e.tfinger.x * (float)ctx->screenWidth,
+                                 e.tfinger.y * (float)ctx->screenHeight, BallChargeHudId()));
         if (!MiniGame_IsActive(usr) &&
+            !(usr->gameMode == UserContext::GameMode::SCHOOL &&
+              (usr->school.selectedLesson == 1 || usr->school.selectedLesson == 2 ||
+               usr->school.selectedLesson == 4)) &&
             isPointerEventForCharge &&
-            (Clay_PointerOver(BallChargeHudId()) || EventHitsClayButton(e, BallChargeHudId(), pixelRatio)))
+            chargeMeterHit)
         {
             // Passive HUD meter: absorb the pointer so it never drags/throws the ball,
             // but do not perform an action on click.
@@ -21406,10 +21528,17 @@ void vtx::loop(vtx::VertexContext *ctx)
             const bool isDownEv = (e.type == SDL_MOUSEBUTTONDOWN) || (e.type == SDL_FINGERDOWN);
             const bool isUpEv = (e.type == SDL_MOUSEBUTTONUP) || (e.type == SDL_FINGERUP);
             const bool isMoveEv = (e.type == SDL_MOUSEMOTION) || (e.type == SDL_FINGERMOTION);
+            const auto eventHitsSchoolMeter = [&](Clay_ElementId id) -> bool
+            {
+                if (e.type == SDL_FINGERDOWN || e.type == SDL_FINGERUP || e.type == SDL_FINGERMOTION)
+                    return PointHitsClayButton(e.tfinger.x * (float)ctx->screenWidth,
+                                               e.tfinger.y * (float)ctx->screenHeight, id);
+                return EventHitsClayButton(e, id, pixelRatio);
+            };
             if (usr->school.selectedLesson == 2)
             {
                 const Clay_ElementId massBtn = CLAY_ID("SchoolMassEditorOpen");
-                const bool over = Clay_PointerOver(massBtn);
+                const bool over = eventHitsSchoolMeter(massBtn);
                 if (s_massOpenDown)
                 {
                     if (isMoveEv && !over)
@@ -21434,11 +21563,11 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
             }
 
-            // Oil lesson opener: only in Lesson 4 (Oil).
-            if (usr->school.selectedLesson == 4)
+            // The oil meter opens the same oil window in lessons 4 and 5.
+            if (usr->school.selectedLesson == 4 || usr->school.selectedLesson == 5)
             {
                 const Clay_ElementId oilBtn = CLAY_ID("SchoolOilWindowOpen");
-                const bool over = Clay_PointerOver(oilBtn);
+                const bool over = eventHitsSchoolMeter(oilBtn);
                 if (s_oilOpenDown)
                 {
                     if (isMoveEv && !over)
@@ -23116,6 +23245,11 @@ swing_checks_done:
                 usr->aimFlatPos = glm::vec2(0.5f, 0.5f);
                 usr->aimDownFlatPos = usr->aimFlatPos;
                 usr->enjoy.resetJoystick();
+	            if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 1)
+                {
+                    usr->school.aimPull01 = 0.0f;
+                    usr->school.aimPullEnough = false;
+                }
 	            }
             if (phaseTrans == UserContext::PhaseTrans::TRANS_AIM_TO_SWING)
             {
@@ -24191,6 +24325,7 @@ swing_checks_done:
                                         // Always clear the qualification flag after the throw resolves so it can't
                                         // double-score across resets/phase transitions.
                                         usr->school.aimQualifiedThisThrow = false;
+                                        usr->school.aimPullEnough = false;
                                     }
 		                    }
 
@@ -27178,7 +27313,23 @@ END_LINE:
         }
         else
         {
-            usr->coinLane.updateStars(usr->lastBallPosition, ballModel[3], usr->gameplayTime, gameplayDeltaTime);
+            // The first spin test teaches the path with fixed targets. The second
+            // keeps the existing moving targets once that path is familiar.
+            const bool moveSpinTargets =
+                !(usr->gameMode == UserContext::GameMode::SCHOOL &&
+                  usr->school.selectedLesson == 3 && usr->school.spinLevel == 1);
+            const float spinTargetMinAbsX =
+                (usr->gameMode == UserContext::GameMode::SCHOOL &&
+                 usr->school.selectedLesson == 3 && usr->school.spinLevel >= 2)
+                    ? SchoolSpinTuning::MOVING_TARGET_MIN_ABS_X : 0.0f;
+            const float spinPickupRadiusScale =
+                (usr->gameMode == UserContext::GameMode::SCHOOL &&
+                 usr->school.selectedLesson == 3 && usr->school.spinLevel == 1)
+                    ? SchoolSpinTuning::FIRST_ROUND_PICKUP_RADIUS_SCALE : 1.0f;
+            usr->coinLane.updateStars(usr->lastBallPosition, ballModel[3],
+                                      usr->gameplayTime, gameplayDeltaTime,
+                                      moveSpinTargets, spinTargetMinAbsX,
+                                      spinPickupRadiusScale);
         }
 
                 // 2. Update all flying coin animations
@@ -28228,7 +28379,8 @@ END_LINE:
                         }
                     };
 
-                    if (usr->gameMode != UserContext::GameMode::TRACKER && !MiniGame_IsActive(usr))
+                    if (usr->gameMode != UserContext::GameMode::TRACKER &&
+                        usr->gameMode != UserContext::GameMode::SCHOOL && !MiniGame_IsActive(usr))
                     {
                     CLAY(
                         CLAY_ID("NameAndMoneyRow"),
@@ -28247,50 +28399,8 @@ END_LINE:
                     {
                         if (usr->gameMode != UserContext::GameMode::TRACKER)
                         {
+                            BuildBallChargeHud(usr, (float)deltaTime);
                             ClayArena *arena = &usr->clayton.clayArena;
-                            const float charge01 = usr->electroBall.getCharge01();
-                            const float pulse01 = usr->electroBall.getPickupPulse01();
-                            const bool charged = charge01 > 0.001f;
-                            const bool highlighted = pulse01 > charge01 + 0.001f;
-                            usr->ballChargeFill01 = HudEased01(
-                                usr->ballChargeFill01,
-                                charge01,
-                                (float)deltaTime,
-                                10.0f
-                            );
-                            Clay_TextElementConfig chargeTextCfg = CLAY_THEME_TEXT_BUTTON;
-                            chargeTextCfg.fontSize = CLAY_FONT_SIZE_SM;
-                            chargeTextCfg.textColor = highlighted ? (Clay_Color){250, 252, 255, 255} :
-                                                      charged ? (Clay_Color){235, 248, 255, 255} :
-                                                                (Clay_Color){190, 190, 200, 230};
-                            Clay_Color chargeBase = charged ? (Clay_Color){22, 26, 42, 225} : (Clay_Color){28, 28, 28, 190};
-                            Clay_Color chargeFill = highlighted ? (Clay_Color){180, 245, 255, 240} :
-                                                    charged ? (Clay_Color){86, 205, 255, 225} :
-                                                              (Clay_Color){86, 86, 96, 180};
-                            if (charge01 >= 0.999f || pulse01 >= 0.999f)
-                                chargeFill = (Clay_Color){180, 245, 255, 240};
-                            const Clay_Color chargeBorder = highlighted ? (Clay_Color){180, 245, 255, 240} :
-                                                            charged ? (Clay_Color){80, 205, 255, 180} :
-                                                                      CLAY_COLOR_BORDER;
-                            Clay_String chargeLabel = ClayArena_AllocString(
-                                arena,
-                                Txl_Get(usr->language, TXL_BALL_CHARGE_FMT)
-                            );
-                            BuildHudProgressButton(
-                                BallChargeHudId(),
-                                CLAY_ID("BallChargeFill"),
-                                CLAY_ID("BallChargeRest"),
-                                CLAY_ID("BallChargeLabel"),
-                                chargeLabel,
-                                usr->ballChargeFill01,
-                                chargeBase,
-                                chargeFill,
-                                (Clay_Color){0, 0, 0, 0},
-                                chargeBorder,
-                                chargeTextCfg,
-                                &usr->clayton.hudDiamondImage,
-                                CLAY_ID("BallChargeDiamondIcon")
-                            );
                             if (usr->gameMode != UserContext::GameMode::SCHOOL)
                             {
                                 const int playTimeSeconds = glm::max(0, (int)floorf(usr->gameplayTime));
@@ -28608,38 +28718,49 @@ END_LINE:
                     }
                     else if (usr->gameMode == UserContext::GameMode::SCHOOL)
                     {
-                        // School mode panel (no scoring; replaces HUD action bar).
-                        School_ClayBuildPanel(&usr->school, &usr->clayton, portraitPadding);
-                    }
-
-                        if (usr->gameMode == UserContext::GameMode::SCHOOL)
-                        {
-                            const bool showAimIndicator =
-                                (usr->phase == UserContext::Phase::AIM) || (usr->phase == UserContext::Phase::SWING);
-                            float oilRemain01 = 0.0f;
-                            int oilReoilCount = 0;
-                            int oilReoilNeeded = 0;
-                            bool oilCanReoilNow = false;
-                            if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 4)
+                        // Keep the school's live meters together beneath its lesson panel.
+                        School_ClayBuildPanel(&usr->school, &usr->clayton);
+                        CLAY(
+                            CLAY_ID("SchoolMeterRow"),
                             {
-                                const SchoolOilLessonDefaults &d = School_OilDefaults();
-                                const float denom = glm::max(1e-6f, d.laneOilThickness);
-                                oilRemain01 = glm::clamp(usr->laneOilThickness / denom, 0.0f, 1.0f);
-                                oilReoilCount = usr->school.spinSafeCoins;
-                                oilReoilNeeded = 3;
-                                oilCanReoilNow = School_OilLessonCanReoil(usr);
+                                .layout = {
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                    .padding = {.top = portraitPadding, .bottom = portraitPadding},
+                                    .childGap = portraitPadding,
+                                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                },
                             }
-                            School_ClayBuildHud(
-                                &usr->school,
-                                &usr->clayton,
-                                usr->enjoy.ndc.x,
-                                showAimIndicator,
-                                oilRemain01,
-                                oilReoilCount,
-                                oilReoilNeeded,
-                                oilCanReoilNow
-                            );
+                        )
+                        {
+                            if (usr->school.selectedLesson == 1)
+                            {
+                                BuildSchoolAimPullHud(usr);
+                            }
+                            else if (usr->school.selectedLesson == 2)
+                            {
+                                BuildSchoolMassHud(usr);
+                            }
+                            else if (usr->school.selectedLesson == 4)
+                            {
+                                const float fullOil = glm::max(1e-6f, School_OilDefaults().laneOilThickness);
+                                const float oilFill01 = glm::clamp(usr->laneOilThickness / fullOil, 0.0f, 1.0f);
+                                BuildSchoolOilHud(usr, oilFill01, (float)deltaTime);
+                            }
+                            else
+                            {
+                                BuildBallChargeHud(usr, (float)deltaTime);
+                                if (usr->school.selectedLesson == 5)
+                                {
+                                    BuildSchoolOilHud(usr, LaneOilDisplayFill01(usr), (float)deltaTime);
+                                }
+                                else
+                                {
+                                    CLAY(CLAY_ID("SchoolMeterEmptyHalf"),
+                                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)}}}) {};
+                                }
+                            }
                         }
+                    }
 
 	                    if (usr->gameMode != UserContext::GameMode::TRACKER &&
                             usr->gameMode != UserContext::GameMode::SCHOOL &&
@@ -28766,6 +28887,16 @@ END_LINE:
                     },
                 }
             ) {
+                        if (usr->gameMode == UserContext::GameMode::SCHOOL)
+                        {
+                            School_ClayBuildProgress(
+                                &usr->school, &usr->clayton,
+                                usr->school.aimQualifiedThisThrow &&
+                                    (usr->phase == UserContext::Phase::SWING ||
+                                     usr->phase == UserContext::Phase::THROW),
+                                usr->school.selectedLesson == 4 && School_OilLessonCanReoil(usr)
+                            );
+                        }
 	                    if (usr->gameMode != UserContext::GameMode::TRACKER &&
                             usr->gameMode != UserContext::GameMode::SCHOOL &&
                             usr->gameMode != UserContext::GameMode::MINIGAME)

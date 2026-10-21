@@ -1352,6 +1352,67 @@ TEST_CASE("Tracker OFF REL and release notes keep distinct release behavior")
     }
 }
 
+TEST_CASE("Cell keyboard preview uses song tempo, cell volume, patch and macro release")
+{
+    GameSoundSystem sound {};
+    sound.musicModule = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    sound.trackerPreviewModule = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(sound.musicModule != nullptr);
+    REQUIRE(sound.trackerPreviewModule != nullptr);
+    sound.audioDev = 1;
+
+    xfm_patch_opn patch {};
+    patch.ALG = 0;
+    for (int op = 0; op < 4; ++op)
+    {
+        patch.op[op].MUL = 1;
+        patch.op[op].TL = 10 + op * 10;
+        patch.op[op].AR = 31;
+        patch.op[op].RR = 8;
+    }
+    XfmMacro macros[XFM_MACRO_TARGET_COUNT] = {};
+    bool enabled[XFM_MACRO_TARGET_COUNT] = {};
+    bool valid[XFM_MACRO_TARGET_COUNT] = {};
+    XfmMacro &macro = macros[XFM_MACRO_TL4];
+    macro.target = XFM_MACRO_TL4;
+    macro.length = 3;
+    macro.values[0] = 40;
+    macro.values[1] = 50;
+    macro.values[2] = 70;
+    macro.release_start = 2;
+    enabled[XFM_MACRO_TL4] = valid[XFM_MACRO_TL4] = true;
+
+    const SDL_FingerID finger = 123;
+    xfm_voice_id voice = sound.previewTrackerFingerNote(finger, 0, 4, 0, 0x40,
+        &patch, macros, enabled, valid);
+    REQUIRE(voice != FM_VOICE_INVALID);
+    const int instrument = 0xEB;
+    const int sfxId = GameSoundSystem::SFX_TRACKER_PREVIEW;
+    CHECK(sound.trackerPreviewModule->patches[instrument].op[0].TL == patch.op[0].TL);
+    CHECK(sound.trackerPreviewModule->patches[instrument].op[3].TL == patch.op[3].TL);
+    CHECK(sound.trackerPreviewModule->sfx_patterns[sfxId].rows[0].volume == 0x40);
+    CHECK(sound.trackerPreviewModule->sfx_patterns[sfxId].tick_rate ==
+        sound.getSongTickRate(sound.currentSongIndex));
+    CHECK(sound.trackerPreviewModule->sfx_patterns[sfxId].speed ==
+        sound.getSongSpeed(sound.currentSongIndex));
+    CHECK(sound.trackerPreviewModule->sfx_patterns[sfxId].samples_per_row ==
+        (int)(44100.0 / sound.getSongTickRate(sound.currentSongIndex) *
+            sound.getSongSpeed(sound.currentSongIndex)));
+    CHECK(sound.trackerPreviewModule->lfo_enable == sound.getSongLfoEnabled(sound.currentSongIndex));
+    CHECK(sound.trackerPreviewModule->lfo_freq == sound.getSongLfoFrequency(sound.currentSongIndex));
+
+    int slot = -1;
+    for (int i = 0; i < 6; ++i)
+        if (sound.trackerPreviewModule->active_sfx[i].active &&
+            sound.trackerPreviewModule->active_sfx[i].voice_idx == voice)
+            slot = i;
+    REQUIRE(slot >= 0);
+    CHECK(sound.trackerPreviewModule->active_sfx[slot].macro_states[XFM_MACRO_TL4].active);
+    sound.releaseTrackerPreviewFinger(finger);
+    CHECK(sound.trackerPreviewModule->active_sfx[slot].macro_states[XFM_MACRO_TL4].released);
+    sound.shutdown();
+}
+
 TEST_CASE("Tracker preview release plays macro tail before keying off SFX voice")
 {
     xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);

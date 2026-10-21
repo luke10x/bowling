@@ -119,6 +119,7 @@ struct GameSoundSystem
     xfm_module* musicModule = nullptr;
     xfm_module* fadingMusicModule = nullptr;
     xfm_module* sfxModule   = nullptr;
+    xfm_module* trackerPreviewModule = nullptr;
 
     SDL_AudioDeviceID audioDev = 0;
     std::atomic<bool> audioShutdownInProgress{false};  // Emscripten: atomic for cross-thread visibility

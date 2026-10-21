@@ -200,7 +200,7 @@ inline void School_ClayBuildProgress(School *self, Clayton *clayton,
                     { mark = SchoolProgressMark::Active; blink = true; }
                 }
                 else if (self->selectedLesson == 5)
-                    mark = self->lessonDone[4] ? SchoolProgressMark::DoneGreen : SchoolProgressMark::Active;
+                    mark = self->strikeCompletedThisVisit ? SchoolProgressMark::DoneGreen : SchoolProgressMark::Active;
                 School_ClayProgressBox(self->selectedLesson * 10 + i, mark, blink);
             }
         }

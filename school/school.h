@@ -48,14 +48,15 @@ struct SchoolSpinTuning
     static constexpr float Z_STEP = 7.0f;
     static constexpr float Z0 = Z_LAST - (COINS_PER_LEVEL - 1) * Z_STEP;
 
-    // The first round's targets sit near center; a smaller pickup area still
-    // asks for a little side movement without demanding a large spin.
-    static constexpr float AMP_LVL1 = 0.22f;
-    static constexpr float FIRST_ROUND_PICKUP_RADIUS_SCALE = 0.75f;
-    static constexpr float AMP_LVL2 = 0.42f;
-    static constexpr float MOVING_TARGET_MIN_ABS_X = 0.32f;
+    // Both rounds stay near the middle. A tighter pickup area still requires
+    // a small turn, even for the fixed targets in round one.
+    static constexpr float AMP_LVL1 = 0.19f;
+    static constexpr float AMP_LVL2 = 0.26f;
+    static constexpr float MOVING_TARGET_MIN_ABS_X = 0.22f;
+    static constexpr float PICKUP_RADIUS_SCALE = 0.70f;
 
-    static constexpr float LAUNCH_SPEED_CAP = 4.5f;
+    static constexpr float LAUNCH_SPEED_SCALE = 0.85f;
+    static constexpr float LAUNCH_SPEED_CAP = 3.8f;
     static constexpr float THROW_TIMEOUT_S = 45.0f;
     static constexpr float STALLED_BANNER_AT_S = 45.0f;
     static constexpr float TARGET_PIN_MASS_SCALE = 0.25f;
@@ -121,6 +122,7 @@ struct School
     int selectedLesson = 1;     // 1..5
     int lastSelectedLesson = 1; // remember last chosen lesson
     int lessonRolls = 0;
+    bool strikeCompletedThisVisit = false;
 
     // UI widgets (owned by School; built by school_clay.h)
     Clayton_Click exitButton;
@@ -435,6 +437,7 @@ inline void School_SelectLesson(
     {
         // Strike lesson: coins are placed by game.cpp (needs lane/pin positions), just clear state here.
         School_ClearCoins(svc);
+        self->strikeCompletedThisVisit = false;
     }
 
     if (playStory && svc.dialog)

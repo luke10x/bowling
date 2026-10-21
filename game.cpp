@@ -3435,6 +3435,7 @@ static inline bool EventHitsAnyHudOpenButton(UserContext *usr, const SDL_Event &
     if (usr->gameMode != UserContext::GameMode::TRACKER && !MiniGame_IsActive(usr) &&
         !(usr->gameMode == UserContext::GameMode::SCHOOL &&
           (usr->school.selectedLesson == 1 || usr->school.selectedLesson == 2 ||
+           usr->school.selectedLesson == 3 ||
            usr->school.selectedLesson == 4)) &&
         hits(BallChargeHudId()))
         return true;
@@ -12310,7 +12311,14 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
         BallStats_OnBallChange(selectedBall, usr);
     usr->firstSoloCompleted = false;
     usr->milestone100Reached = false;
+    // School graduation belongs to this campaign. Clear both the live lesson
+    // state and its saved flag so a restart cannot restore the old completion.
+    usr->school = School{};
+    School_Init(&usr->school);
+    School_ClayInit(&usr->school, &usr->clayton, usr->desiredMass);
+    usr->schoolDone = false;
     usr->schoolExitLocked = false;
+    usr->storage.setChar(Storage::SCHOOL_DONE, "0", 1);
     Campaign_SaveCurrentLevel(usr);
     Progress_SaveUnlocksAndBank(usr);
     Progress_SaveGameplayTime(usr);
@@ -12338,12 +12346,6 @@ static inline void Progress_ResetFull(UserContext *usr)
     usr->adInterstitialInFlight = false;
     usr->pendingOutcomeInterstitialAfterStory = 0;
     usr->deferredStoryEventAfterInterstitial = EVENT_NONE;
-    usr->school = School{};
-    School_Init(&usr->school);
-    School_ClayInit(&usr->school, &usr->clayton, usr->desiredMass);
-    usr->schoolDone = false;
-    usr->schoolExitLocked = false;
-    usr->storage.setChar(Storage::SCHOOL_DONE, "0", 1);
     usr->settings.highDetailsEnabled = true;
     usr->settings.patchedYmfmEnabled = true;
     xfm_set_patched_ymfm(true);
@@ -14165,7 +14167,7 @@ static inline void Campaign_StartFreshRunAfterReset(UserContext *usr)
         return;
 
     // A reset is an intentional new campaign, not a persisted-save resume.
-    // It must begin at level 1 even when the player previously finished school.
+    // It must begin at level 1 with fresh school progress.
     Campaign_ApplyCurrentLevelSetup(usr, /*resetStoryKick=*/true);
     Run_ResetBoardsAndMode(usr, usr->gameMode);
     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
@@ -20979,7 +20981,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     else
                     {
                         // A campaign restart starts its rewards over too: reset the
-                        // bank and all unlocked balls, while retaining school progress.
+                        // bank, all unlocked balls, and school progress.
                         Progress_ResetCampaign(usr, /*resetInventory=*/true);
                     }
                     usr->windowStack.settingsResetProgressConfirmRequested = false;
@@ -21417,6 +21419,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         if (!MiniGame_IsActive(usr) &&
             !(usr->gameMode == UserContext::GameMode::SCHOOL &&
               (usr->school.selectedLesson == 1 || usr->school.selectedLesson == 2 ||
+               usr->school.selectedLesson == 3 ||
                usr->school.selectedLesson == 4)) &&
             isPointerEventForCharge &&
             chargeMeterHit)
@@ -23794,10 +23797,11 @@ swing_checks_done:
 	                dv = glm::min(dv, 12.0f);
 
 	                movement = movement + dir * dv;
-                // Lesson 3: cap launch speed.
+                // Lesson 3: slow every release, then cap unusually strong throws.
                 if (usr->gameMode == UserContext::GameMode::SCHOOL &&
                     usr->school.selectedLesson == 3)
                 {
+                    movement *= SchoolSpinTuning::LAUNCH_SPEED_SCALE;
                     float sp = glm::length(movement);
                     float cap = SchoolSpinTuning::LAUNCH_SPEED_CAP;
                     if (sp > cap && sp > 1e-6f)
@@ -24238,8 +24242,9 @@ swing_checks_done:
                                     else if (usr->school.selectedLesson == 5)
                                     {
                                         // Lesson 5 (Strike): pass when a strike is scored (all 10 pins down in one roll).
-                                        if (!usr->school.lessonDone[4] && knockedThisRoll >= 10)
+                                        if (!usr->school.strikeCompletedThisVisit && knockedThisRoll >= 10)
                                         {
+                                            usr->school.strikeCompletedThisVisit = true;
                                             usr->school.lessonDone[4] = true;
                                             usr->school.unlockedLessons = 5;
                                             glm::vec3 p = usr->initialPins[0];
@@ -27324,8 +27329,8 @@ END_LINE:
                     ? SchoolSpinTuning::MOVING_TARGET_MIN_ABS_X : 0.0f;
             const float spinPickupRadiusScale =
                 (usr->gameMode == UserContext::GameMode::SCHOOL &&
-                 usr->school.selectedLesson == 3 && usr->school.spinLevel == 1)
-                    ? SchoolSpinTuning::FIRST_ROUND_PICKUP_RADIUS_SCALE : 1.0f;
+                 usr->school.selectedLesson == 3)
+                    ? SchoolSpinTuning::PICKUP_RADIUS_SCALE : 1.0f;
             usr->coinLane.updateStars(usr->lastBallPosition, ballModel[3],
                                       usr->gameplayTime, gameplayDeltaTime,
                                       moveSpinTargets, spinTargetMinAbsX,
@@ -28720,43 +28725,51 @@ END_LINE:
                     {
                         // Keep the school's live meters together beneath its lesson panel.
                         School_ClayBuildPanel(&usr->school, &usr->clayton);
-                        CLAY(
-                            CLAY_ID("SchoolMeterRow"),
-                            {
-                                .layout = {
-                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                    .padding = {.top = portraitPadding, .bottom = portraitPadding},
-                                    .childGap = portraitPadding,
-                                    .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                                },
-                            }
-                        )
+                        const bool showSchoolMeter =
+                            usr->school.selectedLesson != 3 &&
+                            (usr->school.selectedLesson != 1 ||
+                             usr->phase == UserContext::Phase::IDLE ||
+                             usr->phase == UserContext::Phase::AIM);
+                        if (showSchoolMeter)
                         {
-                            if (usr->school.selectedLesson == 1)
-                            {
-                                BuildSchoolAimPullHud(usr);
-                            }
-                            else if (usr->school.selectedLesson == 2)
-                            {
-                                BuildSchoolMassHud(usr);
-                            }
-                            else if (usr->school.selectedLesson == 4)
-                            {
-                                const float fullOil = glm::max(1e-6f, School_OilDefaults().laneOilThickness);
-                                const float oilFill01 = glm::clamp(usr->laneOilThickness / fullOil, 0.0f, 1.0f);
-                                BuildSchoolOilHud(usr, oilFill01, (float)deltaTime);
-                            }
-                            else
-                            {
-                                BuildBallChargeHud(usr, (float)deltaTime);
-                                if (usr->school.selectedLesson == 5)
+                            CLAY(
+                                CLAY_ID("SchoolMeterRow"),
                                 {
-                                    BuildSchoolOilHud(usr, LaneOilDisplayFill01(usr), (float)deltaTime);
+                                    .layout = {
+                                        .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                        .padding = {.top = portraitPadding, .bottom = portraitPadding},
+                                        .childGap = portraitPadding,
+                                        .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                    },
+                                }
+                            )
+                            {
+                                if (usr->school.selectedLesson == 1)
+                                {
+                                    BuildSchoolAimPullHud(usr);
+                                }
+                                else if (usr->school.selectedLesson == 2)
+                                {
+                                    BuildSchoolMassHud(usr);
+                                }
+                                else if (usr->school.selectedLesson == 4)
+                                {
+                                    const float fullOil = glm::max(1e-6f, School_OilDefaults().laneOilThickness);
+                                    const float oilFill01 = glm::clamp(usr->laneOilThickness / fullOil, 0.0f, 1.0f);
+                                    BuildSchoolOilHud(usr, oilFill01, (float)deltaTime);
                                 }
                                 else
                                 {
-                                    CLAY(CLAY_ID("SchoolMeterEmptyHalf"),
-                                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)}}}) {};
+                                    BuildBallChargeHud(usr, (float)deltaTime);
+                                    if (usr->school.selectedLesson == 5)
+                                    {
+                                        BuildSchoolOilHud(usr, LaneOilDisplayFill01(usr), (float)deltaTime);
+                                    }
+                                    else
+                                    {
+                                        CLAY(CLAY_ID("SchoolMeterEmptyHalf"),
+                                             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)}}}) {};
+                                    }
                                 }
                             }
                         }

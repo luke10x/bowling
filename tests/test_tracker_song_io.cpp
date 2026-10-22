@@ -115,6 +115,121 @@ TEST_CASE("New XFM modules follow the selected YMFM backend")
     xfm_module_destroy(upstream);
 }
 
+TEST_CASE("Operator effect memory survives repeated instrument cells but resets on an instrument change")
+{
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT,
+        "5\n"
+        "C-4017F1616|.......|.......|.......|.......|.......\n"
+        "...01..|.......|.......|.......|.......|.......\n"
+        "D-4017F|.......|.......|.......|.......|.......\n"
+        "E-4027F|.......|.......|.......|.......|.......\n"
+        "F-4017F|.......|.......|.......|.......|.......\n", "Instrument memory");
+    tracker.editChannel = 0;
+    tracker.editPatches[1] = Tracker_DefaultPatch();
+    tracker.editPatches[2] = Tracker_DefaultPatch();
+    tracker.editPatchValid[1] = tracker.editPatchValid[2] = true;
+    for (int row = 1; row <= 4; ++row)
+    {
+        tracker.editRow = row;
+        Tracker_AnalyzeEffectMemory(&tracker, nullptr);
+        REQUIRE_FALSE(tracker.effectMemoryUnavailable);
+        bool found = false;
+        for (int i = 0; i < tracker.effectMemoryCount; ++i)
+            if (tracker.effectMemoryRows[i].code == 0x16)
+            {
+                found = true;
+                CHECK(tracker.effectMemoryRows[i].hereValue == 6);
+            }
+        CHECK(found == (row <= 2));
+    }
+}
+
+TEST_CASE("Drizzle Lane Part 6 channel 3 shows its operator effect at row 16")
+{
+    Tracker tracker {};
+    setTrackerSongState(&tracker, 5);
+    REQUIRE(tracker.partCount >= 6);
+    const int row14 = tracker.parts[5].startRow + 14;
+    const int row16 = tracker.parts[5].startRow + 16;
+    CHECK(std::strstr(tracker.cells[row14][2].text, "1313") != nullptr);
+    CHECK(std::strstr(tracker.cells[row16][2].text, "1313") == nullptr);
+    tracker.editRow = row16;
+    tracker.editChannel = 2;
+    Tracker_ParseCellForEditor(&tracker);
+    Tracker_AnalyzeEffectMemory(&tracker, nullptr);
+    REQUIRE_FALSE(tracker.effectMemoryUnavailable);
+    bool visible = false;
+    for (int i = 0; i < tracker.effectMemoryCount; ++i)
+        if (tracker.effectMemoryRows[i].code == 0x13 &&
+            Tracker_EffectMemoryVisible(&tracker, tracker.effectMemoryRows[i]))
+        {
+            visible = true;
+            CHECK(tracker.effectMemoryRows[i].sourceRow == row14);
+            CHECK(tracker.effectMemoryRows[i].rowsAgo == 2);
+            CHECK(tracker.effectMemoryRows[i].initialValue == 0x13);
+        }
+    CHECK(visible);
+}
+
+TEST_CASE("Effects memory shows the stored instrument value beside the effect value")
+{
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT,
+        "2\n"
+        "C-4017F1313|.......|.......|.......|.......|.......\n"
+        ".......|.......|.......|.......|.......|.......\n", "Patch base");
+    tracker.editChannel = 0;
+    tracker.editRow = 1;
+    tracker.editPatches[1] = Tracker_DefaultPatch();
+    tracker.editPatches[1].op[1].TL = 0x2A;
+    tracker.editPatchValid[1] = true;
+    Tracker_AnalyzeEffectMemory(&tracker, nullptr);
+    REQUIRE_FALSE(tracker.effectMemoryUnavailable);
+    bool found = false;
+    for (int i = 0; i < tracker.effectMemoryCount; ++i)
+    {
+        const TrackerEffectMemoryRow &entry = tracker.effectMemoryRows[i];
+        if (entry.code != 0x13) continue;
+        found = true;
+        CHECK(entry.initialValue == 0x13);
+        CHECK(std::strcmp(entry.patchValue, "patch 0x2A") == 0);
+        CHECK(entry.hereValueValid);
+        CHECK(entry.hereValue == 0x13);
+        CHECK(std::strcmp(entry.continueMode, "ALL NOTES") == 0);
+        CHECK(std::strstr(entry.until, "OTHER INSTRUMENT") != nullptr);
+    }
+    CHECK(found);
+}
+
+TEST_CASE("Effects memory clears patch values when a row is reused for a control effect")
+{
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT,
+        "2\n"
+        "C-4017F1313|.......|.......|.......|.......|.......\n"
+        ".......0A00|.......|.......|.......|.......|.......\n", "Patch base reset");
+    tracker.editChannel = 0;
+    tracker.editPatches[1] = Tracker_DefaultPatch();
+    tracker.editPatchValid[1] = true;
+    tracker.editRow = 0;
+    Tracker_AnalyzeEffectMemory(&tracker, nullptr);
+    REQUIRE(tracker.effectMemoryCount > 0);
+    CHECK(tracker.effectMemoryRows[0].code == 0x13);
+    CHECK(tracker.effectMemoryRows[0].patchValue[0] != 0);
+
+    tracker.editRow = 1;
+    Tracker_AnalyzeEffectMemory(&tracker, nullptr);
+    bool foundSlide = false;
+    for (int i = 0; i < tracker.effectMemoryCount; ++i)
+        if (tracker.effectMemoryRows[i].code == 0x0A)
+        {
+            foundSlide = true;
+            CHECK(tracker.effectMemoryRows[i].patchValue[0] == 0);
+        }
+    CHECK(foundSlide);
+}
+
 TEST_CASE("Effects memory lists running prior commands and skips row-only effects")
 {
     Tracker tracker {};
@@ -143,6 +258,9 @@ TEST_CASE("Effects memory lists running prior commands and skips row-only effect
             CHECK(entry.initialValue == 0x10);
             CHECK(entry.rowsAgo == 3);
             CHECK(std::strcmp(entry.effective, "volume 67/127 (+1/row)") == 0);
+            CHECK(entry.hereValueValid);
+            CHECK(entry.hereValue == 67);
+            CHECK(std::strcmp(entry.hereDetail, "volume of 127; +1/row") == 0);
         }
         if (entry.code == 0x08)
         {
@@ -175,10 +293,16 @@ TEST_CASE("Effects memory follows tracker loop reset and retained chip LFO")
     Tracker_AnalyzeEffectMemory(&tracker, nullptr);
     CHECK_FALSE(tracker.effectMemoryUnavailable);
     bool foundLfo = false;
+    bool foundCurrentPan = false;
     for (int i = 0; i < tracker.effectMemoryCount; ++i)
     {
         const TrackerEffectMemoryRow &entry = tracker.effectMemoryRows[i];
-        CHECK(entry.code != 0x08);
+        if (entry.code == 0x08)
+        {
+            foundCurrentPan = true;
+            CHECK(entry.sourceRow == 2);
+            CHECK(entry.rowsAgo == 0);
+        }
         if (entry.code == 0x10)
         {
             foundLfo = true;
@@ -188,6 +312,7 @@ TEST_CASE("Effects memory follows tracker loop reset and retained chip LFO")
         }
     }
     CHECK(foundLfo);
+    CHECK(foundCurrentPan);
 
     tracker.editRow = 3;
     Tracker_AnalyzeEffectMemory(&tracker, nullptr);
@@ -200,6 +325,212 @@ TEST_CASE("Effects memory follows tracker loop reset and retained chip LFO")
             CHECK(tracker.effectMemoryRows[i].rowsAgo == 1);
         }
     CHECK(foundPan);
+}
+
+TEST_CASE("Effects table includes current row commands that stop or end within the row")
+{
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT,
+        "2\n"
+        "C-400400A10|.......|.......|.......|.......|.......\n"
+        ".......0A00EC02|.......|.......|.......|.......|.......\n", "Current effects");
+    tracker.editRow = 1;
+    tracker.editChannel = 0;
+    tracker.editSpecial = 4;
+    tracker.editPatches[0] = Tracker_DefaultPatch();
+    tracker.editPatchValid[0] = true;
+    Tracker_AnalyzeEffectMemory(&tracker, nullptr);
+    CHECK_FALSE(tracker.effectMemoryUnavailable);
+    bool foundStop = false;
+    bool foundCut = false;
+    for (int i = 0; i < tracker.effectMemoryCount; ++i)
+    {
+        const TrackerEffectMemoryRow &entry = tracker.effectMemoryRows[i];
+        if (entry.code == 0x0A)
+        {
+            foundStop = true;
+            CHECK(entry.rowsAgo == 0);
+            CHECK(std::strcmp(entry.effective, "off") == 0);
+            CHECK(entry.hereValueValid);
+            CHECK(entry.hereValue == 0);
+            CHECK(std::strcmp(entry.hereDetail, "slide off") == 0);
+        }
+        if (entry.code == 0xEC)
+        {
+            foundCut = true;
+            CHECK(entry.rowsAgo == 0);
+            CHECK(std::strcmp(entry.effective, "tick 2") == 0);
+            CHECK(std::strcmp(entry.continueMode, "ROW") == 0);
+            CHECK(entry.hereValueValid);
+            CHECK(entry.hereValue == 2);
+        }
+    }
+    CHECK(foundStop);
+    CHECK(foundCut);
+
+    Tracker_ParseCellForEditor(&tracker);
+    tracker.editEffectActive[1] = false;
+    Tracker_ApplyEditorToCell(&tracker);
+    CHECK(tracker.effectMemoryDirty);
+    Tracker_AnalyzeEffectMemory(&tracker, nullptr);
+    CHECK_FALSE(tracker.effectMemoryDirty);
+    for (int i = 0; i < tracker.effectMemoryCount; ++i)
+        CHECK(tracker.effectMemoryRows[i].code != 0xEC);
+}
+
+TEST_CASE("Effects table exposes pitch and operator values at this row")
+{
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT,
+        "2\n"
+        "C-4004001221612|.......|.......|.......|.......|.......\n"
+        ".......|.......|.......|.......|.......|.......\n", "Here values");
+    tracker.editRow = 1;
+    tracker.editChannel = 0;
+    tracker.editSpecial = 4;
+    tracker.editPatches[0] = Tracker_DefaultPatch();
+    tracker.editPatchValid[0] = true;
+    Tracker_AnalyzeEffectMemory(&tracker, nullptr);
+    bool foundPitch = false;
+    bool foundOperator = false;
+    for (int i = 0; i < tracker.effectMemoryCount; ++i)
+    {
+        const TrackerEffectMemoryRow &entry = tracker.effectMemoryRows[i];
+        for (const char *letter = entry.effect; *letter; ++letter)
+        {
+            const bool lower = *letter >= 'a' && *letter <= 'z';
+            CHECK_FALSE(lower);
+        }
+        if (entry.code == 0x01)
+        {
+            foundPitch = true;
+            CHECK(entry.hereValueValid);
+            CHECK(entry.hereValue == 34);
+            CHECK(std::strstr(entry.hereDetail, "Hz") != nullptr);
+        }
+        if (entry.code == 0x16)
+        {
+            foundOperator = true;
+            CHECK(entry.hereValueValid);
+            CHECK(entry.hereValue == 2);
+            CHECK(std::strcmp(entry.hereDetail, "OP1") == 0);
+        }
+    }
+    CHECK(foundPitch);
+    CHECK(foundOperator);
+}
+
+TEST_CASE("Portamento shows sounding pitches and glide time at the edited row")
+{
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT,
+        "3\n"
+        "C-400400305|.......|.......|.......|.......|.......\n"
+        "D-4....|.......|.......|.......|.......|.......\n"
+        ".......0122|.......|.......|.......|.......|.......\n", "Portamento detail");
+    tracker.editChannel = 0;
+    tracker.editSpecial = 4;
+    tracker.editPatches[0] = Tracker_DefaultPatch();
+    tracker.editPatchValid[0] = true;
+
+    tracker.editRow = 1;
+    Tracker_AnalyzeEffectMemory(&tracker, nullptr);
+    bool foundGlide = false;
+    for (int i = 0; i < tracker.effectMemoryCount; ++i)
+    {
+        const TrackerEffectMemoryRow &entry = tracker.effectMemoryRows[i];
+        if (entry.code != 0x03) continue;
+        foundGlide = true;
+        CHECK(entry.hereValue == 5);
+        CHECK(std::strstr(entry.hereDetail, "now ") != nullptr);
+        CHECK(std::strstr(entry.hereDetail, "from ") != nullptr);
+        CHECK(std::strstr(entry.hereDetail, "to ") != nullptr);
+        CHECK(std::strstr(entry.hereDetail, "C5") != nullptr);
+        CHECK(std::strstr(entry.hereDetail, "D5") != nullptr);
+        CHECK(std::strstr(entry.hereDetail, " ms;") != nullptr);
+        CHECK(std::strstr(entry.hereDetail, " ms left") != nullptr);
+    }
+    CHECK(foundGlide);
+
+    tracker.editRow = 2;
+    Tracker_AnalyzeEffectMemory(&tracker, nullptr);
+    bool foundSlide = false;
+    bool retainedPortaSpeed = false;
+    for (int i = 0; i < tracker.effectMemoryCount; ++i)
+    {
+        const TrackerEffectMemoryRow &entry = tracker.effectMemoryRows[i];
+        if (entry.code == 0x01) foundSlide = true;
+        if (entry.code == 0x03)
+        {
+            retainedPortaSpeed = true;
+            CHECK(std::strstr(entry.hereDetail, "pitch slide overrides glide") != nullptr);
+        }
+    }
+    CHECK(foundSlide);
+    CHECK(retainedPortaSpeed);
+}
+
+TEST_CASE("Nearest note labels include nonzero cents offsets")
+{
+    const double dSharp4 = 440.0 * std::pow(2.0, (63 - 69) / 12.0);
+    char note[12] = {};
+    Tracker_EffectMemoryClosestNote(dSharp4, note, sizeof(note));
+    CHECK(std::strcmp(note, "D#4") == 0);
+    Tracker_EffectMemoryClosestNote(dSharp4 * std::pow(2.0, 23.0 / 1200.0), note, sizeof(note));
+    CHECK(std::strcmp(note, "D#4+.23") == 0);
+    Tracker_EffectMemoryClosestNote(dSharp4 * std::pow(2.0, -23.0 / 1200.0), note, sizeof(note));
+    CHECK(std::strcmp(note, "D#4-.23") == 0);
+}
+
+TEST_CASE("Portamento command cancels a running pitch slide")
+{
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT,
+        "2\n"
+        "C-400400122|.......|.......|.......|.......|.......\n"
+        ".......030F|.......|.......|.......|.......|.......\n", "Pitch override");
+    tracker.editRow = 1;
+    tracker.editChannel = 0;
+    tracker.editSpecial = 4;
+    tracker.editPatches[0] = Tracker_DefaultPatch();
+    tracker.editPatchValid[0] = true;
+    Tracker_AnalyzeEffectMemory(&tracker, nullptr);
+    bool foundPorta = false;
+    for (int i = 0; i < tracker.effectMemoryCount; ++i)
+    {
+        const TrackerEffectMemoryRow &entry = tracker.effectMemoryRows[i];
+        CHECK(entry.code != 0x01);
+        if (entry.code == 0x03) foundPorta = true;
+    }
+    CHECK(foundPorta);
+    CHECK(std::strstr(Tracker_EffectMemoryRule(0x01).until, "03xx") != nullptr);
+    CHECK(std::strstr(Tracker_EffectMemoryRule(0x02).until, "03xx") != nullptr);
+}
+
+TEST_CASE("OFF stops the sounding glide but retains the portamento speed")
+{
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT,
+        "3\n"
+        "C-400400305|.......|.......|.......|.......|.......\n"
+        "D-4....|.......|.......|.......|.......|.......\n"
+        "OFF....|.......|.......|.......|.......|.......\n", "Portamento OFF");
+    tracker.editRow = 2;
+    tracker.editChannel = 0;
+    tracker.editSpecial = 1;
+    tracker.editPatches[0] = Tracker_DefaultPatch();
+    tracker.editPatchValid[0] = true;
+    Tracker_AnalyzeEffectMemory(&tracker, nullptr);
+    bool foundPorta = false;
+    for (int i = 0; i < tracker.effectMemoryCount; ++i)
+    {
+        const TrackerEffectMemoryRow &entry = tracker.effectMemoryRows[i];
+        if (entry.code != 0x03) continue;
+        foundPorta = true;
+        CHECK(entry.hereValue == 5);
+        CHECK(std::strcmp(entry.hereDetail, "key off; speed retained") == 0);
+    }
+    CHECK(foundPorta);
 }
 
 TEST_CASE("Tracker grid note audition uses cell note with inherited instrument and volume")
@@ -2259,6 +2590,70 @@ TEST_CASE("Patch morph advances per tick and EE00 cancels without snapping back"
     CHECK_FALSE(module->active_song.channels[0].patch_morph_active);
     CHECK(canceledTl == module->live_patches[0].op[0].TL);
 
+    xfm_module_destroy(module);
+}
+
+TEST_CASE("FM operator edits stay on their channel until a different instrument is selected")
+{
+    xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+    xfm_patch_opn first = Tracker_DefaultPatch();
+    xfm_patch_opn second = Tracker_DefaultPatch();
+    first.op[0].MUL = 1;
+    first.op[0].TL = 20;
+    second.op[0].MUL = 3;
+    second.op[0].TL = 40;
+    xfm_patch_set(module, 1, &first, sizeof(first), XFM_CHIP_YM3438);
+    xfm_patch_set(module, 2, &second, sizeof(second), XFM_CHIP_YM3438);
+
+    const char *pattern =
+        "7\n"
+        "C-4017F16161230|C-4017F\n"
+        "...01..|.......\n"
+        "D-4017F|.......1619\n"
+        "E-4....|.......\n"
+        "F-4027F|.......\n"
+        "G-4017F|.......\n"
+        ".......|.......\n";
+    REQUIRE(xfm_song_declare(module, 1, pattern, 100, 4) == 1);
+    xfm_song_play(module, 1, false);
+
+    Test_AdvanceSongUntilRow(module, 1);
+    CHECK(module->live_patch_valid[0]);
+    CHECK(module->live_patches[0].op[0].MUL == 6);
+    CHECK(module->live_patches[0].op[0].TL == 0x30);
+    CHECK(module->live_patches[1].op[0].MUL == 1);
+    CHECK(module->live_patches[1].op[0].TL == 20);
+
+    Test_AdvanceSongUntilRow(module, 2);
+    Test_MixSongFrames(module, 1024);
+    CHECK(module->live_patches[0].op[0].MUL == 6); // explicit same instrument, new note
+    CHECK(module->live_patches[0].op[0].TL == 0x30);
+    CHECK(module->live_patches[1].op[0].MUL == 9); // independent channel edit
+    CHECK(module->patches[1].op[0].MUL == 1);
+    CHECK(module->patches[1].op[0].TL == 20);      // instrument bank is unchanged
+
+    Test_AdvanceSongUntilRow(module, 3);
+    Test_MixSongFrames(module, 1024);
+    CHECK(module->live_patches[0].op[0].MUL == 6); // inherited instrument, new note
+    CHECK(module->live_patches[0].op[0].TL == 0x30);
+
+    Test_AdvanceSongUntilRow(module, 4);
+    CHECK(module->active_song.channels[0].current_patch == 2);
+    CHECK_FALSE(module->live_patch_valid[0]); // replacement note waits for its release gap
+
+    Test_AdvanceSongUntilRow(module, 5);
+    CHECK(module->live_patches[0].op[0].MUL == 3); // instrument 02 loaded at key-on
+    CHECK(module->live_patches[0].op[0].TL == 40);
+    CHECK(module->active_song.channels[0].current_patch == 1);
+    CHECK(module->live_patches[1].op[0].MUL == 9);
+
+    Test_AdvanceSongUntilRow(module, 6);
+    CHECK(module->live_patches[0].op[0].MUL == 1); // returning loads original base
+    CHECK(module->live_patches[0].op[0].TL == 20);
+    CHECK(module->live_patches[1].op[0].MUL == 9);
+    CHECK(module->patches[1].op[0].MUL == 1);
+    CHECK(module->patches[1].op[0].TL == 20);
     xfm_module_destroy(module);
 }
 

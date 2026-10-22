@@ -11558,6 +11558,14 @@ static inline void Loyalty_Activate(UserContext *usr)
     Loyalty_Save(usr);
 }
 
+static inline void Loyalty_CheckNewDay(UserContext *usr)
+{
+    if (!usr) return;
+    const int today = AdPolicy_LocalDay(static_cast<int64_t>(std::time(nullptr)));
+    if (today > usr->loyalty.lastSeenDay)
+        Loyalty_Activate(usr);
+}
+
 static inline void Loyalty_StartNewCampaign(UserContext *usr)
 {
     if (!usr) return;
@@ -13916,6 +13924,9 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
 {
     if (!usr)
         return;
+    // Level setup can follow a long results screen or background suspension.
+    // Queue the new day's reward before the opening Angel story is eligible.
+    Loyalty_CheckNewDay(usr);
     // A loss ad belongs only to the Retry action for the result just left.
     usr->pendingLossInterstitial = false;
     usr->pendingOutcomeInterstitialAfterStory = 0;
@@ -19886,6 +19897,7 @@ void vtx::init(vtx::VertexContext *ctx)
 void vtx::loop(vtx::VertexContext *ctx)
 {
     UserContext *usr = static_cast<UserContext *>(ctx->usrptr);
+    Loyalty_CheckNewDay(usr);
     AdPolicy_Tick(usr);
 
 #if defined(__ANDROID__) || defined(ANDROID)
@@ -20058,6 +20070,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     // Start-of-level story: show after the first rendered frame whenever the
     // current chapter defines an intro beat.
     if (campaignStartStoryId != 0 &&
+        !usr->loyaltyWindowPending &&
         !usr->adInterstitialInFlight &&
         usr->playerRoute == PlayerRoute::CAMPAIGN &&
         usr->phase == UserContext::Phase::IDLE &&
@@ -21199,6 +21212,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                 if (usr->tracker.editorWindowRequested)
                 {
                     usr->tracker.editorWindowRequested = false;
+                    usr->tracker.effectMemoryScrollY = 0.0f;
                     Tracker_AnalyzeEffectMemory(&usr->tracker, &usr->sound);
                     usr->windowStack.windowStackPushTrackerEditorWindow();
                 }
@@ -28121,6 +28135,10 @@ END_LINE:
             .height = (float)ctx->screenHeight,
         });
         usr->frameProfileGraph.mark(FrameProfileGraph::UiPrep);
+        if (usr->gameMode == UserContext::GameMode::TRACKER &&
+            usr->tracker.active && usr->tracker.editorOpen && usr->tracker.effectMemoryDirty &&
+            !usr->tracker.sliderDragging)
+            Tracker_AnalyzeEffectMemory(&usr->tracker, &usr->sound);
         Clay_BeginLayout();
 
         // When any modal/window is present, the window-stack overlay dims the whole screen.

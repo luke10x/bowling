@@ -388,16 +388,22 @@ inline const int32_t *Tracker_EffectNumEditAllowedValues(int32_t *outCount)
 }
 
 static constexpr int TRACKER_EFFECT_MEMORY_MAX_ROWS = 96;
+static constexpr float TRACKER_EFFECT_MEMORY_MAX_VIEWPORT_HEIGHT = 260.0f;
 
 struct TrackerEffectMemoryRow
 {
     uint8_t code = TRACKER_EFFECT_CODE_NONE;
     uint8_t initialValue = 0;
+    char patchValue[80] = {};
     int sourceRow = -1;
     int rowsAgo = 0;
     char effect[40] = {};
     char effective[80] = {};
-    const char *model = "";
+    char hereDetail[192] = {};
+    int hereValue = 0;
+    bool hereValueValid = false;
+    const char *continueMode = "";
+    const char *until = "";
 };
 
 struct Tracker
@@ -680,6 +686,7 @@ struct Tracker
     TrackerEffectMemoryRow effectMemoryRows[TRACKER_EFFECT_MEMORY_MAX_ROWS] = {};
     int effectMemoryCount = 0;
     bool effectMemoryUnavailable = false;
+    bool effectMemoryDirty = false;
     float effectMemoryScrollY = 0.0f;
     bool effectMemoryTouchDragging = false;
     SDL_FingerID effectMemoryTouchFingerId = 0;
@@ -1383,14 +1390,11 @@ inline bool Tracker_SelectedEffectActive(const Tracker *self)
 inline bool Tracker_EffectMemoryVisible(const Tracker *self, const TrackerEffectMemoryRow &entry)
 {
     if (!self || entry.sourceRow < 0) return false;
+    if (entry.sourceRow == self->editRow) return true;
     if (Tracker_FindActiveEffectSlot(self, entry.code) >= 0) return false;
     // New notes discard the previous arpeggio unless this row schedules one.
     if (entry.code == 0x00 && self->editSpecial == 0) return false;
-    // An explicit patch reload replaces the earlier live-register edits.
     const uint8_t code = entry.code;
-    const bool patchRegister = ((code >= 0x11 && code <= 0x16) ||
-        (code >= 0x19 && code <= 0x1D) || (code >= 0x50 && code <= 0x63));
-    if (patchRegister && self->editInstrumentExplicit) return false;
     if ((code == 0x01 || code == 0x02) &&
         (Tracker_FindActiveEffectSlot(self, 0x03) >= 0 ||
          Tracker_FindActiveEffectSlot(self, 0xE1) >= 0 ||
@@ -1531,12 +1535,12 @@ inline const char *Tracker_EffectDescription(uint8_t code)
     case 0xF6: return "Enable macro target. xx is the macro target id. This clears the channel-side disable mask for that macro target and remains in effect until disabled again.";
     case 0xFC: return "Note release. xx is the tick in the current row where macros are released and the channel is keyed off after release tails complete. Row-scoped Furnace-style effect.";
     case 0x10: return "OPN chip LFO. A is on/off, B is chip LFO frequency 0..7. This is chip-global, not instrument-local: changing it affects the whole FM chip until another 10xy changes it.";
-    case 0x11: return "Feedback. xx is FB 0..7. Writes live patch feedback on the current channel. It affects the sounding voice now, but the stored instrument is unchanged; a later note reload may replace it.";
-    case 0x12: return "Operator 1 TL. xx is total level 0..127, where smaller is louder. Edits the live patch on the current channel only; it persists for the current live voice until another patch write or note reload changes it.";
+    case 0x11: return "Feedback. xx is FB 0..7. Writes live patch feedback on the current channel. It affects the sounding voice now, but the stored instrument is unchanged; a different instrument or patch edit may replace it.";
+    case 0x12: return "Operator 1 TL. xx is total level 0..127, where smaller is louder. Edits the live patch on the current channel only; it persists across notes until changed, a different instrument is selected, or the stored patch is edited.";
     case 0x13: return "Operator 2 TL. xx is total level 0..127, where smaller is louder. Live channel patch only; not written back into the instrument.";
     case 0x14: return "Operator 3 TL. xx is total level 0..127, where smaller is louder. Live channel patch only; not written back into the instrument.";
     case 0x15: return "Operator 4 TL. xx is total level 0..127, where smaller is louder. Live channel patch only; not written back into the instrument.";
-    case 0x16: return "Operator multiplier. A selects operator 1..4, B is MUL 0..15. Live channel patch only; it affects the sounding voice until changed or a note reload restores instrument values.";
+    case 0x16: return "Operator multiplier. A selects operator 1..4, B is MUL 0..15. Live channel patch only; it persists across notes until changed, a different instrument is selected, or the stored patch is edited.";
     case 0x19: return "All-operator attack. xx is AR 0..31. Live channel patch only. Higher values make attack faster.";
     case 0x1A: return "Operator 1 attack. xx is AR 0..31. Live channel patch only.";
     case 0x1B: return "Operator 2 attack. xx is AR 0..31. Live channel patch only.";
@@ -2286,6 +2290,7 @@ inline void Tracker_MoveInstrument(Tracker *self, int instrument, int direction)
     if (self->editInstrument == from) self->editInstrument = to;
     else if (self->editInstrument == to) self->editInstrument = from;
     self->patternDirty = true;
+    self->effectMemoryDirty = true;
     self->copyOnWriteRequested = true;
     Tracker_RebuildUsedInstruments(self);
     Tracker_FlashInstrument(self, to, TRACKER_CHANGE_FLASH_EDIT);
@@ -2487,6 +2492,7 @@ inline void Tracker_ApplyEditorToCell(Tracker *self)
         cell[pos] = '\0';
     cell[TRACKER_CELL_CHARS - 1] = '\0';
     self->patternDirty = true;
+    self->effectMemoryDirty = true;
     self->copyOnWriteRequested = true;
     Tracker_RebuildUsedInstruments(self);
 }
@@ -2628,6 +2634,7 @@ inline void Tracker_DeleteEditorCell(Tracker *self)
         self->editEffectValuesByDef[i] = 0;
     self->editEffect = TRACKER_DEFAULT_EFFECT_DEF_INDEX;
     self->patternDirty = true;
+    self->effectMemoryDirty = true;
     self->copyOnWriteRequested = true;
     Tracker_RebuildUsedInstruments(self);
 }

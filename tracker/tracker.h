@@ -331,7 +331,6 @@ static constexpr TrackerEffectDef TRACKER_EFFECT_DEFS[] = {
     {0xEA, "Legato", "on", "", 0, 1, 0, 0, 1},
     {0xEC, "Note cut", "tick", "", 0, 255, 0, 0, 1},
     {0xED, "Note delay", "tick", "", 0, 255, 0, 0, 1},
-    {0xEE, "Patch morph", "speed", "", 0, 255, 0, 0, 1},
     {0xF5, "Macro off", "target", "", 0, XFM_MACRO_SSG4, 0, 0, 1},
     {0xF6, "Macro on", "target", "", 0, XFM_MACRO_SSG4, 0, 0, 1},
     {0xFC, "Note release", "tick", "", 0, 255, 0, 0, 1},
@@ -1530,7 +1529,6 @@ inline const char *Tracker_EffectDescription(uint8_t code)
     case 0xEA: return "Legato toggle. 00 off, non-zero on. When on, later notes keep the current envelope instead of re-keying if legato playback is possible. Sticky per channel until changed.";
     case 0xEC: return "Note cut. xx is the tick in the current row where the channel is keyed off. Row-scoped Furnace-style effect.";
     case 0xED: return "Note delay. xx is the tick in the current row where this row's note is keyed on. Row-scoped Furnace-style effect.";
-    case 0xEE: return "Patch morph toward the row instrument. 00 cancels morph. Non-zero values set morph speed; current implementation advances on tracker ticks and larger values reach the target faster. Morph edits the live channel patch only, not the stored instrument.";
     case 0xF5: return "Disable macro target. xx is the macro target id. This is remembered in the channel macro mask until the target is re-enabled, all song state is reset, or playback restarts.";
     case 0xF6: return "Enable macro target. xx is the macro target id. This clears the channel-side disable mask for that macro target and remains in effect until disabled again.";
     case 0xFC: return "Note release. xx is the tick in the current row where macros are released and the channel is keyed off after release tails complete. Row-scoped Furnace-style effect.";
@@ -2438,8 +2436,9 @@ inline void Tracker_ParseCellForEditor(Tracker *self)
             break;
         self->editEffectCodes[slot] = (uint8_t)Tracker_ParseHexByte(cell + pos);
         self->editEffectValues[slot] = (uint8_t)Tracker_ParseHexByte(cell + pos + 2);
-        self->editEffectActive[slot] = self->editEffectCodes[slot] != TRACKER_EFFECT_CODE_NONE;
         int defIdx = Tracker_EffectDefIndexByCode(self->editEffectCodes[slot]);
+        // Unknown effects are ignored when an older cell is edited.
+        self->editEffectActive[slot] = defIdx > 0;
         if (defIdx > 0)
         {
             const TrackerEffectDef *def = &TRACKER_EFFECT_DEFS[defIdx];

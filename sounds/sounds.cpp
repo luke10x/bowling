@@ -1465,8 +1465,6 @@ void GameSoundSystem::stopMusic()
             chState.release_keyoff_pending = false;
             chState.envelope_rekey_pending = false;
             chState.retrigger_next_sample = -1;
-            chState.patch_morph_active = false;
-            chState.patch_morph_pending_start = false;
             for (int target = 0; target < XFM_MACRO_TARGET_COUNT; target++)
             {
                 chState.macro_states[target].active = false;

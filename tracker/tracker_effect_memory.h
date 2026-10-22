@@ -52,7 +52,6 @@ static inline TrackerEffectMemoryRule Tracker_EffectMemoryRule(uint8_t code)
     case 0xE1: case 0xE2: return {"TARGET", "REACHED"};
     case 0xE5: return {"NOTE", "NOTE\nor E580"};
     case 0xEA: return {"FOREVER", "EA00"};
-    case 0xEE: return {"TARGET", "REACHED\nor EE00"};
     case 0xF5: return {"FOREVER", "F6 TARGET"};
     case 0xF6: return {"MACRO", "END\nor F5"};
     case 0x30: return {"FOREVER", "3000"};
@@ -201,9 +200,6 @@ static inline bool Tracker_EffectMemoryFormatControl(
     case 0xEA:
         if (!state.legato_enabled) return false;
         std::snprintf(out, size, "on"); return true;
-    case 0xEE:
-        if (!state.patch_morph_active) return false;
-        std::snprintf(out, size, "toward patch %02X, speed %d", state.patch_morph_target_patch_id, state.patch_morph_speed); return true;
     case 0xF5:
         if (value > 0 && value < XFM_MACRO_TARGET_COUNT)
         {
@@ -362,10 +358,6 @@ static inline bool Tracker_EffectMemoryHereNumber(
     case 0xEA:
         *number = state.legato_enabled ? 1 : 0;
         std::snprintf(detail, detailSize, "%s", state.legato_enabled ? "on" : "off");
-        return true;
-    case 0xEE:
-        *number = state.patch_morph_target_patch_id;
-        std::snprintf(detail, detailSize, "target patch; speed %d", state.patch_morph_speed);
         return true;
     case 0x10:
         *number = probe->lfo_freq;

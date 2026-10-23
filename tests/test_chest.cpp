@@ -3,6 +3,33 @@
 
 #define CHEST_RENDER_NO_GPU
 #include "../chest.h"
+#include "../nitro_rune.h"
+
+TEST_CASE("Nitro rune starts with the nitro lesson and remains available")
+{
+    for (int level = 1; level < 7; ++level)
+        for (int i = 0; i < 1000; ++i)
+            CHECK(ChestRender::SelectPrizeForLevel(level, i / 1000.0f) !=
+                  ChestRender::PrizeKind::RuneNitro);
+    for (int level = 7; level <= 13; ++level)
+    {
+        bool found = false;
+        for (int i = 0; i < 1000; ++i)
+            found |= ChestRender::SelectPrizeForLevel(level, i / 1000.0f) ==
+                     ChestRender::PrizeKind::RuneNitro;
+        CHECK(found);
+    }
+}
+
+TEST_CASE("Nitro rune has an exclusive 80 percent use threshold and eased refill")
+{
+    CHECK(NitroRune_CanRefill(0.799f, 1.0f));
+    CHECK_FALSE(NitroRune_CanRefill(0.8f, 1.0f));
+    CHECK_FALSE(NitroRune_CanRefill(0.0f, 0.0f));
+    CHECK(NitroRune_EasedRefill01(0.0f) == 0.0f);
+    CHECK(NitroRune_EasedRefill01(NitroRuneTuning::RefillSeconds) == 1.0f);
+    CHECK(NitroRune_EasedRefill01(NitroRuneTuning::RefillSeconds / 2.0f) > 0.5f);
+}
 
 TEST_CASE("Chest pickup radius is 80 percent of its original size")
 {

@@ -276,6 +276,7 @@ static inline void Game_ShowMoneyReward(SDL_AudioDeviceID audioDevice)
 #include "sounds/sounds.h"
 #include "storage.h"
 #include "ad_policy.h"
+#include "nitro_rune.h"
 #include "loyalty.h"
 #include "transition.h"
 #include "tritest.h"
@@ -722,10 +723,11 @@ enum class RuneKind : uint8_t
     Skull = 3,
     GuardPins = 4,
     Football = 5,
+    Nitro = 6,
     None = 255,
 };
 
-static constexpr int kRuneKindCount = 6;
+static constexpr int kRuneKindCount = 7;
 static constexpr int kRuneFabMaxSlots = 18;
 static constexpr int kBoomBallShardCount = 6;
 static constexpr float kBallPhysicsRadiusM = 0.11f;
@@ -781,6 +783,8 @@ static inline int Rune_Index(RuneKind kind)
         return 4;
     case RuneKind::Football:
         return 5;
+    case RuneKind::Nitro:
+        return 6;
     default:
         return -1;
     }
@@ -802,6 +806,8 @@ static inline CollectableVisualKind Rune_ToCollectableVisualKind(RuneKind kind)
         return CollectableVisualKind::RuneGuardPins;
     case RuneKind::Football:
         return CollectableVisualKind::RuneFootball;
+    case RuneKind::Nitro:
+        return CollectableVisualKind::RuneNitro;
     default:
         return CollectableVisualKind::Coin;
     }
@@ -1432,7 +1438,7 @@ struct UserContext
     // World collectables and flying HUD rewards share mesh geometry, but each
     // owns instance buffers so neither draw restores the mesh's identity data.
     std::array<MeshInstanceBatch, 2> worldCollectableBatches;
-    std::array<MeshInstanceBatch, 8> flyingCollectableBatches;
+    std::array<MeshInstanceBatch, 9> flyingCollectableBatches;
     AssetMesh gemMesh;
     AssetMesh runeBoomMesh;
     AssetMesh runeBoltMesh;
@@ -1440,6 +1446,12 @@ struct UserContext
     AssetMesh runeSkullMesh;
     AssetMesh runeGuardPinsMesh;
     AssetMesh runeFootballMesh;
+    AssetMesh runeNitroMesh;
+    bool nitroRuneRefillActive = false;
+    float nitroRuneRefillElapsed = 0.0f;
+    float nitroRuneRefillAmount = 0.0f;
+    float nitroRuneRefillAdded = 0.0f;
+    float nitroRuneBlinkRemaining = 0.0f;
     bool skullBallActive = false;
     bool skullThrowStarted = false;
     bool skullEnemyReversePending = false;
@@ -3289,8 +3301,15 @@ static inline void BuildBallChargeHud(UserContext *usr, float deltaTime)
                                       (Clay_Color){86, 86, 96, 180};
     if (charge01 >= 0.999f || pulse01 >= 0.999f)
         chargeFill = (Clay_Color){180, 245, 255, 240};
-    const Clay_Color chargeBorder = highlighted ? (Clay_Color){180, 245, 255, 240} :
+    Clay_Color chargeBorder = highlighted ? (Clay_Color){180, 245, 255, 240} :
                                     charged ? (Clay_Color){80, 205, 255, 180} : CLAY_COLOR_BORDER;
+    if (usr->nitroRuneBlinkRemaining > 0.0f)
+    {
+        const float blink = 0.5f + 0.5f * sinf(
+            (NitroRuneTuning::BlinkSeconds - usr->nitroRuneBlinkRemaining) * 24.0f);
+        chargeFill = ClayColorMix(chargeFill, (Clay_Color){255, 255, 255, 255}, blink * 0.8f);
+        chargeBorder = ClayColorMix(chargeBorder, (Clay_Color){255, 255, 255, 255}, blink);
+    }
     Clay_String chargeLabel = ClayArena_AllocString(arena, Txl_Get(usr->language, TXL_BALL_CHARGE_FMT));
     BuildHudProgressButton(
         BallChargeHudId(), CLAY_ID("BallChargeFill"), CLAY_ID("BallChargeRest"),
@@ -4104,6 +4123,11 @@ static inline void ResetAllElectroBalls(UserContext *usr)
 {
     if (!usr)
         return;
+    usr->nitroRuneRefillActive = false;
+    usr->nitroRuneRefillElapsed = 0.0f;
+    usr->nitroRuneRefillAmount = 0.0f;
+    usr->nitroRuneRefillAdded = 0.0f;
+    usr->nitroRuneBlinkRemaining = 0.0f;
     usr->electroBall.setChargeCapacity(1.0f);
     usr->enemyElectroBall.setChargeCapacity(EnemyManaCapacityScale(usr));
     usr->electroBall.resetCharge();
@@ -8417,6 +8441,9 @@ static inline AtlasUvRect Rune_DecalUvRect(RuneKind kind)
         return {0.768265201f, 0.816354294f, 0.793164938f, 0.870728935f};
     case RuneKind::Football:
         return {0.882147175f, 0.819935992f, 0.929429086f, 0.867032472f};
+    case RuneKind::Nitro:
+        // Reuse the diamond on the charge meter at the top left.
+        return {0.820786133f, 0.752661133f, 0.866784863f, 0.813214844f};
     default:
         return {0.75f, 0.1875f, 0.8125f, 0.25f};
     }
@@ -8597,6 +8624,8 @@ static inline Gles3_ImageConfig *Rune_HudImage(Clayton *clayton, RuneKind kind)
         return &clayton->hudRuneGuardPinsImage;
     case RuneKind::Football:
         return &clayton->hudRuneFootballImage;
+    case RuneKind::Nitro:
+        return &clayton->hudDiamondImage;
     default:
         return nullptr;
     }
@@ -8618,6 +8647,8 @@ static inline const char *Rune_DisplayName(RuneKind kind)
         return "Patrol Pins Rune";
     case RuneKind::Football:
         return "Football Rune";
+    case RuneKind::Nitro:
+        return "Nitro Rune";
     default:
         return "Rune";
     }
@@ -8639,6 +8670,8 @@ static inline TxlKey Rune_DisplayNameKey(RuneKind kind)
         return TXL_RUNE_NAME_GUARD_PINS;
     case RuneKind::Football:
         return TXL_RUNE_NAME_FOOTBALL;
+    case RuneKind::Nitro:
+        return TXL_RUNE_NAME_NITRO;
     default:
         return TXL_RUNE_NAME_DEFAULT;
     }
@@ -8660,6 +8693,8 @@ static inline const char *Rune_AbilityDescription(RuneKind kind)
         return "Deploys three marching guard pins that obstruct the enemy ball.";
     case RuneKind::Football:
         return "Bounces the active ball immediately; your football also becomes lighter and faster.";
+    case RuneKind::Nitro:
+        return "Refills your nitro meter. Use it below 80% charge.";
     default:
         return "Adds a new ability to your rune tray.";
     }
@@ -8681,6 +8716,8 @@ static inline TxlKey Rune_AbilityDescriptionKey(RuneKind kind)
         return TXL_RUNE_DESC_GUARD_PINS;
     case RuneKind::Football:
         return TXL_RUNE_DESC_FOOTBALL;
+    case RuneKind::Nitro:
+        return TXL_RUNE_DESC_NITRO;
     default:
         return TXL_RUNE_DESC_DEFAULT;
     }
@@ -8697,6 +8734,10 @@ static inline const char *Rune_UnavailableDropPrompt(const UserContext *usr, int
     {
         return Txl_Get(usr->language, TXL_NEED_AT_LEAST_2_BALLS);
     }
+
+    if ((RuneKind)runeIndex == RuneKind::Nitro &&
+        !NitroRune_CanRefill(usr->electroBall.charge, usr->electroBall.chargeCapacity))
+        return Txl_Get(usr->language, TXL_RUNE_NITRO_TOO_FULL);
 
     return Txl_Get(usr->language, TXL_CANNOT_USE_NOW);
 }
@@ -8752,6 +8793,7 @@ static inline TxlKey RuneOutcomeLabelKey(int kind)
     case 8: return TXL_RUNE_OUTCOME_SKULL;
     case 9: return TXL_RUNE_OUTCOME_ICY_BALL;
     case 10: return TXL_RUNE_OUTCOME_BOOM;
+    case 11: return TXL_RUNE_OUTCOME_NITRO;
     default: return TXL_RUNE_OUTCOME_DEFAULT;
     }
 }
@@ -9110,6 +9152,14 @@ static inline bool Rune_IsEnabledForCurrentPhase(const UserContext *usr, int run
             usr->phase == UserContext::Phase::AIM ||
             usr->phase == UserContext::Phase::SWING ||
             usr->phase == UserContext::Phase::THROW;
+    case RuneKind::Nitro:
+        return Campaign_HasUnlockedNosTool(usr) &&
+            !usr->nitroRuneRefillActive &&
+            NitroRune_CanRefill(usr->electroBall.charge, usr->electroBall.chargeCapacity) &&
+            (usr->phase == UserContext::Phase::IDLE ||
+             usr->phase == UserContext::Phase::AIM ||
+             usr->phase == UserContext::Phase::SWING ||
+             usr->phase == UserContext::Phase::THROW);
     default:
         return false;
     }
@@ -9517,6 +9567,43 @@ static inline void RuneFootball_Activate(UserContext *usr)
     }
 
     UI_TriggerRuneOutcomeBanner(usr, 6);
+}
+
+static inline void RuneNitro_Activate(UserContext *usr)
+{
+    if (!usr || !NitroRune_CanRefill(usr->electroBall.charge, usr->electroBall.chargeCapacity))
+        return;
+    usr->nitroRuneRefillActive = true;
+    usr->nitroRuneRefillElapsed = 0.0f;
+    usr->nitroRuneRefillAmount = usr->electroBall.chargeCapacity - usr->electroBall.charge;
+    usr->nitroRuneRefillAdded = 0.0f;
+    usr->nitroRuneBlinkRemaining = NitroRuneTuning::BlinkSeconds;
+    usr->electroBall.triggerPickupPulse(1.0f, 2.0f);
+    // A refill uses the same positive confirmation sound as re-oiling and buying a ball.
+    usr->sound.playSfxBuy();
+    UI_TriggerRuneOutcomeBanner(usr, 11);
+}
+
+static inline void RuneNitro_Tick(UserContext *usr, float dt)
+{
+    if (!usr) return;
+    const float step = glm::clamp(dt, 0.0f, 0.10f);
+    usr->nitroRuneBlinkRemaining = glm::max(0.0f, usr->nitroRuneBlinkRemaining - step);
+    if (!usr->nitroRuneRefillActive) return;
+    usr->nitroRuneRefillElapsed += step;
+    const float added = usr->nitroRuneRefillAmount * NitroRune_EasedRefill01(usr->nitroRuneRefillElapsed);
+    // Add the easing delta rather than overwriting charge: gem pickups and
+    // active nitro use can still change the meter during the refill.
+    usr->electroBall.charge = glm::clamp(
+        usr->electroBall.charge + glm::max(0.0f, added - usr->nitroRuneRefillAdded),
+        0.0f, usr->electroBall.chargeCapacity);
+    usr->nitroRuneRefillAdded = added;
+    if (usr->nitroRuneRefillElapsed >= NitroRuneTuning::RefillSeconds)
+    {
+        usr->electroBall.charge = usr->electroBall.chargeCapacity;
+        usr->nitroRuneRefillActive = false;
+        usr->electroBall.triggerPickupPulse(1.0f);
+    }
 }
 
 static inline void RuneGuardPins_Clear(UserContext *usr)
@@ -10997,6 +11084,8 @@ static inline RuneKind Chest_PrizeRuneKind(ChestRender::PrizeKind prize)
         return RuneKind::GuardPins;
     case ChestRender::PrizeKind::RuneFootball:
         return RuneKind::Football;
+    case ChestRender::PrizeKind::RuneNitro:
+        return RuneKind::Nitro;
     default:
         return RuneKind::None;
     }
@@ -11707,13 +11796,14 @@ static inline void Progress_SaveUnlocksAndBank(UserContext *usr)
     snprintf(
         buf,
         sizeof(buf),
-        "%d,%d,%d,%d,%d,%d",
+        "%d,%d,%d,%d,%d,%d,%d",
         glm::clamp(usr->runeCounts[0], 0, 99),
         glm::clamp(usr->runeCounts[1], 0, 99),
         glm::clamp(usr->runeCounts[2], 0, 99),
         glm::clamp(usr->runeCounts[3], 0, 99),
         glm::clamp(usr->runeCounts[4], 0, 99),
-        glm::clamp(usr->runeCounts[5], 0, 99)
+        glm::clamp(usr->runeCounts[5], 0, 99),
+        glm::clamp(usr->runeCounts[6], 0, 99)
     );
     usr->storage.setChar(Storage::RUNES, buf, strlen(buf));
 }
@@ -19351,6 +19441,7 @@ void vtx::init(vtx::VertexContext *ctx)
     BuildRuneTokenMesh(&usr->runeSkullMesh, RuneKind::Skull);
     BuildRuneTokenMesh(&usr->runeGuardPinsMesh, RuneKind::GuardPins);
     BuildRuneTokenMesh(&usr->runeFootballMesh, RuneKind::Football);
+    BuildRuneTokenMesh(&usr->runeNitroMesh, RuneKind::Nitro);
     BuildBoomBallShardMeshes(usr);
     Angel_InitIfNeeded(usr);
 
@@ -19651,7 +19742,8 @@ void vtx::init(vtx::VertexContext *ctx)
             int skull = 0;
             int guardPins = 0;
             int football = 0;
-            const int runeReadCount = std::sscanf(tmp, "%d,%d,%d,%d,%d,%d", &boom, &bolt, &freeze, &skull, &guardPins, &football);
+            int nitro = 0;
+            const int runeReadCount = std::sscanf(tmp, "%d,%d,%d,%d,%d,%d,%d", &boom, &bolt, &freeze, &skull, &guardPins, &football, &nitro);
             if (runeReadCount >= 3)
             {
                 usr->runeCounts[0] = glm::clamp(boom, 0, 99);
@@ -19660,6 +19752,7 @@ void vtx::init(vtx::VertexContext *ctx)
                 usr->runeCounts[3] = glm::clamp(skull, 0, 99);
                 usr->runeCounts[4] = glm::clamp(guardPins, 0, 99);
                 usr->runeCounts[5] = glm::clamp(football, 0, 99);
+                usr->runeCounts[6] = glm::clamp(nitro, 0, 99);
                 RuneFab_MarkNeedsRebuild(usr);
             }
         }
@@ -20009,6 +20102,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     const int flyHudBoundaryThisFrame = usr->hudAboveThis;
     float deltaTime = (float)usr->fpsCounter.startFrame();
     const float safeDeltaTime = std::isfinite(deltaTime) ? glm::clamp(deltaTime, 0.0f, 0.100f) : (1.0f / 60.0f);
+    RuneNitro_Tick(usr, safeDeltaTime);
     const bool lowFpsAimSwingFrame = safeDeltaTime > 1.0f / PhysicsStepSchedule::LowFpsThreshold;
     auto vec3Finite = [](const glm::vec3 &v) -> bool {
         return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
@@ -27767,6 +27861,7 @@ END_LINE:
                 &usr->runeSkullMesh,
                 &usr->runeGuardPinsMesh,
                 &usr->runeFootballMesh,
+                &usr->runeNitroMesh,
                 &usr->everythingTexture,
                 &usr->coinLane,
                 usr->flyingCollectableBatches,
@@ -27859,6 +27954,10 @@ END_LINE:
                     {
                         RuneFootball_Activate(usr);
                     }
+                    else if (consumedKind == RuneKind::Nitro)
+                    {
+                        RuneNitro_Activate(usr);
+                    }
 	                usr->runeFabConsuming = -1;
                 if (consumedSlot >= 0 && consumedSlot < kRuneFabMaxSlots)
                     usr->runeFabSlotKind[consumedSlot] = -1;
@@ -27870,9 +27969,12 @@ END_LINE:
         }
 	        if (!runeFabHeldAvailable && !runeFabConsuming)
 	            usr->runeDropAuraCloseness = 0.0f;
-	        if (runeFabHeldAvailable)
+        const bool heldNitroTooFull = runeFabHeld &&
+            RuneFab_KindForSlot(usr, usr->runeFabDragging) == (int)RuneKind::Nitro &&
+            !NitroRune_CanRefill(usr->electroBall.charge, usr->electroBall.chargeCapacity);
+        if (runeFabHeldAvailable || heldNitroTooFull)
 	        {
-            const float targetAura = RuneFab_JoystickDropTargetCloseness01(usr);
+            const float targetAura = heldNitroTooFull ? 0.0f : RuneFab_JoystickDropTargetCloseness01(usr);
             const float auraCatchup = 1.0f - std::exp(-glm::clamp((float)deltaTime, 0.0f, 0.05f) * 8.0f);
             usr->runeDropAuraCloseness = glm::mix(usr->runeDropAuraCloseness, targetAura, auraCatchup);
             usr->enjoy.renderRuneDropTarget(
@@ -29077,6 +29179,13 @@ END_LINE:
                                     nosBase = ClayColorMix(nosBase, (Clay_Color){150, 18, 28, 220}, nosEmptyBlink01);
                                     nosFill = ClayColorMix(nosFill, (Clay_Color){245, 42, 48, 230}, nosEmptyBlink01);
                                     nosBorder = ClayColorMix(nosBorder, (Clay_Color){255, 72, 78, 230}, nosEmptyBlink01);
+                                    if (usr->nitroRuneBlinkRemaining > 0.0f)
+                                    {
+                                        const float blink = 0.5f + 0.5f * sinf(
+                                            (NitroRuneTuning::BlinkSeconds - usr->nitroRuneBlinkRemaining) * 24.0f);
+                                        nosFill = ClayColorMix(nosFill, (Clay_Color){255, 255, 255, 255}, blink * 0.8f);
+                                        nosBorder = ClayColorMix(nosBorder, (Clay_Color){255, 255, 255, 255}, blink);
+                                    }
                                     CLAY(
                                         CLAY_ID("NosButtonSlideSlot"),
                                         {
@@ -29408,7 +29517,7 @@ END_LINE:
                         },
                     .floating = {
                         .offset = joystickOffset,
-                        .zIndex = 1,
+	                        .zIndex = (int16_t)(showRuneDropPrompt ? 100 : 1),
 	                        .attachPoints =
 	                            {.element = CLAY_ATTACH_POINT_CENTER_CENTER,
 	                             .parent = CLAY_ATTACH_POINT_CENTER_TOP},
@@ -30719,6 +30828,7 @@ if (!Chest_IsCinematicActive(usr))
 	        &usr->runeSkullMesh,
 	        &usr->runeGuardPinsMesh,
 	        &usr->runeFootballMesh,
+	        &usr->runeNitroMesh,
 	        &usr->everythingTexture,
 	        &usr->coinLane,
 	        usr->flyingCollectableBatches,

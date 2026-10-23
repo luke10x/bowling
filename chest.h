@@ -42,6 +42,7 @@ namespace ChestRender
         RuneSkull,
         RuneGuardPins,
         RuneFootball,
+        RuneNitro,
     };
 
     struct SpawnChanceConfig
@@ -113,50 +114,56 @@ namespace ChestRender
         {6, 5, PrizeKind::RuneBolt},
         {5, 10, PrizeKind::RuneFootball},
         // Level 7: Desert / Dog
-        {7, 35, PrizeKind::Money25},
+        {7, 30, PrizeKind::Money25},
         {7, 35, PrizeKind::Money50},
         {7, 20, PrizeKind::RuneBoom},
         {7, 10, PrizeKind::RuneBolt},
+        {7, 5, PrizeKind::RuneNitro},
         // Level 8: Timber Zone / Dog
-        {8, 20, PrizeKind::Money25},
+        {8, 15, PrizeKind::Money25},
         {8, 25, PrizeKind::Money50},
         {8, 20, PrizeKind::RuneBoom},
         {8, 10, PrizeKind::RuneBolt},
         {8, 10, PrizeKind::RuneFreeze},
         {8, 10, PrizeKind::RuneSkull},
         {8, 5, PrizeKind::RuneGuardPins},
+        {8, 5, PrizeKind::RuneNitro},
         // Level 9: Crystal Cavern / Beak
-        {9, 15, PrizeKind::Money25},
+        {9, 10, PrizeKind::Money25},
         {9, 20, PrizeKind::Money50},
         {9, 20, PrizeKind::RuneBoom},
         {9, 15, PrizeKind::RuneBolt},
         {9, 10, PrizeKind::RuneFreeze},
         {9, 10, PrizeKind::RuneSkull},
         {9, 10, PrizeKind::RuneGuardPins},
+        {9, 5, PrizeKind::RuneNitro},
         // Level 10: Gas Factory / Beak
-        {10, 10, PrizeKind::Money25},
+        {10, 5, PrizeKind::Money25},
         {10, 15, PrizeKind::Money50},
         {10, 20, PrizeKind::RuneBoom},
         {10, 15, PrizeKind::RuneBolt},
         {10, 10, PrizeKind::RuneFreeze},
         {10, 15, PrizeKind::RuneSkull},
         {10, 15, PrizeKind::RuneGuardPins},
+        {10, 5, PrizeKind::RuneNitro},
         // Level 11: Cemetery / Beak
-        {11, 5, PrizeKind::Money25},
+        {11, 0, PrizeKind::Money25},
         {11, 10, PrizeKind::Money50},
         {11, 20, PrizeKind::RuneBoom},
         {11, 15, PrizeKind::RuneBolt},
         {11, 10, PrizeKind::RuneFreeze},
         {11, 20, PrizeKind::RuneSkull},
         {11, 10, PrizeKind::RuneGuardPins},
+        {11, 5, PrizeKind::RuneNitro},
         // Level 12: Ruined City / Cow
-        {12, 5, PrizeKind::Money25},
+        {12, 0, PrizeKind::Money25},
         {12, 10, PrizeKind::Money50},
         {12, 15, PrizeKind::RuneBoom},
         {12, 15, PrizeKind::RuneBolt},
         {12, 10, PrizeKind::RuneFreeze},
         {12, 15, PrizeKind::RuneSkull},
         {12, 15, PrizeKind::RuneGuardPins},
+        {12, 5, PrizeKind::RuneNitro},
         {12, 15, PrizeKind::RuneFootball},
         // Level 13: Ashland / Cow
         {13, 0, PrizeKind::Money25},
@@ -166,7 +173,8 @@ namespace ChestRender
         {13, 10, PrizeKind::RuneFreeze},
         {13, 15, PrizeKind::RuneSkull},
         {13, 15, PrizeKind::RuneGuardPins},
-        {13, 20, PrizeKind::RuneFootball},
+        {13, 5, PrizeKind::RuneNitro},
+        {13, 15, PrizeKind::RuneFootball},
     };
     // clang-format on
 
@@ -339,7 +347,8 @@ namespace ChestRender
     {
         return prize == PrizeKind::RuneBoom || prize == PrizeKind::RuneBolt ||
                prize == PrizeKind::RuneFreeze || prize == PrizeKind::RuneSkull ||
-               prize == PrizeKind::RuneGuardPins || prize == PrizeKind::RuneFootball;
+               prize == PrizeKind::RuneGuardPins || prize == PrizeKind::RuneFootball ||
+               prize == PrizeKind::RuneNitro;
     }
 
     // Four carried runes are free. Every rune beyond that halves the chance

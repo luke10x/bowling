@@ -175,7 +175,7 @@ struct Storage
         "0",     // UNLOCKED_HOUSES
         "0",     // UNLOCKED_BOTS
         "0",     // EQUIPPED_BALL
-        "0,0,0", // RUNES
+        "0,0,0,0,0,0,0", // RUNES
         "1",     // SELECTED_SONG
         "0",     // CAMPAIGN_COMPLETED
         "0",     // CAMPAIGN_CLEAR_TIME

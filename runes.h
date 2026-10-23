@@ -22,6 +22,7 @@ static constexpr RuneAvailabilityConfig kRuneAvailabilityByKind[] = {
     {3, RuneStage::Both}, // Skull
     {4, RuneStage::Both}, // Guard Pins
     {5, RuneStage::Both}, // Football
+    {6, RuneStage::Both}, // Nitro refills the player's meter on either turn
 };
 
 static inline bool RuneStage_Allows(RuneStage allowedStages, RuneStage currentStage)

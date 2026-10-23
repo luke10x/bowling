@@ -16,9 +16,10 @@ void renderFlyingCollectables(
     AssetMesh *runeSkullMesh,
     AssetMesh *runeGuardPinsMesh,
     AssetMesh *runeFootballMesh,
+    AssetMesh *runeNitroMesh,
     Texture *everythingTexture,
     CoinLane *coinLane,
-    std::array<MeshInstanceBatch, 8> &gpuBatches,
+    std::array<MeshInstanceBatch, 9> &gpuBatches,
     float screenWidth,
     float screenHeight,
     bool beforeHudPass,
@@ -29,10 +30,11 @@ void renderFlyingCollectables(
     // This function is called twice at different points in the frame: first
     // for rewards below the HUD edge in the world pass, then for rewards in
     // front of the HUD after Clay. Never mix the two sides in one batch.
-    constexpr size_t kKindCount = 8;
+    constexpr size_t kKindCount = 9;
     const std::array<AssetMesh *, kKindCount> kindMeshes = {{
         coinMesh, gemMesh ? gemMesh : coinMesh, runeBoomMesh, runeBoltMesh,
-        runeFreezeMesh, runeSkullMesh, runeGuardPinsMesh, runeFootballMesh
+        runeFreezeMesh, runeSkullMesh, runeGuardPinsMesh, runeFootballMesh,
+        runeNitroMesh
     }};
     const auto visibleOnThisSide = [beforeHudPass, hudLevel](const CoinFlyAnimation &fly) {
         return fly.isVisible() && (fly.forceHudOverlay ? !beforeHudPass :

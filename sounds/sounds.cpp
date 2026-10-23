@@ -2034,7 +2034,7 @@ static xfm_voice_id GameSoundSystem_PlayTrackerPreviewSlot(
     static const char *names[12] = {"C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"};
     previewSlot = std::max(0, std::min(GameSoundSystem::TRACKER_PREVIEW_POLY_COUNT - 1, previewSlot));
     int safeNote = std::max(0, std::min(11, note));
-    int safeOctave = std::max(1, std::min(7, octave));
+    int safeOctave = std::max(1, std::min(8, octave));
     int safeInstrument = std::max(0, std::min(255, instrument));
     int safeVolume = std::max(0, std::min(127, volume));
     const int previewInstrument = 0xEB + previewSlot;
@@ -2142,7 +2142,7 @@ static xfm_voice_id GameSoundSystem_PlayTrackerPreviewDirectSlot(
 
     const int voice = std::max(0, std::min(GameSoundSystem::TRACKER_PREVIEW_POLY_COUNT - 1, previewSlot));
     const int safeNote = std::max(0, std::min(11, note));
-    const int safeOctave = std::max(1, std::min(7, octave));
+    const int safeOctave = std::max(1, std::min(8, octave));
     const int safeInstrument = std::max(0, std::min(255, instrument));
     const int safeVolume = std::max(0, std::min(127, volume));
 
@@ -2176,8 +2176,7 @@ static xfm_voice_id GameSoundSystem_PlayTrackerPreviewDirectSlot(
         static_cast<uint8_t>(self->trackerPreviewModule->lfo_freq)
     );
     const int midiNote = 12 + safeOctave * 12 + safeNote;
-    static constexpr int XFM_PLAYBACK_OCTAVE_CORRECTION_SEMITONES = 12;
-    const double hz = 440.0 * std::pow(2.0, (midiNote + XFM_PLAYBACK_OCTAVE_CORRECTION_SEMITONES - 69) / 12.0);
+    const double hz = 440.0 * std::pow(2.0, (midiNote - 69) / 12.0);
     self->trackerPreviewModule->chip->set_frequency(voice, hz, 0);
     self->trackerPreviewModule->chip->key_on(voice);
     self->trackerPreviewModule->voices[voice].midi_note = midiNote;
@@ -2262,7 +2261,7 @@ xfm_voice_id GameSoundSystem::previewTrackerFingerNote(
         return FM_VOICE_INVALID;
 
     int safeNote = std::max(0, std::min(11, note));
-    int safeOctave = std::max(1, std::min(7, octave));
+    int safeOctave = std::max(1, std::min(8, octave));
     int safeInstrument = std::max(0, std::min(255, instrument));
     int safeVolume = std::max(0, std::min(127, volume));
     if (trackerPreviewFingerActive[slot] &&

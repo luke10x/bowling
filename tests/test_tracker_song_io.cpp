@@ -445,8 +445,8 @@ TEST_CASE("Portamento shows sounding pitches and glide time at the edited row")
         CHECK(std::strstr(entry.hereDetail, "now ") != nullptr);
         CHECK(std::strstr(entry.hereDetail, "from ") != nullptr);
         CHECK(std::strstr(entry.hereDetail, "to ") != nullptr);
-        CHECK(std::strstr(entry.hereDetail, "C5") != nullptr);
-        CHECK(std::strstr(entry.hereDetail, "D5") != nullptr);
+        CHECK(std::strstr(entry.hereDetail, "C4") != nullptr);
+        CHECK(std::strstr(entry.hereDetail, "D4") != nullptr);
         CHECK(std::strstr(entry.hereDetail, " ms;") != nullptr);
         CHECK(std::strstr(entry.hereDetail, " ms left") != nullptr);
     }
@@ -592,6 +592,24 @@ TEST_CASE("Tracker grid note audition uses cell note with inherited instrument a
     Tracker_StopGridNoteAudition(&tracker);
     CHECK_FALSE(tracker.gridNoteAuditionActive);
     CHECK(tracker.previewHeldNoteStopRequested);
+}
+
+TEST_CASE("Tracker octave labels match base pitch and high built-in SFX remain previewable")
+{
+    CHECK(note_to_hz(60) == doctest::Approx(261.625565).epsilon(0.00001));
+    CHECK(note_to_hz(69) == doctest::Approx(440.0));
+
+    Tracker tracker {};
+    tracker.rowCount = 1;
+    tracker.usedInstruments[0] = 0;
+    tracker.usedInstrumentCount = 1;
+    std::strncpy(tracker.cells[0][0].text, "D-8007F", TRACKER_CELL_CHARS);
+    int note = -1, octave = -1, instrument = -1, volume = -1;
+    REQUIRE(Tracker_CellPreviewPayload(&tracker, 0, 0, &note, &octave, &instrument, &volume));
+    CHECK(note == 2);
+    CHECK(octave == 8);
+    Tracker_StartGridNoteAudition(&tracker, 0, 0, false);
+    CHECK(tracker.previewOctave == 8);
 }
 
 TEST_CASE("Part collapse toggles animate before committing layout state")
@@ -2020,7 +2038,7 @@ TEST_CASE("Glass SFX DSL keeps legacy glass patch definitions")
     CHECK(std::string(tinkle->displayName) == "Glass Tinkle");
     CHECK(std::string(tinkle->instruments).find("PATCH 4 5 3 0") != std::string::npos);
     CHECK(std::string(tinkle->instruments).find("OP 1 -1 12 4 3 25 1 20 16 9 10 0") != std::string::npos);
-    CHECK(std::string(tinkle->pattern).find("D-70069") != std::string::npos);
+    CHECK(std::string(tinkle->pattern).find("D-70070") != std::string::npos);
 }
 
 TEST_CASE("Song sound path uploads user instrument bank without opening tracker")
@@ -3038,7 +3056,7 @@ TEST_CASE("Drizzle Lane Part 1 retriggers survive a green loop wrap")
     xfm_song_play(module, 1, true);
 
     // The green gutter selection covers the three Part 1 notes in channel 2:
-    // C-1 / 0C02, C-2 / 0C01, and C-5 / 0C00.  It starts a fresh playback
+    // C-2 / 0C02, C-3 / 0C01, and C-6 / 0C00.  It starts a fresh playback
     // pass and must keep its tracker effects active after every wrap.
     xfm_song_set_loop_range(module, 16, 20);
     xfm_song_set_loop_reset_state(module, true);

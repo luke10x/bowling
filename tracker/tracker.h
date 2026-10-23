@@ -1643,7 +1643,7 @@ inline bool Tracker_ParseCellNoteOctave(const char *cell, int *outNote, int *out
     if (note < 0 || cell[2] < '0' || cell[2] > '9')
         return false;
     if (outNote) *outNote = note;
-    if (outOctave) *outOctave = std::max(1, std::min(7, cell[2] - '0'));
+    if (outOctave) *outOctave = std::max(1, std::min(8, cell[2] - '0'));
     return true;
 }
 
@@ -1743,7 +1743,7 @@ inline bool Tracker_CellPreviewPayload(
         vol = 0x7F;
 
     if (outNote) *outNote = std::max(0, std::min(11, note));
-    if (outOctave) *outOctave = std::max(1, std::min(7, octave));
+    if (outOctave) *outOctave = std::max(1, std::min(8, octave));
     if (outInstrument) *outInstrument = std::max(0, std::min(255, inst));
     if (outVolume) *outVolume = std::max(0, std::min(127, vol));
     return true;
@@ -1760,7 +1760,7 @@ inline void Tracker_RequestPreviewNote(
     if (!self)
         return;
     self->previewNote = std::max(0, std::min(11, note));
-    self->previewOctave = std::max(1, std::min(7, octave));
+    self->previewOctave = std::max(1, std::min(8, octave));
     self->previewInstrument = std::max(0, std::min(255, instrument));
     self->previewVolume = std::max(0, std::min(127, volume));
     if (held)
@@ -1822,7 +1822,7 @@ inline void Tracker_SetPreviewPressedNote(Tracker *self, SDL_FingerID sourceId, 
     self->previewPressedNoteActive[slot] = true;
     self->previewPressedNoteIds[slot] = sourceId;
     self->previewPressedNoteValues[slot] = std::max(0, std::min(11, note));
-    self->previewPressedNoteOctaves[slot] = std::max(1, std::min(7, octave));
+    self->previewPressedNoteOctaves[slot] = std::max(1, std::min(8, octave));
 }
 
 inline bool Tracker_IsPreviewNotePressed(const Tracker *self, int octave, int note)
@@ -2405,7 +2405,7 @@ inline void Tracker_ParseCellForEditor(Tracker *self)
         static const char *names[12] = {"C-", "C#", "D-", "D#", "E-", "F-", "F#", "G-", "G#", "A-", "A#", "B-"};
         for (int n = 0; n < 12; n++)
             if (cell[0] == names[n][0] && cell[1] == names[n][1]) self->editNote = n;
-        if (cell[2] >= '0' && cell[2] <= '9') self->editOctave = std::max(1, std::min(7, cell[2] - '0'));
+        if (cell[2] >= '0' && cell[2] <= '9') self->editOctave = std::max(1, std::min(8, cell[2] - '0'));
     }
     int inst = Tracker_ParseCellInstrument(cell);
     self->editInstrumentExplicit = inst >= 0;
@@ -2470,7 +2470,7 @@ inline void Tracker_ApplyEditorToCell(Tracker *self)
         int note = std::max(0, std::min(11, self->editNote));
         cell[0] = names[note][0];
         cell[1] = names[note][1];
-        cell[2] = (char)('0' + std::max(1, std::min(7, self->editOctave)));
+        cell[2] = (char)('0' + std::max(1, std::min(8, self->editOctave)));
     }
     if (self->editInstrumentExplicit) Tracker_WriteHexByte(cell + 3, self->editInstrument);
     else std::memcpy(cell + 3, "..", 2);
@@ -2549,7 +2549,7 @@ inline void Tracker_WriteRecorderCell(Tracker *self, int row, int channel, int n
     else
     {
         note = std::max(0, std::min(11, note));
-        octave = std::max(1, std::min(7, octave));
+        octave = std::max(1, std::min(8, octave));
         cell[0] = names[note][0];
         cell[1] = names[note][1];
         cell[2] = (char)('0' + octave);
@@ -5592,7 +5592,7 @@ inline void Tracker_ApplySelectionEditPreview(Tracker *self)
             int octave = 0;
             if (Tracker_ParseCellNoteOctave(text, &note, &octave))
             {
-                const int semitone = std::max(0, std::min(83, (octave - 1) * 12 + note + self->selectionEditTranspose));
+                const int semitone = std::max(0, std::min(95, (octave - 1) * 12 + note + self->selectionEditTranspose));
                 note = semitone % 12;
                 octave = semitone / 12 + 1;
                 text[0] = names[note][0];
@@ -5620,7 +5620,7 @@ inline bool Tracker_SelectionEditTransposeWouldClamp(const Tracker *self)
             int note = 0, octave = 0;
             if (Tracker_ParseCellNoteOctave(text, &note, &octave) &&
                 ((octave - 1) * 12 + note + self->selectionEditTranspose < 0 ||
-                 (octave - 1) * 12 + note + self->selectionEditTranspose > 83)) return true;
+                 (octave - 1) * 12 + note + self->selectionEditTranspose > 95)) return true;
         }
     return false;
 }

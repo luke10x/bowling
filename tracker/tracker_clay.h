@@ -860,7 +860,7 @@ inline void Tracker_BuildEditor(Tracker *self, Clayton *clayton)
                     const float whiteWidths[7]      = {1.5f, 2.0f, 1.5f, 1.5f, 2.0f, 2.0f, 1.5f};
 
                     const float blackWhiteRatio = 0.87f;
-                    for (int octave = 1; octave <= 7; octave++)
+                    for (int octave = 1; octave <= 8; octave++)
                     {
                         // Outer horizontal wrapper – octave number column + key rows column
                         CLAY(
@@ -5079,7 +5079,7 @@ inline void Tracker_BuildHud(Tracker *self, Clayton *clayton)
                 {
                     for (int octaveOffset = 0; octaveOffset < 2; octaveOffset++)
                     {
-                        int octave = std::max(1, std::min(7, self->recorderMiniBaseOctave + octaveOffset));
+                        int octave = std::max(1, std::min(8, self->recorderMiniBaseOctave + octaveOffset));
                         CLAY(
                             CLAY_IDI("TrackerMiniKeyboardOctave", octaveOffset),
                             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(trackerMiniKeyboardRowHeight)},
@@ -5573,7 +5573,7 @@ inline int Tracker_ValueFromSliderX(Clay_ElementId id, float pointerX, int minVa
 inline bool Tracker_EditorVirtualKeyAtPointer(Tracker *self, int *outOctave, int *outNote)
 {
     if (!self) return false;
-    for (int octave = 1; octave <= 7; octave++)
+    for (int octave = 1; octave <= 8; octave++)
     {
         for (int note = 0; note < 12; note++)
         {
@@ -5595,7 +5595,7 @@ inline bool Tracker_EditorVirtualKeyAtPointer(Tracker *self, int *outOctave, int
 inline bool Tracker_EditorVirtualKeyAtPoint(Tracker *self, float x, float y, int *outOctave, int *outNote)
 {
     if (!self) return false;
-    for (int octave = 1; octave <= 7; octave++)
+    for (int octave = 1; octave <= 8; octave++)
     {
         for (int note = 0; note < 12; note++)
         {
@@ -7840,7 +7840,7 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
             return false;
         for (int octaveOffset = 0; octaveOffset < 2; octaveOffset++)
         {
-            int octave = std::max(1, std::min(7, self->recorderMiniBaseOctave + octaveOffset));
+            int octave = std::max(1, std::min(8, self->recorderMiniBaseOctave + octaveOffset));
             for (int note = 0; note < 12; note++)
             {
                 Clay_BoundingBox box = Clay_GetElementData(CLAY_IDI("TrackerMiniKey", octave * 100 + note)).boundingBox;

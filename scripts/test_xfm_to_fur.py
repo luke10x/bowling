@@ -70,12 +70,18 @@ ENDINST
 
 
 class ConverterTests(unittest.TestCase):
-    def convert(self, header):
+    def convert(self, header, player_match=False, master_volume=None):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
             source, target = path / 'test.h', path / 'test.fur'
             source.write_text(header)
-            subprocess.run([sys.executable, str(WRAPPER), str(source), str(target)],
+            command = [sys.executable, str(WRAPPER)]
+            if player_match:
+                command.append('--player-match')
+            if master_volume is not None:
+                command.extend(('--master-volume', master_volume))
+            command.extend((str(source), str(target)))
+            subprocess.run(command,
                            cwd=ROOT, check=True, capture_output=True)
             return target.read_bytes()
 
@@ -121,6 +127,85 @@ class ConverterTests(unittest.TestCase):
             outputs = list(Path(directory).glob('*.fur'))
             self.assertEqual(len(outputs), 7)
             self.assertTrue(all(path.stat().st_size > 1000 for path in outputs))
+
+    def test_operator_tl_and_macros_follow_furnace_slot_order(self):
+        header = song_header(['C-4017F'])
+        for number, tl in enumerate((11, 22, 33, 44), 1):
+            header = header.replace(OP.format(n=number),
+                                    f'OP {number} 0 1 {tl} 0 31 0 0 0 0 15 0')
+        header = header.replace('ENDINST',
+                                'MACRO 2 1 0 255 21\nMACRO 3 1 0 255 31\nENDINST')
+        data = self.convert(header)
+        pos = 32
+        while data[pos:pos + 4] != b'INS2':
+            pos += 8 + struct.unpack_from('<I', data, pos + 4)[0]
+        size = struct.unpack_from('<I', data, pos + 4)[0]
+        body = data[pos + 8:pos + 8 + size]
+        cursor = 4  # instrument version, type, and flags
+        features = {}
+        while body[cursor:cursor + 2] != b'EN':
+            tag = body[cursor:cursor + 2]
+            length = struct.unpack_from('<H', body, cursor + 2)[0]
+            features[tag] = body[cursor + 4:cursor + 4 + length]
+            cursor += 4 + length
+        fm = features[b'FM']
+        self.assertEqual([fm[5 + slot * 8 + 1] for slot in range(4)],
+                         [11, 33, 22, 44])
+        self.assertEqual(features[b'O2'][-2], 31)
+        self.assertEqual(features[b'O3'][-2], 21)
+
+    def test_ym3438_at_each_master_volume(self):
+        header = song_header(['C-40140', 'D-40120'])
+        standard = self.convert(header)
+        half = self.convert(header, master_volume='0.5')
+        quarter = self.convert(header, master_volume='0.25')
+        matched = self.convert(header, player_match=True)
+        self.assertEqual(quarter, matched)
+
+        def blocks(data):
+            pos = 32
+            result = []
+            while pos < len(data):
+                size = struct.unpack_from('<I', data, pos + 4)[0]
+                result.append((data[pos:pos + 4], data[pos + 8:pos + 8 + size]))
+                pos += 8 + size
+            return result
+
+        standard_blocks = blocks(standard)
+        half_blocks = blocks(half)
+        quarter_blocks = blocks(quarter)
+        self.assertEqual([code for code, _ in standard_blocks],
+                         [b'INF2', b'SNG2', b'FLAG', b'INS2'] + [b'PATN'] * 6)
+        for variant in (standard_blocks, half_blocks, quarter_blocks):
+            self.assertEqual(next(body for code, body in variant if code == b'FLAG'),
+                             b'chipType=0\n\0')
+            self.assertEqual([body for code, body in standard_blocks if code != b'INF2'],
+                             [body for code, body in variant if code != b'INF2'])
+
+        def master_volume(inf):
+            cursor = 0
+            for _ in range(8):
+                cursor = inf.index(0, cursor) + 1
+            return struct.unpack_from('<f', inf, cursor + 5)[0]
+
+        self.assertEqual(master_volume(standard_blocks[0][1]), 1.0)
+        self.assertEqual(master_volume(half_blocks[0][1]), 0.5)
+        self.assertEqual(master_volume(quarter_blocks[0][1]), 0.25)
+
+    def test_all_levels_names_each_ym3438_master_value(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source, output = root / 'songs', root / 'exports'
+            source.mkdir()
+            (source / 'test.h').write_text(song_header(['C-4017F']))
+            subprocess.run([sys.executable, str(WRAPPER), '--all', '--all-levels',
+                            str(source), str(output)], cwd=ROOT, check=True,
+                           capture_output=True)
+            self.assertEqual({path.name for path in output.glob('*.fur')}, {
+                'test-ym3438-master-1_0.fur',
+                'test-ym3438-master-0_5.fur',
+                'test-ym3438-master-0_25.fur',
+            })
 
 
 if __name__ == '__main__':

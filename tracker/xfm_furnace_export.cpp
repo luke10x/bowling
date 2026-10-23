@@ -127,12 +127,14 @@ static std::vector<int> engine_volumes(const Song& song,const std::vector<Part>&
     return levels;
 }
 static std::pair<string,int> macro_target(int t) {
-    if(t>=1 && t<=4)return {"O"+std::to_string(t),6};
-    if(t>=5 && t<=8)return {"O"+std::to_string(t-4),3};
-    if(t>=9 && t<=12)return {"O"+std::to_string(t-8),9};
+    // XFM numbers operators 1,2,3,4; Furnace stores them in YM2612 slot order 1,3,2,4.
+    const int slot[4]={1,3,2,4};
+    if(t>=1 && t<=4)return {"O"+std::to_string(slot[t-1]),6};
+    if(t>=5 && t<=8)return {"O"+std::to_string(slot[t-5]),3};
+    if(t>=9 && t<=12)return {"O"+std::to_string(slot[t-9]),9};
     if(t==13)return {"MA",9};if(t==14)return {"MA",1};
     for(auto [start,code]:std::array<std::pair<int,int>,6>{{{19,1},{23,2},{27,10},{31,5},{35,4},{39,11}}})
-        if(t>=start && t<start+4)return {"O"+std::to_string(t-start+1),code};
+        if(t>=start && t<start+4)return {"O"+std::to_string(slot[t-start]),code};
     throw std::runtime_error("unsupported macro target "+std::to_string(t));
 }
 static int detune(int dt) {switch(dt){case -3:return 2;case -2:return 1;case -1:return 0;case 0:return 3;case 1:return 4;case 2:return 5;case 3:return 6;}throw std::runtime_error("invalid detune");}
@@ -147,7 +149,7 @@ static Bytes encode_macro(const Macro& m,int code,bool is_dt) {
 static Bytes encode_instrument(const Instrument& ins) {
     auto [alg,fb,ams,fms]=ins.patch;Bytes fm;
     for(int x:{0xF4,(alg<<4)|fb,(ams<<3)|fms,0x20,0})b(fm,x);
-    for(auto& o:ins.ops){auto [tl,ar,dr,sl,sr,rr,ssg,mul,dt,rs,am]=o;
+    for(int slot:{0,2,1,3}){auto [tl,ar,dr,sl,sr,rr,ssg,mul,dt,rs,am]=ins.ops[slot];
         for(int x:{(detune(dt)<<4)|mul,tl,(rs<<6)|ar,(am<<7)|dr,sr,(sl<<4)|rr,ssg,0})b(fm,x);
     }
     Bytes name;str(name,ins.name.empty()?"Instrument "+hex2(ins.number):ins.name);
@@ -181,8 +183,9 @@ static Bytes encode_song(const Song& s,int length,int orders,const std::array<in
     for(int n:effect_cols)b(body,n);body.insert(body.end(),6,3);body.insert(body.end(),6,0);body.insert(body.end(),12,0);body.insert(body.end(),24,0);
     return block("SNG2",body);
 }
-static Bytes convert(Song& song) {
+static Bytes convert(Song& song, XfmFurnaceExportOptions options) {
     check(song.tuning==0,"just intonation cannot be exported exactly");check(song.lfo_on>=0 && song.lfo_on<=1 && song.lfo_freq>=0 && song.lfo_freq<=7,"invalid LFO");
+    check(options.master_volume==1.0f || options.master_volume==0.5f || options.master_volume==0.25f,"master volume must be 1.0, 0.5, or 0.25");
     auto parts=split_parts(song);auto levels=engine_volumes(song,parts);int row_index=0;
     for(auto& part:parts)for(auto& row:part.rows){for(int ch=0;ch<6;ch++)if(row[ch].note>=0 && row[ch].note<180 && row[ch].volume<0)row[ch].volume=levels[row_index*6+ch];row_index++;}
     int length=0;for(auto& part:parts)length=std::max(length,int(part.rows.size()));
@@ -192,19 +195,28 @@ static Bytes convert(Song& song) {
     std::vector<Bytes> ins,patterns;for(auto& instrument:song.instruments)ins.push_back(encode_instrument(instrument));
     for(int ch=0;ch<6;ch++)for(size_t order=0;order<parts.size();order++)patterns.push_back(encode_pattern(ch,int(order),parts[order],remap));
     Bytes head;for(char x:string("-Furnace module-"))b(head,x);w(head,version);w(head,0);d(head,32);head.insert(head.end(),8,0);
-    Bytes body;str(body,song.name);body.insert(body.end(),7,0);f(body,440);b(body,1);f(body,1);w(body,6);w(body,1);w(body,0x83);w(body,6);f(body,1);f(body,0);f(body,0);d(body,0);b(body,1);
+    Bytes body;str(body,song.name);body.insert(body.end(),7,0);f(body,440);b(body,1);
+    f(body,options.master_volume);
+    w(body,6);w(body,1);w(body,0x83);w(body,6);f(body,1);f(body,0);f(body,0);d(body,0);b(body,1);
     std::vector<std::vector<size_t>> positions;auto group=[&](int kind,int count){b(body,kind);d(body,count);std::vector<size_t> p;for(int i=0;i<count;i++){p.push_back(body.size());d(body,0);}positions.push_back(p);};
-    group(1,1);group(4,int(ins.size()));group(7,int(patterns.size()));b(body,0);
-    Bytes out=head;cat(out,block("INF2",body));std::vector<std::vector<Bytes>> groups={{encode_song(song,length,int(parts.size()),cols)},ins,patterns};
+    group(1,1);
+    group(2,1);
+    group(4,int(ins.size()));group(7,int(patterns.size()));b(body,0);
+    Bytes out=head;cat(out,block("INF2",body));
+    std::vector<std::vector<Bytes>> groups;
+    groups.push_back({encode_song(song,length,int(parts.size()),cols)});
+    Bytes flag;str(flag,"chipType=0\n");groups.push_back({block("FLAG",flag)});
+    groups.push_back(ins);groups.push_back(patterns);
     for(size_t g=0;g<groups.size();g++)for(size_t i=0;i<groups[g].size();i++){uint32_t offset=uint32_t(out.size());size_t pos=40+positions[g][i];for(int z=0;z<4;z++)out[pos+z]=uint8_t(offset>>(z*8));cat(out,groups[g][i]);}
     return out;
 }
 
-XfmFurnaceExportResult xfm_export_furnace_from_header(const std::string& source) {
+XfmFurnaceExportResult xfm_export_furnace_from_header(
+    const std::string& source, XfmFurnaceExportOptions options) {
     Song song = parse_song(source);
     XfmFurnaceExportResult result;
     result.source_rows = song.rows.size();
     result.instrument_count = song.instruments.size();
-    result.data = convert(song);
+    result.data = convert(song, options);
     return result;
 }

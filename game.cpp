@@ -271,6 +271,7 @@ static inline void Game_ShowMoneyReward(SDL_AudioDeviceID audioDevice)
 #include "score.h"
 #include "campaign_record.h"
 #include "shop.h"
+#include "shop/gold_reward_preview.h"
 #include "shop/flying_coins_helper.h"
 #include "sounds/sound_clay.h"
 #include "sounds/sounds.h"
@@ -1825,6 +1826,7 @@ struct UserContext
 	RenderTexture ballRenderTex;
 	RenderTexture ballRenderTex2;
 	RenderTexture oilRenderTex;
+    GoldRewardPreviewShader goldRewardPreviewShader;
 	RenderTexture trackerDiagramTex;
 	RenderTexture trackerOscilloscopeTex;
     RenderTexture chestRewardTex;
@@ -26388,6 +26390,11 @@ END_LINE:
         usr->mainShader.updateLightPos(
             glm::vec3(2.0f, 3.0f, 2.0f) // fixed front-top-right for consistent icon lighting
         );
+        const auto goldConsumeFlash = [&](int index) {
+            return usr->ballShop.removingCardActive && usr->ballShop.removingCardIndex == index
+                ? 0.5f + 0.5f * std::sin(usr->ballShop.removingCardElapsed * 28.0f)
+                : 0.0f;
+        };
         // The campaign detail owns slot 1 while it is open.  Keep this mutually
         // exclusive with every shop preview pass below so nothing overwrites it.
         if (campaignLevelDetailPreviewActive)
@@ -26560,6 +26567,16 @@ END_LINE:
 	        else if (ballShopPreviewActive && usr->carousel.closestBallIdx != -1)
 	        {
 	            usr->clayton.renderer.imageTextures[3] = usr->oilRenderTex.colorTexture;
+            const int previewId = usr->carousel.items[usr->carousel.closestBallIdx].id;
+            if (previewId == BALL_SHOP_REWARDED_CARD_ID)
+            {
+                usr->goldRewardPreviewShader.render(
+                    usr->ballRenderTex, t, goldConsumeFlash(usr->carousel.closestBallIdx),
+                    ctx->screenWidth * ctx->pixelRatio,
+                    ctx->screenHeight * ctx->pixelRatio, usr->mainShader.id);
+            }
+            else
+            {
 	            usr->ballRenderTex.bindForWriting();
 	            glClearColor(0, 0, 0, 1);
 	            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -26578,18 +26595,28 @@ END_LINE:
 	            glEnable(GL_DEPTH_TEST);
 	            glDepthMask(GL_TRUE);
 	            // ── Render ──
-	            int ballId = usr->carousel.items[usr->carousel.closestBallIdx].id;
-            Ball_ApplyRenderAtlasParams(usr->mainShader, ballId);
+            Ball_ApplyRenderAtlasParams(usr->mainShader, previewId);
             usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
             checkOpenGLError("icon-ball");
 
             // ── Restore ──
-            usr->ballRenderTex.unbind(
+	            usr->ballRenderTex.unbind(
                 ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
             );
+            }
 	        }
 		        if (ballShopPreviewActive && usr->carousel.closest2ndBallIdx != -1)
 		        {
+            const int previewId = usr->carousel.items[usr->carousel.closest2ndBallIdx].id;
+            if (previewId == BALL_SHOP_REWARDED_CARD_ID)
+            {
+                usr->goldRewardPreviewShader.render(
+                    usr->ballRenderTex2, t, goldConsumeFlash(usr->carousel.closest2ndBallIdx),
+                    ctx->screenWidth * ctx->pixelRatio,
+                    ctx->screenHeight * ctx->pixelRatio, usr->mainShader.id);
+            }
+            else
+            {
 	            usr->ballRenderTex2.bindForWriting();
 	            glClearColor(0, 0, 0, 1);
 	            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -26608,8 +26635,7 @@ END_LINE:
 	            glEnable(GL_DEPTH_TEST);
 	            glDepthMask(GL_TRUE);
 	            // ── Render ──
-	            int ballId = usr->carousel.items[usr->carousel.closest2ndBallIdx].id;
-            Ball_ApplyRenderAtlasParams(usr->mainShader, ballId);
+            Ball_ApplyRenderAtlasParams(usr->mainShader, previewId);
             usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
             checkOpenGLError("icon-ball");
 
@@ -26617,11 +26643,22 @@ END_LINE:
 	            usr->ballRenderTex2.unbind(
 	                ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
 	            );
+            }
 		        }
 	
 		        // 3rd closest ball preview (reuse oilRenderTex slot 3 when Oil Status isn't visible).
 		        if (ballShopPreviewActive && usr->carousel.closest3rdBallIdx != -1)
 		        {
+                const int previewId = usr->carousel.items[usr->carousel.closest3rdBallIdx].id;
+                if (previewId == BALL_SHOP_REWARDED_CARD_ID)
+                {
+                    usr->goldRewardPreviewShader.render(
+                        usr->oilRenderTex, t, goldConsumeFlash(usr->carousel.closest3rdBallIdx),
+                        ctx->screenWidth * ctx->pixelRatio,
+                        ctx->screenHeight * ctx->pixelRatio, usr->mainShader.id);
+                }
+                else
+                {
 		            usr->oilRenderTex.bindForWriting();
 		            glClearColor(0, 0, 0, 1);
 		            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -26638,14 +26675,14 @@ END_LINE:
 		            glEnable(GL_DEPTH_TEST);
 		            glDepthMask(GL_TRUE);
 	
-		            int ballId = usr->carousel.items[usr->carousel.closest3rdBallIdx].id;
-                    Ball_ApplyRenderAtlasParams(usr->mainShader, ballId);
+                    Ball_ApplyRenderAtlasParams(usr->mainShader, previewId);
 		            usr->mainShader.renderRealMesh(usr->ballMesh, iconModel, iconView, iconProj);
 		            checkOpenGLError("icon-ball-3");
 	
 	                usr->oilRenderTex.unbind(
 	                    ctx->screenWidth * ctx->pixelRatio, ctx->screenHeight * ctx->pixelRatio
 	                );
+                }
 		        }
 
 		        // Oil preview (only when Oil Status window is visible).
@@ -26682,6 +26719,18 @@ END_LINE:
 	            );
 	        }
 	    }
+    }
+
+    // The loyalty window reuses preview slot 1 while it is open. Its moving
+    // gold background is the same shader as the shop reward card.
+    if (!trackerOnlyMode && usr->windowStack.count > 0 &&
+        usr->windowStack.kinds[usr->windowStack.count - 1] == WindowKind_LoyaltyReward)
+    {
+        usr->clayton.renderer.imageTextures[1] = usr->ballRenderTex.colorTexture;
+        usr->goldRewardPreviewShader.render(
+            usr->ballRenderTex, usr->rawTime, 0.0f,
+            ctx->screenWidth * ctx->pixelRatio,
+            ctx->screenHeight * ctx->pixelRatio, usr->mainShader.id);
     }
 
     if (!trackerOnlyMode && usr->windowStack.count == 0 && StoryDialog_ShouldRenderAngelPortrait(usr))

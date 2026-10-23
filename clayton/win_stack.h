@@ -3198,7 +3198,11 @@ inline void WindowStack::renderLoyaltyRewardWindow(WindowStack *self, Clayton *c
                              23.0f + 15.0f * wave, 255};
     Clay_TextElementConfig awardText = CLAY_THEME_TEXT_LARGE;
     awardText.textAlignment = CLAY_TEXT_ALIGN_CENTER;
-    awardText.textColor = {245, 205, 65, 255};
+    awardText.textColor = {66, 37, 6, 255};
+    Clay_TextElementConfig titleText = CLAY_THEME_TEXT_TITLE;
+    titleText.textColor = {47, 29, 7, 255};
+    Clay_TextElementConfig streakText = CLAY_THEME_TEXT_BODY;
+    streakText.textColor = {66, 37, 6, 255};
     Clay_ElementDeclaration action = CLAY_THEME_BTN_PRIMARY;
     if (self->loyaltyReadyToContinue)
     {
@@ -3207,7 +3211,10 @@ inline void WindowStack::renderLoyaltyRewardWindow(WindowStack *self, Clayton *c
     }
     if (!self->loyaltyReadyToContinue)
         action.backgroundColor = gold;
-    CLAY(CLAY_ID("LoyaltyRewardWindow"), CLAY_THEME_WINDOW_PANEL)
+    Clay_ElementDeclaration loyaltyPanel = CLAY_THEME_WINDOW_PANEL;
+    loyaltyPanel.image.imageData = &clayton->pinImage;
+    loyaltyPanel.border.color = {119, 68, 11, 255};
+    CLAY(CLAY_ID("LoyaltyRewardWindow"), loyaltyPanel)
     {
         CLAY(CLAY_ID("LoyaltyRewardContent"),
              {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
@@ -3215,10 +3222,10 @@ inline void WindowStack::renderLoyaltyRewardWindow(WindowStack *self, Clayton *c
                          .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                          .layoutDirection = CLAY_TOP_TO_BOTTOM}})
         {
-            CLAY_TEXT(clayton->txl(TXL_LOYALTY_TITLE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+            CLAY_TEXT(clayton->txl(TXL_LOYALTY_TITLE), CLAY_TEXT_CONFIG(titleText));
             CLAY_TEXT(ClayArena_FormatString(arena,
                 Txl_Get(clayton->uiLanguage, TXL_LOYALTY_STREAK_FMT), self->loyaltyStreak),
-                CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+                CLAY_TEXT_CONFIG(streakText));
             CLAY_TEXT(ClayArena_FormatString(arena,
                 Txl_Get(clayton->uiLanguage, TXL_LOYALTY_AWARD_FMT), self->loyaltyRemaining),
                 CLAY_TEXT_CONFIG(awardText));

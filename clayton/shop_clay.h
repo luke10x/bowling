@@ -27,7 +27,8 @@ static constexpr float SHOP_CARD_STATS_HEIGHT = 106.0f;
 static constexpr float SHOP_CAROUSEL_PAD_Y = 10.0f;
 static inline float Shop_CardPreviewHeightPx(float carouselBeltWidthPx);
 
-static inline void Shop_DrawGoldCard(Clayton *clayton, int index, float pulse, bool leaving)
+static inline void Shop_DrawGoldCard(Clayton *clayton, const CarouselState *carousel,
+                                     int index, float pulse, bool leaving)
 {
     const float wave = 0.5f + 0.5f * std::sin(pulse * (leaving ? 28.0f : 4.0f));
     const Clay_Color gold = {190.0f + 45.0f * wave, 137.0f + 50.0f * wave,
@@ -35,6 +36,10 @@ static inline void Shop_DrawGoldCard(Clayton *clayton, int index, float pulse, b
     const float previewHeight = Shop_CardPreviewHeightPx(
         Clay_GetElementData(CLAY_ID("CarouselBelt")).boundingBox.width);
     const float bodyHeight = previewHeight + SHOP_CARD_PRICE_HEIGHT + SHOP_CARD_STATS_HEIGHT;
+    Gles3_ImageConfig *goldPreview =
+        index == carousel->closestBallIdx ? &clayton->pinImage :
+        index == carousel->closest2ndBallIdx ? &clayton->pin2Image :
+        index == carousel->closest3rdBallIdx ? &clayton->pin3Image : nullptr;
     Clay_TextElementConfig headerText = CLAY_THEME_TEXT_BODY;
     Clay_TextElementConfig goldText = CLAY_THEME_TEXT_LARGE;
     goldText.textAlignment = CLAY_TEXT_ALIGN_CENTER;
@@ -64,6 +69,7 @@ static inline void Shop_DrawGoldCard(Clayton *clayton, int index, float pulse, b
                      {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(bodyHeight)},
                                  .layoutDirection = CLAY_TOP_TO_BOTTOM},
                       .backgroundColor = gold,
+                      .image = {.imageData = goldPreview},
                       .cornerRadius = {.bottomLeft = CLAY_RADIUS_LG, .bottomRight = CLAY_RADIUS_LG}})
                 {
                     if (!leaving || wave > 0.25f)
@@ -708,7 +714,7 @@ void Carousel_Render(
                     ballShop->removingCardIndex == i)
                 {
                     if (item->id == BALL_SHOP_REWARDED_CARD_ID)
-                        Shop_DrawGoldCard(clayton, i, ballShop->removingCardElapsed, true);
+                        Shop_DrawGoldCard(clayton, carousel, i, ballShop->removingCardElapsed, true);
                     else if (std::sin(ballShop->removingCardElapsed * 28.0f) < 0.0f)
                         DrawCatalogItem(
                             clayton, carousel, item->id, item->name, item->rarity,
@@ -720,7 +726,7 @@ void Carousel_Render(
                 }
                 if (item->id == BALL_SHOP_REWARDED_CARD_ID)
                 {
-                    Shop_DrawGoldCard(clayton, i, ballShop ? ballShop->rewardCardPulse : 0.0f, false);
+                    Shop_DrawGoldCard(clayton, carousel, i, ballShop ? ballShop->rewardCardPulse : 0.0f, false);
                     continue;
                 }
                 DrawCatalogItem(

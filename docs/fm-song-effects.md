@@ -15,19 +15,19 @@ event-driven song path.
 Tracker effects are channel state, not just decorations on one note row. This
 lets sparse pattern data keep musical motion alive without repeating the same
 effect every row. For example, vibrato, tremolo, pitch slide, fine pitch, volume
-slide, portamento mode, legato mode, macro masks, and live OPN patch edits are
-remembered on the channel until a later effect explicitly changes or stops
-them. `OFF` and `REL` key off or release the note/envelope, but they do not
+slide, legato mode, macro masks, and live OPN patch edits are remembered
+on the channel as described below. Portamento needs a command on each gliding note. `OFF` and `REL` key off or release the note/envelope, but they do not
 reset this continuous channel state.
 
 | Effect | Name | Scope | How it Stops | Notes |
 |---|---|---|---|---|
-| `01xx` | Pitch slide up | Continuous channel pitch state | `0100`, `0200`, or `030x` | Raises pitch until stopped or replaced. Useful for rises and SFX. Larger `xx` is faster. |
-| `02xx` | Pitch slide down | Continuous channel pitch state | `0200`, `0100`, or `030x` | Lowers pitch until stopped or replaced. Useful for falls and SFX. Larger `xx` is faster. |
-| `03xx` | Portamento to note | Continuous until target or changed | `0300`; reaching target also ends the active slide | New note becomes the target; current channel slides toward it without retriggering. Larger `xx` is faster. |
-| `04xy` | Vibrato | Continuous channel pitch state | `0400` | Periodically bends pitch around the current/base pitch. `x` is speed, `y` is depth. Depth `0` turns it off. |
-| `07xy` | Tremolo | Continuous channel volume state | `0700` | Periodically modulates volume by updating carrier TL. `x` is speed, `y` is depth. Depth `0` turns it off. |
-| `0Axy` | Volume slide | Continuous channel volume state | `0A00` | Slides volume up/down. `x` is up amount and `y` is down amount. |
+| `00xy` | Arpeggio | Tick-based pitch state | `0000` | Cycles base note, +`x`, and +`y` semitones, and continues across later notes. |
+| `01xx` | Pitch slide up | Tick-based pitch state | `0100`, another pitch motion effect, or song reset | Raises pitch by `xx/32` semitones each tracker tick in default linear-pitch mode. |
+| `02xx` | Pitch slide down | Tick-based pitch state | `0200`, another pitch motion effect, or song reset | Lowers pitch by `xx/32` semitones each tracker tick in default linear-pitch mode. |
+| `03xx` | Portamento to note | Note command | Reaching the target, `0300`, or another pitch motion effect | Put `03xx` on each note that should glide. It moves by `xx/32` semitones per tracker tick without retriggering. |
+| `04xy` | Vibrato | Tick-based pitch state | `0400` | `x` advances a 64-step sine wave each tracker tick; `y` sets depth. Depth `0` turns it off. |
+| `07xy` | Tremolo | Tick-based volume state | `0700` or `0Axy` | `x` advances a 128-step downward wave each tracker tick; `y` sets depth. |
+| `0Axy` | Volume slide | Tick-based volume state | `0A00`, `07xy`, or reaching volume 0/127 | `x` raises or `y` lowers volume by that amount over four ticks; `y` wins when both are nonzero. |
 | `0Cxx` | Retrigger | Current row event | Row end | Replays the remembered note every `xx` tracker ticks for the current row only. Enter it on every row that should retrigger. |
 | `E1xy` | Note slide up | One-shot/targeted slide | Ends after requested semitone distance; speed `0` or distance `0` stops it | Slides up by `y` semitones at speed `x`. |
 | `E2xy` | Note slide down | One-shot/targeted slide | Ends after requested semitone distance; speed `0` or distance `0` stops it | Slides down by `y` semitones at speed `x`. |
@@ -186,5 +186,5 @@ F60E   ; enable/restart ARP macro
 - OPN live patch edits persist on that channel until another effect changes the
   same field or a later instrument load restores the instrument patch.
 - Legato is a mode, not a pitch effect. It changes how later note rows trigger.
-- Portamento is a pitch effect. It changes how later note rows reach their target.
+- Portamento is a pitch effect. Put `03xx` on each note row that should glide.
 - For comments in textplayer song files, use `;` or the older `--` syntax.

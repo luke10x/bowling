@@ -40,14 +40,14 @@ static inline TrackerEffectMemoryRule Tracker_EffectMemoryRule(uint8_t code)
 {
     switch (code)
     {
-    case 0x00: return {"NOTE", "NEXT NOTE\nor 0000"};
+    case 0x00: return {"FOREVER", "0000"};
     case 0x01: return {"FOREVER", "01/02 change\n03xx or E1/E2"};
     case 0x02: return {"FOREVER", "01/02 change\n03xx or E1/E2"};
-    case 0x03: return {"FOREVER", "speed: 0300/new 03\nglide: 01/02/OFF"};
+    case 0x03: return {"TARGET", "REACHED / 0300\nor 01/02"};
     case 0x04: return {"FOREVER", "0400"};
-    case 0x07: return {"FOREVER", "0700"};
+    case 0x07: return {"FOREVER", "0700 or 0A"};
     case 0x08: return {"FOREVER", "NEW 08"};
-    case 0x0A: return {"FOREVER", "0A00"};
+    case 0x0A: return {"TARGET", "0/127, 0A00\nor 07"};
     case 0x0C: case 0xEC: case 0xED: case 0xFC: return {"ROW", "ROW END"};
     case 0xE1: case 0xE2: return {"TARGET", "REACHED"};
     case 0xE5: return {"NOTE", "NOTE\nor E580"};
@@ -179,17 +179,17 @@ static inline bool Tracker_EffectMemoryFormatControl(
         return true;
     case 0x04:
         if (state.vibrato_depth <= 0) return false;
-        std::snprintf(out, size, "speed %d, ±%d cents", state.vibrato_speed, state.vibrato_depth * 7); return true;
+        std::snprintf(out, size, "speed %d, ±%d cents", state.vibrato_speed, (int)std::lround(state.vibrato_depth * 127.0 * 100.0 / (16.0 * 128.0))); return true;
     case 0x07:
         if (state.tremolo_depth <= 0) return false;
-        std::snprintf(out, size, "speed %d, 0-%d TL", state.tremolo_speed, state.tremolo_depth * 4); return true;
+        std::snprintf(out, size, "speed %d, 0-%d volume", state.tremolo_speed, state.tremolo_depth); return true;
     case 0x08:
         if (state.effect_pan < 0) return false;
         std::snprintf(out, size, "%s", state.effect_pan == 3 ? "left + right" :
             state.effect_pan == 2 ? "left" : state.effect_pan == 1 ? "right" : "muted"); return true;
     case 0x0A:
         if (state.volume_slide_speed == 0) return false;
-        std::snprintf(out, size, "volume %d/127 (%+d/row)", state.current_volume, state.volume_slide_speed); return true;
+        std::snprintf(out, size, "volume %d/127 (%+d/4 ticks)", state.current_volume, state.volume_slide_speed); return true;
     case 0xE1: case 0xE2:
         if (!state.note_slide_active || (code == 0xE1 && state.note_slide_step_hz < 0) ||
             (code == 0xE2 && state.note_slide_step_hz > 0)) return false;
@@ -300,14 +300,16 @@ static inline bool Tracker_EffectMemoryHereNumber(
             std::snprintf(detail, detailSize, "key off; speed retained");
         else if (state.portamento_active)
         {
-            const int durationSamples = std::max(1,
-                (probe->song_patterns[1].samples_per_row * 16) / std::max(1, state.portamento_speed));
-            const double startHz = state.target_hz - state.portamento_step_hz * durationSamples;
-            const double remainingSamples = std::abs(state.portamento_step_hz) > 0.000001 ?
-                std::clamp(std::abs((state.target_hz - state.current_hz) / state.portamento_step_hz),
-                    0.0, (double)durationSamples) : 0.0;
-            const int durationMs = (int)std::lround(1000.0 * durationSamples / probe->sample_rate);
-            const int remainingMs = (int)std::lround(1000.0 * remainingSamples / probe->sample_rate);
+            const double startHz = state.portamento_start_hz > 0.0 ?
+                state.portamento_start_hz : state.current_hz;
+            const double semitonesPerTick = state.portamento_speed / 32.0;
+            const double totalTicks = std::abs(12.0 * std::log2(state.target_hz / startHz)) /
+                semitonesPerTick;
+            const double remainingTicks = std::abs(12.0 * std::log2(state.target_hz / state.current_hz)) /
+                semitonesPerTick;
+            const int tickRate = std::max(1, probe->song_patterns[1].tick_rate);
+            const int durationMs = (int)std::lround(1000.0 * totalTicks / tickRate);
+            const int remainingMs = (int)std::lround(1000.0 * remainingTicks / tickRate);
             char currentNote[12] = {}, startNote[12] = {}, targetNote[12] = {};
             Tracker_EffectMemoryClosestNote(state.current_hz, currentNote, sizeof(currentNote));
             Tracker_EffectMemoryClosestNote(startHz, startNote, sizeof(startNote));
@@ -323,13 +325,13 @@ static inline bool Tracker_EffectMemoryHereNumber(
             Tracker_EffectMemoryClosestNote(state.current_hz, note, sizeof(note));
             std::snprintf(detail, detailSize, "now %.1f Hz (%s)\n%s",
                 state.current_hz, note, state.pitch_slide_speed != 0 ?
-                "pitch slide overrides glide; speed armed" : "armed for next note");
+                "pitch slide overrides glide" : "place 03 on next note");
         }
         else std::snprintf(detail, detailSize, "waiting for first note");
         return true;
     case 0x04:
         *number = state.vibrato_depth;
-        std::snprintf(detail, detailSize, "speed %d; ±%d cents", state.vibrato_speed, state.vibrato_depth * 7);
+        std::snprintf(detail, detailSize, "speed %d; ±%d cents", state.vibrato_speed, (int)std::lround(state.vibrato_depth * 127.0 * 100.0 / (16.0 * 128.0)));
         return true;
     case 0x07:
         *number = state.tremolo_depth;
@@ -344,7 +346,7 @@ static inline bool Tracker_EffectMemoryHereNumber(
         *number = state.volume_slide_speed == 0 ? 0 : state.current_volume;
         if (state.volume_slide_speed == 0)
             std::snprintf(detail, detailSize, "slide off");
-        else std::snprintf(detail, detailSize, "volume of 127; %+d/row", state.volume_slide_speed);
+        else std::snprintf(detail, detailSize, "volume of 127; %+d/4 ticks", state.volume_slide_speed);
         return true;
     case 0x0C: case 0xEC: case 0xED: case 0xFC:
         *number = commandValue;

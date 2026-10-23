@@ -257,10 +257,10 @@ TEST_CASE("Effects memory lists running prior commands and skips row-only effect
             foundSlide = true;
             CHECK(entry.initialValue == 0x10);
             CHECK(entry.rowsAgo == 3);
-            CHECK(std::strcmp(entry.effective, "volume 67/127 (+1/row)") == 0);
+            CHECK(std::strcmp(entry.effective, "volume 69/127 (+1/4 ticks)") == 0);
             CHECK(entry.hereValueValid);
-            CHECK(entry.hereValue == 67);
-            CHECK(std::strcmp(entry.hereDetail, "volume of 127; +1/row") == 0);
+            CHECK(entry.hereValue == 69);
+            CHECK(std::strcmp(entry.hereDetail, "volume of 127; +1/4 ticks") == 0);
         }
         if (entry.code == 0x08)
         {
@@ -426,7 +426,7 @@ TEST_CASE("Portamento shows sounding pitches and glide time at the edited row")
     setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT,
         "3\n"
         "C-400400305|.......|.......|.......|.......|.......\n"
-        "D-4....|.......|.......|.......|.......|.......\n"
+        "D-4....0305|.......|.......|.......|.......|.......\n"
         ".......0122|.......|.......|.......|.......|.......\n", "Portamento detail");
     tracker.editChannel = 0;
     tracker.editSpecial = 4;
@@ -455,19 +455,42 @@ TEST_CASE("Portamento shows sounding pitches and glide time at the edited row")
     tracker.editRow = 2;
     Tracker_AnalyzeEffectMemory(&tracker, nullptr);
     bool foundSlide = false;
-    bool retainedPortaSpeed = false;
+    bool stoppedPorta = true;
     for (int i = 0; i < tracker.effectMemoryCount; ++i)
     {
         const TrackerEffectMemoryRow &entry = tracker.effectMemoryRows[i];
         if (entry.code == 0x01) foundSlide = true;
         if (entry.code == 0x03)
         {
-            retainedPortaSpeed = true;
-            CHECK(std::strstr(entry.hereDetail, "pitch slide overrides glide") != nullptr);
+            stoppedPorta = false;
         }
     }
     CHECK(foundSlide);
-    CHECK(retainedPortaSpeed);
+    CHECK(stoppedPorta);
+}
+
+TEST_CASE("Portamento speed follows Furnace linear-pitch units per tracker tick")
+{
+    xfm_module *module = xfm_module_create(48000, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+    XfmSongChannel &channel = module->active_song.channels[0];
+    module->channel_active[0] = true;
+    channel.current_hz = 440.0;
+    channel.portamento_start_hz = 440.0;
+    channel.target_hz = 440.0 * std::pow(2.0, 2.0 / 12.0);
+    channel.portamento_target_note = 71;
+    channel.portamento_speed = 8;
+    channel.portamento_active = true;
+
+    song_advance_portamento_tick(module, 0);
+    CHECK(channel.current_hz == doctest::Approx(440.0 * std::pow(2.0, 0.25 / 12.0)));
+    CHECK(channel.portamento_active);
+    for (int tick = 1; tick < 8; ++tick)
+        song_advance_portamento_tick(module, 0);
+    CHECK(channel.current_hz == doctest::Approx(channel.target_hz));
+    CHECK_FALSE(channel.portamento_active);
+    CHECK(channel.portamento_speed == 0); // Furnace stops at the target
+    xfm_module_destroy(module);
 }
 
 TEST_CASE("Nearest note labels include nonzero cents offsets")
@@ -513,7 +536,7 @@ TEST_CASE("OFF stops the sounding glide but retains the portamento speed")
     setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT,
         "3\n"
         "C-400400305|.......|.......|.......|.......|.......\n"
-        "D-4....|.......|.......|.......|.......|.......\n"
+        "D-4....0305|.......|.......|.......|.......|.......\n"
         "OFF....|.......|.......|.......|.......|.......\n", "Portamento OFF");
     tracker.editRow = 2;
     tracker.editChannel = 0;
@@ -717,6 +740,94 @@ static void Test_AdvanceSongUntilChannelActive(xfm_module *module, int channel)
     while (!module->channel_active[channel] && guard++ < 2000)
         Test_MixSongFrames(module, 32);
     REQUIRE(module->channel_active[channel]);
+}
+
+TEST_CASE("Portamento advances once per song tick across row boundaries")
+{
+    xfm_module *module = xfm_module_create(48000, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+    xfm_patch_opn patch = Tracker_DefaultPatch();
+    xfm_patch_set(module, 0, &patch, sizeof(patch), XFM_CHIP_YM3438);
+    const char *pattern =
+        "3\n"
+        "C-4007F\n"
+        "D-4..7F0308\n"
+        ".......\n";
+    REQUIRE(xfm_song_declare(module, 1, pattern, 60, 6) == 1);
+    xfm_song_play(module, 1, false);
+    const int samplesPerRow = module->song_patterns[1].samples_per_row;
+    Test_MixSongFrames(module, samplesPerRow);
+    REQUIRE(module->active_song.current_row == 1);
+    XfmSongChannel &channel = module->active_song.channels[0];
+    REQUIRE(channel.portamento_active);
+    const double startHz = channel.portamento_start_hz;
+    const double tickRatio = std::pow(2.0, 0.25 / 12.0);
+    CHECK(channel.current_hz == doctest::Approx(startHz * tickRatio));
+
+    Test_MixSongFrames(module, samplesPerRow - 1);
+    CHECK(channel.current_hz == doctest::Approx(startHz * std::pow(tickRatio, 6)));
+    Test_MixSongFrames(module, 1);
+    REQUIRE(module->active_song.current_row == 2);
+    CHECK(channel.current_hz == doctest::Approx(startHz * std::pow(tickRatio, 7)));
+    xfm_module_destroy(module);
+}
+
+TEST_CASE("Furnace pitch volume vibrato and tremolo advance on tracker ticks")
+{
+    xfm_module *module = xfm_module_create(48000, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+    XfmSongChannel &channel = module->active_song.channels[0];
+    module->channel_active[0] = true;
+    channel.current_hz = 440.0;
+    channel.current_volume = 100;
+    channel.current_volume_f = 100.0;
+    channel.pitch_slide_speed = 8;
+    channel.volume_slide_speed = 4;
+    channel.vibrato_speed = 4;
+    channel.vibrato_depth = 8;
+    channel.tremolo_speed = 8;
+    channel.tremolo_depth = 6;
+    song_advance_furnace_effect_tick(module, 0);
+    CHECK(channel.current_hz == doctest::Approx(440.0 * std::pow(2.0, 0.25 / 12.0)));
+    CHECK(channel.current_volume == 101);
+    CHECK(channel.vibrato_phase == doctest::Approx(4.0));
+    CHECK(channel.tremolo_phase == doctest::Approx(8.0));
+    xfm_module_destroy(module);
+}
+
+TEST_CASE("Furnace arpeggio persists across notes and 03 needs a note command")
+{
+    xfm_module *module = xfm_module_create(48000, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+    xfm_patch_opn patch = Tracker_DefaultPatch();
+    xfm_patch_set(module, 0, &patch, sizeof(patch), XFM_CHIP_YM3438);
+    const char *pattern =
+        "3\n"
+        "C-4007F0037\n"
+        "D-4....\n"
+        ".......0000\n";
+    REQUIRE(xfm_song_declare(module, 1, pattern, 60, 6) == 1);
+    xfm_song_play(module, 1, false);
+    const int rowFrames = module->song_patterns[1].samples_per_row;
+    Test_MixSongFrames(module, rowFrames);
+    CHECK(module->active_song.channels[0].effect_arpeggio_active);
+    Test_MixSongFrames(module, rowFrames);
+    CHECK_FALSE(module->active_song.channels[0].effect_arpeggio_active);
+    xfm_module_destroy(module);
+
+    module = xfm_module_create(48000, 256, XFM_CHIP_YM3438);
+    REQUIRE(module != nullptr);
+    xfm_patch_set(module, 0, &patch, sizeof(patch), XFM_CHIP_YM3438);
+    const char *portaPattern =
+        "3\n"
+        "C-4007F0308\n"
+        "D-4....\n"
+        ".......\n";
+    REQUIRE(xfm_song_declare(module, 1, portaPattern, 60, 6) == 1);
+    xfm_song_play(module, 1, false);
+    Test_MixSongFrames(module, module->song_patterns[1].samples_per_row);
+    CHECK_FALSE(module->active_song.channels[0].portamento_active);
+    xfm_module_destroy(module);
 }
 
 static void Test_InstallPatchWithReleaseMacro(xfm_module *module)
@@ -2852,13 +2963,13 @@ TEST_CASE("Looping song reapplies row effects on every pass")
 
     const char *pattern =
         "1\n"
-        "C-4007F04070C01\n";
+        "C-4007F04170C01\n";
     REQUIRE(xfm_song_declare(module, 1, pattern, 100, 4) == 1);
     xfm_song_play(module, 1, true);
 
     Test_AdvanceSongUntilChannelActive(module, 0);
     XfmSongChannel &ch = module->active_song.channels[0];
-    CHECK(ch.vibrato_speed == 0);
+    CHECK(ch.vibrato_speed == 1);
     CHECK(ch.vibrato_depth == 7);
     CHECK(ch.retrigger_ticks == 1);
 
@@ -3117,7 +3228,7 @@ TEST_CASE("Phase reset macro rekeys the active note envelope")
     xfm_module_destroy(module);
 }
 
-TEST_CASE("Arpeggio effect does not carry into a later plain note")
+TEST_CASE("Furnace arpeggio carries into a later plain note")
 {
     xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
     REQUIRE(module != nullptr);
@@ -3138,10 +3249,9 @@ TEST_CASE("Arpeggio effect does not carry into a later plain note")
     REQUIRE(ch.effect_arpeggio_active);
 
     Test_AdvanceSongUntilRow(module, 1);
-    CHECK_FALSE(ch.effect_arpeggio_active);
-    CHECK(ch.effect_arp_offset == 0);
-    CHECK(ch.effect_arpeggio_step_a == 0);
-    CHECK(ch.effect_arpeggio_step_b == 0);
+    CHECK(ch.effect_arpeggio_active);
+    CHECK(ch.effect_arpeggio_step_a == 4);
+    CHECK(ch.effect_arpeggio_step_b == 7);
 
     xfm_module_destroy(module);
 }

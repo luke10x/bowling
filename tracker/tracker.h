@@ -1514,14 +1514,14 @@ inline const char *Tracker_EffectDescription(uint8_t code)
     switch (code)
     {
     case TRACKER_EFFECT_CODE_NONE: return "No effect in this slot.";
-    case 0x00: return "Arpeggio. A and B are semitone offsets from the row note. Pattern is base, +A, +B, one step per tracker tick. Note-scoped: it only applies when the same note row contains 00xy; later notes are plain unless they also carry 00xy.";
-    case 0x01: return "Pitch slide up. xx is speed. Current implementation moves continuously at about 25 cents per second for each speed unit. Sticky per channel: keeps sliding until 00, another pitch motion effect, or song reset.";
-    case 0x02: return "Pitch slide down. xx is speed. Current implementation moves continuously at about 25 cents per second for each speed unit. Sticky per channel: keeps sliding until 00, another pitch motion effect, or song reset.";
-    case 0x03: return "Portamento. xx is speed. On a later note row, the channel glides toward the new note instead of hard retriggering. Current implementation reaches the target in about 16/xx rows. Sticky per channel until set to 00 or replaced by another pitch motion effect.";
-    case 0x04: return "Vibrato. A is speed, B is depth. Speed is an LFO rate in Hz (about 0.8 + A*0.75). Depth is about 7 cents per step. Sticky per channel until changed or set to 0400.";
-    case 0x07: return "Tremolo. A is speed, B is depth. Speed is an LFO rate in Hz (about 0.8 + A*0.75). Depth modulates carrier level; larger B means stronger volume wobble. Sticky per channel until changed or set to 0700.";
+    case 0x00: return "Arpeggio. A and B are semitone offsets from the current note. Cycles base, +A, +B on tracker ticks and remains active across later notes until 0000.";
+    case 0x01: return "Pitch slide up. Furnace linear-pitch speed: 4*xx pitch units per tracker tick, with 128 units per semitone. Continues until 0100 or another pitch motion effect.";
+    case 0x02: return "Pitch slide down. Furnace linear-pitch speed: 4*xx pitch units per tracker tick, with 128 units per semitone. Continues until 0200 or another pitch motion effect.";
+    case 0x03: return "Portamento. Place 03xx on the note to glide toward it without re-keying. Speed is 4*xx pitch units per tracker tick, with 128 units per semitone. The glide stops at the target; another note needs its own 03xx.";
+    case 0x04: return "Vibrato. A advances a 64-step sine wave on each tracker tick; B sets depth up to about one semitone. Remains active until 0400.";
+    case 0x07: return "Tremolo. A advances a 128-step wave on each tracker tick; B sets downward volume depth. Replaces a volume slide and remains active until 0700 or a new volume slide.";
     case 0x08: return "Panning. A toggles left, B toggles right. Non-zero nibble means that side is enabled. This is remembered as channel state and stays until changed, even across later notes.";
-    case 0x0A: return "Volume slide. A is up amount, B is down amount, combined as A-B. Current implementation changes channel volume by that amount over one row. Sticky per channel until changed or set to 0A00.";
+    case 0x0A: return "Volume slide. A raises volume or B lowers it by that amount over four tracker ticks; B wins if both are nonzero. Replaces tremolo and stops at volume 0/127 or 0A00.";
     case 0x0C: return "Retrigger. xx is tracker ticks between remembered-note rekeys for the current row. Row-scoped Furnace-style effect; enter it on every row that should retrigger.";
     case 0xE1: return "Note slide up. A is speed, B is semitones. Slides once toward note * 2^(B/12). Current implementation reaches the target in about 16/A rows, then stops. Overrides continuous pitch slide while active.";
     case 0xE2: return "Note slide down. A is speed, B is semitones. Slides once toward note / 2^(B/12). Current implementation reaches the target in about 16/A rows, then stops. Overrides continuous pitch slide while active.";

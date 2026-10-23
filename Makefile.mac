@@ -304,3 +304,16 @@ doctest:
 
 
 .PHONY: assman
+
+# Explicit conversion tool. Deliberately independent of the main game target.
+XFM_TO_FUR := build/macos/bin/xfm_to_fur
+.PHONY: xfm-to-fur
+xfm-to-fur: $(XFM_TO_FUR)
+
+$(XFM_TO_FUR): scripts/xfm_to_fur.cpp tracker/xfm_furnace_export.cpp tracker/xfm_furnace_export.h ../eggsfm/xfm_impl.cpp ../eggsfm/xfm_api.h ../eggsfm/xfm_patched_ym3438.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) -std=c++20 -O2 -I../eggsfm -I../ymfm/src \
+		scripts/xfm_to_fur.cpp tracker/xfm_furnace_export.cpp \
+		../eggsfm/xfm_impl.cpp ../eggsfm/xfm_patched_ym3438.cpp \
+		../ymfm/src/ymfm_misc.cpp ../ymfm/src/ymfm_adpcm.cpp \
+		../ymfm/src/ymfm_ssg.cpp ../ymfm/src/ymfm_opn.cpp -o $@

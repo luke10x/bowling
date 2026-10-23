@@ -1,70 +1,126 @@
-"""Regression checks for the standalone Furnace converter."""
-import pathlib
+"""End-to-end checks for the C++ Furnace converter and its Python wrapper."""
+from pathlib import Path
 import struct
+import subprocess
+import sys
+import tempfile
 import unittest
-import os
 
-import xfm_to_fur as fur
+ROOT = Path(__file__).resolve().parents[1]
+WRAPPER = ROOT / 'scripts/xfm_to_fur.py'
+SONGS = ROOT / 'sounds/builtin_songs'
+EMPTY = '.......'
+OP = 'OP {n} 0 1 0 0 31 0 0 0 0 15 0'
 
-SONGS = pathlib.Path(os.environ.get(
-    'XFM_SONGS_DIR',
-    pathlib.Path(__file__).resolve().parents[1] / 'sounds' / 'builtin_songs'))
 
-
-def read_blocks(data):
+def rows_in_first_pattern(data):
     assert data[:16] == b'-Furnace module-'
     pos = 32
     while pos < len(data):
-        code = data[pos:pos + 4]
+        tag = data[pos:pos + 4]
         size = struct.unpack_from('<I', data, pos + 4)[0]
-        yield code, data[pos + 8:pos + 8 + size]
+        body = data[pos + 8:pos + 8 + size]
         pos += 8 + size
-    assert pos == len(data)
+        if tag != b'PATN' or body[1] != 0 or struct.unpack_from('<H', body, 2)[0] != 0:
+            continue
+        cursor = body.index(0, 4) + 1
+        rows = []
+        while cursor < len(body):
+            mask = body[cursor]
+            cursor += 1
+            if mask == 255:
+                break
+            if mask & 128:
+                rows.extend([None] * ((mask & 127) + 2))
+                continue
+            extra = body[cursor] if mask & 32 else 0
+            cursor += bool(mask & 32)
+            fields = []
+            for bit in (1, 2, 4, 8, 16):
+                fields.append(body[cursor] if mask & bit else None)
+                cursor += bool(mask & bit)
+            for bit in range(2, 8):
+                cursor += bool(extra & (1 << bit))
+            rows.append(fields)
+        return rows
+    raise AssertionError('missing channel 0, order 0 PATN')
+
+
+def song_header(lines):
+    pattern = '\n'.join('|'.join([first] + [EMPTY] * 5) for first in lines)
+    operators = '\n'.join(OP.format(n=n) for n in range(1, 5))
+    return f'''XFM_SONG_BEGIN(R"xfmname(Test)xfmname")
+XFM_TICK_RATE(60)
+XFM_SPEED(4)
+XFM_ROWS_PER_BEAT(4)
+XFM_TUNING_MODE(0)
+XFM_LFO_ENABLED(0)
+XFM_LFO_FREQUENCY(0)
+XFM_PATTERN(R"xfmpattern(
+{len(lines)}
+{pattern}
+)xfmpattern")
+XFM_INSTRUMENTS(R"xfminstruments(
+INST 01
+PATCH 0 0 0 0
+{operators}
+ENDINST
+)xfminstruments")
+'''
 
 
 class ConverterTests(unittest.TestCase):
-    def test_exported_pitch_matches_tracker_label(self):
-        self.assertEqual(fur.parse_cell('C-4....', 0, 0).note, 108)  # Furnace C-4
-        self.assertEqual(fur.parse_cell('C#4....', 0, 0).note, 109)
-        self.assertEqual(fur.parse_cell('A-3....', 0, 0).note, 105)
+    def convert(self, header):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            source, target = path / 'test.h', path / 'test.fur'
+            source.write_text(header)
+            subprocess.run([sys.executable, str(WRAPPER), str(source), str(target)],
+                           cwd=ROOT, check=True, capture_output=True)
+            return target.read_bytes()
 
-    def test_builtin_songs_have_parts_and_valid_blocks(self):
-        songs = sorted(SONGS.glob('*.h'))
-        self.assertGreaterEqual(len(songs), 7)
-        for path in songs:
-            with self.subTest(song=path.name):
-                song = fur.parse_song(path)
-                parts = fur.split_parts(song)
-                data = fur.convert(song)
-                self.assertEqual(data, fur.convert(song))
-                codes = [code for code, _ in read_blocks(data)]
-                self.assertEqual(codes.count(b'INF2'), 1)
-                self.assertEqual(codes.count(b'SNG2'), 1)
-                self.assertEqual(codes.count(b'INS2'), len(song.instruments))
-                self.assertEqual(codes.count(b'PATN'), len(parts) * 6)
-                self.assertLessEqual(sum(len(p.rows) for p in parts), len(song.rows))
-                self.assertLessEqual(max(len(p.rows) for p in parts), 256)
-                self.assertTrue(all(not p.name.startswith('SKIP ') for p in parts))
+    def test_inherited_and_live_row_volumes_use_cpp_playback(self):
+        data = self.convert(song_header([
+            'C-40120', EMPTY, '.....10', 'D-401..',
+            '.......0A10', 'E-401..', 'OFF....', 'F-401..',
+        ]))
+        rows = rows_in_first_pattern(data)
+        self.assertEqual([rows[i][2] for i in (0, 2, 3, 5, 7)],
+                         [0x20, 0x10, 0x10, 0x11, 0x13])
+        self.assertTrue(all(value is None for value in rows[1]))
+        self.assertEqual(rows[4][3:], [0x0A, 0x10])
+        self.assertIsNone(rows[4][2])
+        self.assertIsNone(rows[6][2])
 
-    def test_detune_mapping_matches_both_chip_tables(self):
-        furnace_hardware = (7, 6, 5, 0, 1, 2, 3, 4)
-        for signed, furnace_index in fur.DT_TO_FUR.items():
-            xfm_hardware = 8 + signed if signed < 0 else signed
-            self.assertEqual(furnace_hardware[furnace_index], xfm_hardware)
+    def test_skipped_parts_do_not_change_inherited_volume(self):
+        header = song_header(['C-40120', '.....10', '.....00', 'D-401..'])
+        header = header.replace('C-40120|', 'PART First\nC-40120|')
+        header = header.replace('.....00|', 'SKIP Unused\n.....00|')
+        header = header.replace('D-401..|', 'PART Last\nD-401..|')
+        data = self.convert(header)
+        # The next order's first note must retain 0x10, not the skipped 0x00.
+        self.assertEqual(rows_in_first_pattern(data)[0][2], 0x20)
+        pos = 32
+        volumes = []
+        while pos < len(data):
+            tag = data[pos:pos + 4]
+            size = struct.unpack_from('<I', data, pos + 4)[0]
+            body = data[pos + 8:pos + 8 + size]
+            if tag == b'PATN' and body[1] == 0 and struct.unpack_from('<H', body, 2)[0] == 1:
+                cursor = body.index(0, 4) + 1
+                mask = body[cursor]
+                self.assertEqual(mask & 7, 7)
+                volumes.append(body[cursor + 3])
+            pos += 8 + size
+        self.assertEqual(volumes, [0x10])
 
-    def test_parts_skip_and_pattern_break(self):
-        song = fur.parse_song(SONGS / 'drizzle_lane.h')
-        parts = fur.split_parts(song)
-        self.assertEqual(len(parts), 16)
-        self.assertEqual(max(len(p.rows) for p in parts), 64)
-        self.assertEqual(len(fur.convert(song)) > 1000, True)
-
-    def test_macro_loop_and_release_bytes(self):
-        song = fur.parse_song(SONGS / 'pin_crusher.h')
-        macro = next(m for i in song.instruments for m in i.macros if m.target == 1)
-        encoded = fur.encode_macro(macro, 6)
-        self.assertEqual(encoded[:4], bytes((6, 32, 0, 21)))
-        self.assertEqual(encoded[8:], bytes(macro.values))
+    def test_all_builtin_songs_convert(self):
+        with tempfile.TemporaryDirectory() as directory:
+            subprocess.run([sys.executable, str(WRAPPER), '--all', str(SONGS), directory],
+                           cwd=ROOT, check=True, capture_output=True)
+            outputs = list(Path(directory).glob('*.fur'))
+            self.assertEqual(len(outputs), 7)
+            self.assertTrue(all(path.stat().st_size > 1000 for path in outputs))
 
 
 if __name__ == '__main__':

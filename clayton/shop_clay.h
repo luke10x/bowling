@@ -36,6 +36,7 @@ static inline void Shop_DrawGoldCard(Clayton *clayton, const CarouselState *caro
     const float previewHeight = Shop_CardPreviewHeightPx(
         Clay_GetElementData(CLAY_ID("CarouselBelt")).boundingBox.width);
     const float bodyHeight = previewHeight + SHOP_CARD_PRICE_HEIGHT + SHOP_CARD_STATS_HEIGHT;
+    const float playButtonSide = bodyHeight * 0.34f;
     Gles3_ImageConfig *goldPreview =
         index == carousel->closestBallIdx ? &clayton->pinImage :
         index == carousel->closest2ndBallIdx ? &clayton->pin2Image :
@@ -81,7 +82,17 @@ static inline void Shop_DrawGoldCard(Clayton *clayton, const CarouselState *caro
                         CLAY(CLAY_IDI("GoldRewardPlay", index),
                              {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                          .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
-                        { CLAY_TEXT(CLAY_STRING("▶"), CLAY_TEXT_CONFIG(goldText)); }
+                        {
+                            CLAY(CLAY_IDI("GoldRewardPlayButton", index),
+                                 {.layout = {.sizing = {CLAY_SIZING_FIXED(playButtonSide),
+                                                         CLAY_SIZING_FIXED(playButtonSide)},
+                                             .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+                                  .backgroundColor = {255, 232, 153, 255},
+                                  .cornerRadius = {CLAY_RADIUS_LG, CLAY_RADIUS_LG,
+                                                   CLAY_RADIUS_LG, CLAY_RADIUS_LG},
+                                  .border = {.color = {35, 25, 4, 255}, .width = CLAY_BORDER_ALL(3)}})
+                            { CLAY_TEXT(CLAY_STRING("▶"), CLAY_TEXT_CONFIG(goldText)); }
+                        }
                         CLAY(CLAY_IDI("GoldRewardAmount", index),
                              {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
                                          .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})

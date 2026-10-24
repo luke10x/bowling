@@ -2174,8 +2174,8 @@ void Physics::apply_spin_curve()
     JPH::RVec3 pos = iface.GetPosition(ballID);
     JPH::Vec3 vel = iface.GetLinearVelocity(ballID);
 
-    // Only apply if ball is near lane surface
-    if (pos.GetY() > 0.15f) // assuming lane height ~0
+    // Once the ball starts leaving the lane, spin must not steer it under the slab.
+    if (!LanePushback::IsBallOnPlayableLane(pos.GetX(), pos.GetY()))
         return;
 
     float minY = -10.0f;

@@ -6,12 +6,16 @@
 TEST_CASE("Lane pushback only affects balls supported by the playable lane")
 {
     const float edge = LanePushback::PLAYABLE_HALF_WIDTH_M;
+    const float supportedEdge = LanePushback::SUPPORTED_HALF_WIDTH_M;
 
     CHECK(LanePushback::IsBallOnPlayableLane(0.0f, 0.11f));
-    CHECK(LanePushback::IsBallOnPlayableLane(edge, 0.11f));
+    CHECK(LanePushback::IsBallOnPlayableLane(supportedEdge, 0.11f));
 
-    // A gutter ball must not receive a force back toward the lane while falling.
+    // A ball tipping over the lip must not receive inward lane forces.
+    CHECK_FALSE(LanePushback::IsBallOnPlayableLane(supportedEdge + 0.001f, 0.11f));
+    CHECK_FALSE(LanePushback::IsBallOnPlayableLane(edge, 0.11f));
     CHECK_FALSE(LanePushback::IsBallOnPlayableLane(edge + 0.001f, 0.11f));
     CHECK_FALSE(LanePushback::IsBallOnPlayableLane(-edge - 0.001f, 0.11f));
+    CHECK_FALSE(LanePushback::IsBallOnPlayableLane(0.0f, LanePushback::MIN_SURFACE_CENTER_Y_M - 0.001f));
     CHECK_FALSE(LanePushback::IsBallOnPlayableLane(0.0f, LanePushback::MAX_SURFACE_CENTER_Y_M));
 }

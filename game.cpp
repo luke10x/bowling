@@ -172,7 +172,8 @@ static inline bool Game_MoneyRewardReady()
 #elif defined(__ANDROID__) || defined(ANDROID) || (defined(__APPLE__) && TARGET_OS_IPHONE)
     return PlatformAds_RewardedReady();
 #else
-    return false;
+    // Desktop has no ad SDK. Keep the shop reward available for local testing.
+    return true;
 #endif
 }
 
@@ -189,6 +190,8 @@ static inline void Game_ShowMoneyReward(SDL_AudioDeviceID audioDevice)
     PlatformAds_ShowMoneyReward();
 #else
     (void)audioDevice;
+    // Simulate a completed reward on desktop through the same accounting path.
+    Game_OnMoneyRewardEarned();
     Game_OnMoneyRewardFinished();
 #endif
 }

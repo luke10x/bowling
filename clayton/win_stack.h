@@ -1567,7 +1567,8 @@ inline bool WindowStack::processCampaignLevelSelectWindowEvent(WindowStack *self
         self->windowStackRequestCampaignResetConfirmation();
         return true;
     }
-    if (self->campaignLevelSelectCampaignComplete && isClaytonClicked(&clayton->campaignLevelContinueClick, e))
+    if (self->campaignLevelSelectCampaignComplete && self->campaignSequelTab &&
+        isClaytonClicked(&clayton->campaignLevelContinueClick, e))
     {
         self->campaignLevelSelectActionRequested = 2;
         self->windowStackPopTopWindow_();
@@ -3483,6 +3484,7 @@ inline void renderCampaignSequelContent(WindowStack *self, Clayton *clayton)
     Clay_ElementDeclaration chartCard = CLAY_THEME_SECTION;
     chartCard.layout.childGap = 4;
     chartCard.layout.padding = {6, 6, 6, 6};
+    chartCard.layout.sizing.height = CLAY_SIZING_GROW();
     CLAY(CLAY_ID("SequelChartCard"), chartCard)
     {
         CLAY(CLAY_ID("SequelChartHeading"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
@@ -3492,27 +3494,31 @@ inline void renderCampaignSequelContent(WindowStack *self, Clayton *clayton)
             CLAY(CLAY_ID("SequelChartHeadingGap"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}) {}
             CLAY_TEXT(ClayArena_FormatString(arena, "%d - %d", chartFloor, chartCeiling), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
         }
-        if (!recent.count)
-            CLAY_TEXT(clayton->txl(TXL_SEQUEL_NO_GAMES), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
-        else
+        const float previousBarsHeight = Clay_GetElementData(CLAY_ID("SequelBars")).boundingBox.height;
+        const int barSpace = std::max(12, (int)previousBarsHeight - 24);
+        CLAY(CLAY_ID("SequelBars"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+            .childGap = 7, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
         {
-            CLAY(CLAY_ID("SequelBars"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                .childGap = 7, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+            for (int slot = 0; slot < 5; ++slot)
             {
-                for (int slot = 0; slot < recent.count; ++slot)
-                {
-                    const CampaignSequelGame &game = recent.games[recent.count - slot - 1];
-                    const int height = std::max(5, (game.score - chartFloor) * 48 / std::max(1, chartCeiling - chartFloor));
-                    const Clay_Color barColor = game.score > game.opponentScore
+                const bool hasGame = slot < recent.count;
+                const CampaignSequelGame *game = hasGame ? &recent.games[recent.count - slot - 1] : nullptr;
+                const int height = hasGame
+                    ? std::max(5, (game->score - chartFloor) * barSpace / std::max(1, chartCeiling - chartFloor))
+                    : 3;
+                const Clay_Color barColor = !hasGame ? Clay_Color{106, 83, 129, 255}
+                    : game->score > game->opponentScore
                         ? Clay_Color{72, 213, 140, 255} : Clay_Color{236, 101, 112, 255};
-                    CLAY(CLAY_IDI("SequelBarColumn", slot), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                        .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
-                    {
-                        CLAY_TEXT(ClayArena_FormatString(arena, "%d", game.score), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
-                        CLAY(CLAY_IDI("SequelBarSpacer", slot), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED((float)(52 - height))}}}) {}
-                        CLAY(CLAY_IDI("SequelBarFill", slot), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED((float)height)}},
-                            .backgroundColor = barColor, .cornerRadius = {5, 5, 2, 2}}) {}
-                    }
+                CLAY(CLAY_IDI("SequelBarColumn", slot), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                {
+                    CLAY_TEXT(hasGame ? ClayArena_FormatString(arena, "%d", game->score)
+                        : CLAY_STRING("--"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+                    CLAY(CLAY_IDI("SequelBarSpacer", slot),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}) {}
+                    CLAY(CLAY_IDI("SequelBarFill", slot),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED((float)height)}},
+                         .backgroundColor = barColor, .cornerRadius = {5, 5, 2, 2}}) {}
                 }
             }
         }
@@ -3572,7 +3578,7 @@ inline void renderCampaignSequelContent(WindowStack *self, Clayton *clayton)
             CLAY_TEXT(clayton->txl(TXL_SEQUEL_TOP_FIVE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
             CLAY(CLAY_ID("SequelScoresGap"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}) {}
             Clay_ElementDeclaration filter = CLAY_THEME_BTN_HUD;
-            filter.layout.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIXED(34)};
+            filter.layout.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIXED(60)};
             filter.backgroundColor = self->campaignSequelCurrentOnly ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_HUD;
             CLAY(clayton->campaignSequelFilterClick.clayId, filter)
             { CLAY_TEXT(clayton->txl(self->campaignSequelCurrentOnly ? TXL_SEQUEL_FILTER_ON : TXL_SEQUEL_FILTER_OFF), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
@@ -3735,13 +3741,19 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
     {
         window.layout.sizing.height = CLAY_SIZING_PERCENT(0.95f);
         window.layout.padding.top = 12;
-        window.layout.padding.bottom = 12;
+        window.layout.padding.bottom = 0;
+        window.layout.padding.left = 0;
+        window.layout.padding.right = 0;
     }
     CLAY(CLAY_ID("CampaignLevelSelectWindow"), window)
     {
-        CLAY(CLAY_ID("CampaignLevelSelectHeading"),
-             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+        Clay_ElementDeclaration heading = {
+            .layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                       .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                       .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}};
+        if (self->campaignLevelSelectCampaignComplete)
+            heading.layout.padding = {20, 20, 0, 0};
+        CLAY(CLAY_ID("CampaignLevelSelectHeading"), heading)
         {
             CLAY_TEXT(clayton->txl(self->campaignLevelSelectCampaignComplete
                 ? TXL_CAMPAIGN_COMPLETE : TXL_CAMPAIGN_TITLE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
@@ -3766,7 +3778,7 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
                 auto tab = [&](Clay_ElementId id, TxlKey label, bool active)
                 {
                     Clay_ElementDeclaration button = CLAY_THEME_BTN_PRIMARY;
-                    button.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(42)};
+                    button.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)};
                     button.cornerRadius.bottomLeft = 0;
                     button.cornerRadius.bottomRight = 0;
                     button.backgroundColor = Shop_TabColor(id, active,
@@ -3802,17 +3814,11 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
                             clayton->campaignLevelRestartClick.clayId, CLAY_COLOR_BTN_DANGER);
                         CLAY(clayton->campaignLevelRestartClick.clayId, restart)
                         { CLAY_TEXT(clayton->txl(TXL_RESTART_CAMPAIGN), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
-                        Clay_ElementDeclaration next = CLAY_THEME_BTN_PRIMARY;
-                        next.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)};
-                        CLAY(clayton->campaignLevelContinueClick.clayId, next)
-                        { CLAY_TEXT(clayton->txl(TXL_NEXT), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
                     }
                 }
                 else
                 {
                     renderCampaignSequelContent(self, clayton);
-                    CLAY(CLAY_ID("SequelBottomSpacer"),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}) {}
                     Clay_ElementDeclaration next = CLAY_THEME_BTN_PRIMARY;
                     next.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(56)};
                     CLAY(clayton->campaignLevelContinueClick.clayId, next)

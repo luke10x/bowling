@@ -182,6 +182,9 @@ struct Clayton
     Clayton_Click campaignLevelClicks[13];
     Clayton_Click campaignLevelRestartClick;
     Clayton_Click campaignLevelContinueClick;
+    Clayton_Click campaignCompletedTabClick;
+    Clayton_Click campaignSequelTabClick;
+    Clayton_Click campaignSequelFilterClick;
     Clayton_Click campaignLevelDetailPlayClick;
     Clayton_Click campaignLevelDetailBackClick;
     Clayton_Click campaignLevelSelectCloseClick;

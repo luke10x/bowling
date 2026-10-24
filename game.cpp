@@ -274,6 +274,7 @@ static inline void Game_ShowMoneyReward(SDL_AudioDeviceID audioDevice)
 #include "rendertexture.h"
 #include "score.h"
 #include "campaign_record.h"
+#include "campaign_sequel.h"
 #include "shop.h"
 #include "shop/gold_reward_preview.h"
 #include "shop/flying_coins_helper.h"
@@ -1107,6 +1108,7 @@ struct UserContext
     bool campaignPostgameBestBlocksEnabled = true;
     bool campaignPostgameBestNosEnabled = true;
     bool campaignPostgameBestRunesEnabled = true;
+    CampaignSequelHistory campaignSequelHistory;
     // Snapshotted at new-game setup.  The post-campaign settings UI changes
     // preferences only; it must never change a game that is already underway.
     bool campaignRunPostgameBlocksEnabled = true;
@@ -11925,6 +11927,20 @@ static inline void Campaign_SavePostgameSettings(UserContext *usr)
     usr->storage.setChar(Storage::CAMPAIGN_POSTGAME_SETTINGS, settings, std::strlen(settings));
 }
 
+static inline void Campaign_SaveSequelHistory(UserContext *usr)
+{
+    if (!usr) return;
+    const std::string recent = CampaignSequel_Encode(usr->campaignSequelHistory.recent);
+    usr->storage.setCharKey("campaign_sequel_recent", recent.c_str(), recent.size());
+    for (int i = 0; i < 8; ++i)
+    {
+        char key[40];
+        std::snprintf(key, sizeof(key), "campaign_sequel_top_%d", i);
+        const std::string top = CampaignSequel_Encode(usr->campaignSequelHistory.top[i]);
+        usr->storage.setCharKey(key, top.c_str(), top.size());
+    }
+}
+
 static inline void Campaign_SaveRuneLessonProgress(UserContext *usr)
 {
     if (!usr)
@@ -12500,6 +12516,7 @@ static inline void Progress_ResetFull(UserContext *usr)
     // state back, so the current run can begin immediately.
     usr->storage.reset();
     Progress_ResetCampaign(usr, /*resetInventory=*/true);
+    usr->campaignSequelHistory = {};
     usr->adPolicy = AdPolicyState{};
     usr->pendingLossInterstitial = false;
     usr->adInterstitialInFlight = false;
@@ -19593,6 +19610,9 @@ void vtx::init(vtx::VertexContext *ctx)
         initClaytonClickIni(&usr->clayton.campaignLevelClicks[i], "CampaignLevelSelect", i);
     initClaytonClick(&usr->clayton.campaignLevelRestartClick, "CampaignLevelRestart");
     initClaytonClick(&usr->clayton.campaignLevelContinueClick, "CampaignLevelContinue");
+    initClaytonClick(&usr->clayton.campaignCompletedTabClick, "CampaignCompletedTab");
+    initClaytonClick(&usr->clayton.campaignSequelTabClick, "CampaignSequelTab");
+    initClaytonClick(&usr->clayton.campaignSequelFilterClick, "CampaignSequelFilter");
     initClaytonClick(&usr->clayton.campaignLevelDetailPlayClick, "CampaignLevelDetailPlay");
     initClaytonClick(&usr->clayton.campaignLevelDetailBackClick, "CampaignLevelDetailBack");
     initClaytonClick(&usr->clayton.campaignPostgameSettingsClick, "CampaignPostgameSettings");
@@ -19748,6 +19768,18 @@ void vtx::init(vtx::VertexContext *ctx)
                 usr->campaignPostgameNosEnabled = nos != 0;
                 if (fields >= 3)
                     usr->campaignPostgameRunesEnabled = runes != 0;
+            }
+        }
+        {
+            std::string saved;
+            if (usr->storage.getCharKey("campaign_sequel_recent", saved))
+                usr->campaignSequelHistory.recent = CampaignSequel_Decode(saved);
+            for (int i = 0; i < 8; ++i)
+            {
+                char key[40];
+                std::snprintf(key, sizeof(key), "campaign_sequel_top_%d", i);
+                if (usr->storage.getCharKey(key, saved))
+                    usr->campaignSequelHistory.top[i] = CampaignSequel_Decode(saved);
             }
         }
         n = usr->storage.getChar(Storage::CAMPAIGN_RUNE_LESSONS_SEEN, tmp, sizeof(tmp));
@@ -21053,7 +21085,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->campaignPostgameRunesEnabled,
                         usr->campaignPostgameBestBlocksEnabled,
                         usr->campaignPostgameBestNosEnabled,
-                        usr->campaignPostgameBestRunesEnabled
+                        usr->campaignPostgameBestRunesEnabled,
+                        &usr->campaignSequelHistory
                     );
                 }
                 if (usr->windowStack.campaignPostgameSettingsChanged)
@@ -24872,6 +24905,14 @@ swing_checks_done:
                                                 usr->campaignPostgameBestRunesEnabled = usr->campaignRunPostgameRunesEnabled;
                                             }
                                             Campaign_SavePostgameStats(usr);
+                                            CampaignSequel_Record(usr->campaignSequelHistory, {
+                                                usr->board.totalScore, usr->enemyBoard.totalScore,
+                                                (int64_t)std::time(nullptr),
+                                                CampaignSequel_Settings(usr->campaignRunPostgameNosEnabled,
+                                                    usr->campaignRunPostgameBlocksEnabled,
+                                                    usr->campaignRunPostgameRunesEnabled)
+                                            });
+                                            Campaign_SaveSequelHistory(usr);
                                         }
                                         // A chapter's victory dialogue precedes results.
                                         const bool hasEndStory = !clearedFullCampaign && Campaign_HasVictoryEndStory(

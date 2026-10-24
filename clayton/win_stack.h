@@ -3125,12 +3125,15 @@ inline void WindowStack::renderAdManagerWindow(Clayton *clayton, const AdPolicyS
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
     Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
-    Clay_String lines[10] = {};
+    Clay_String lines[12] = {};
     int lineCount = 0;
     ClayArena *arena = &clayton->clayArena;
     const TxlLanguage language = clayton->uiLanguage;
     lines[lineCount++] = ClayArena_FormatString(arena, Txl_Get(language, TXL_AD_CREDIT_FMT),
                                                 adPolicy->credit, AdsConfig::CreditMax);
+    lines[lineCount++] = ClayArena_FormatString(arena, Txl_Get(language, TXL_AD_CREDIT_BUCKET_FMT),
+                                                adPolicy->creditBucket, AdsConfig::CreditBucketSize,
+                                                AdsConfig::CreditBucketWinBonus);
     lines[lineCount++] = ClayArena_FormatString(arena, Txl_Get(language, TXL_AD_CREDIT_RULES_FMT),
                                                 (int)AdsConfig::WinCost, (int)AdsConfig::LossCost,
                                                 (int)AdsConfig::DailyLoginBonus);
@@ -3214,6 +3217,13 @@ inline void WindowStack::renderLoyaltyRewardWindow(WindowStack *self, Clayton *c
     Clay_ElementDeclaration loyaltyPanel = CLAY_THEME_WINDOW_PANEL;
     loyaltyPanel.image.imageData = &clayton->pinImage;
     loyaltyPanel.border.color = {119, 68, 11, 255};
+    // The accept and continue actions occupy the same full-width slot.
+    action.layout.sizing.width = CLAY_SIZING_GROW();
+    if (!self->loyaltyReadyToContinue)
+    {
+        action.border.color = loyaltyPanel.border.color;
+        action.border.width = CLAY_BORDER_OUTSIDE(CLAY_BORDER_WIDTH + 1);
+    }
     CLAY(CLAY_ID("LoyaltyRewardWindow"), loyaltyPanel)
     {
         CLAY(CLAY_ID("LoyaltyRewardContent"),

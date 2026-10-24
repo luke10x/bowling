@@ -14,6 +14,7 @@
 struct AdPolicyState
 {
     float credit = AdsConfig::CreditInitial;
+    float creditBucket = 0.0f;
     int lastLoginDay = 0; // YYYYMMDD
     int counterDay = 0;   // YYYYMMDD
     int interstitialsToday = 0;
@@ -28,6 +29,10 @@ static constexpr int kAdPolicyDailyMoneyAdLimit = AdsConfig::MoneyDailyLimit;
 static constexpr int64_t kAdPolicyHolidaySeconds = AdsConfig::HolidayHours * 60 * 60;
 static_assert(AdsConfig::MoneyPerRestockLimit >= 0,
               "The rewarded ad limit per restock cannot be negative");
+static_assert(AdsConfig::CreditBucketSize > 0.0f,
+              "The win credit bucket must have a positive size");
+static_assert(AdsConfig::CreditBucketWinBonus >= 0.0f,
+              "The win credit bucket bonus cannot be negative");
 
 static inline int AdPolicy_LocalDay(int64_t epochSeconds)
 {
@@ -71,6 +76,16 @@ static inline bool AdPolicy_OnOutcome(AdPolicyState &state, bool won, int today,
     if (AdPolicy_OnHoliday(state, now) ||
         state.interstitialsToday >= kAdPolicyDailyInterstitialLimit)
         return false;
+    if (won && state.credit < AdsConfig::CreditBucketSize)
+    {
+        state.creditBucket += AdsConfig::CreditBucketWinBonus;
+        while (state.creditBucket >= AdsConfig::CreditBucketSize)
+        {
+            state.creditBucket -= AdsConfig::CreditBucketSize;
+            state.credit = std::min(AdsConfig::CreditMax,
+                                    state.credit + AdsConfig::CreditBucketSize);
+        }
+    }
     const float cost = won ? AdsConfig::WinCost : AdsConfig::LossCost;
     if (state.credit >= cost)
     {
@@ -119,12 +134,12 @@ static inline bool AdPolicy_OnMoneyAdViewed(AdPolicyState &state, int today, uin
 
 static inline void AdPolicy_Format(const AdPolicyState &state, char *out, size_t size)
 {
-    std::snprintf(out, size, "%.3f,%d,%d,%d,%d,%lld,%llu,%d", state.credit,
+    std::snprintf(out, size, "%.3f,%d,%d,%d,%d,%lld,%llu,%d,%.3f", state.credit,
                   state.lastLoginDay, state.counterDay,
                   state.interstitialsToday, state.moneyAdsToday,
                   static_cast<long long>(state.holidayEndsAt),
                   static_cast<unsigned long long>(state.rewardedShopBucketId),
-                  state.moneyAdsThisRestock);
+                  state.moneyAdsThisRestock, state.creditBucket);
 }
 
 static inline bool AdPolicy_Parse(AdPolicyState &state, const char *text)
@@ -133,13 +148,16 @@ static inline bool AdPolicy_Parse(AdPolicyState &state, const char *text)
     AdPolicyState parsed;
     long long holiday = 0;
     unsigned long long rewardedBucket = ULLONG_MAX;
-    const int fields = std::sscanf(text, "%f,%d,%d,%d,%d,%lld,%llu,%d", &parsed.credit,
+    const int fields = std::sscanf(text, "%f,%d,%d,%d,%d,%lld,%llu,%d,%f", &parsed.credit,
                     &parsed.lastLoginDay, &parsed.counterDay,
                     &parsed.interstitialsToday, &parsed.moneyAdsToday, &holiday,
-                    &rewardedBucket, &parsed.moneyAdsThisRestock);
-    if (fields < 6 || !std::isfinite(parsed.credit))
+                    &rewardedBucket, &parsed.moneyAdsThisRestock, &parsed.creditBucket);
+    if (fields < 6 || !std::isfinite(parsed.credit) ||
+        (fields >= 9 && !std::isfinite(parsed.creditBucket)))
         return false;
     parsed.credit = std::max(0.0f, std::min(AdsConfig::CreditMax, parsed.credit));
+    parsed.creditBucket = std::max(0.0f, std::min(AdsConfig::CreditBucketSize,
+                                                  parsed.creditBucket));
     parsed.interstitialsToday = std::max(0, std::min(kAdPolicyDailyInterstitialLimit, parsed.interstitialsToday));
     parsed.moneyAdsToday = std::max(0, std::min(kAdPolicyDailyMoneyAdLimit, parsed.moneyAdsToday));
     parsed.holidayEndsAt = std::max<int64_t>(0, holiday);

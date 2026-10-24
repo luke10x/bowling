@@ -46,6 +46,7 @@ TXL_CREDITS = "Kreditai"; // Used in: campaign and results windows (clayton/win_
 TXL_AD_MANAGER_TITLE = "REKLAMŲ VALDYMAS"; // Naudojama: reklamų valdymo lange
 TXL_AD_SPONSOR_PROMPT = "Žodis mūsų sponsoriams"; // Naršyklės reklamos mygtukas
 TXL_AD_CREDIT_FMT = "Reklamų kreditas: %.1f / %.0f"; // Naudojama: reklamų valdymo lange
+TXL_AD_CREDIT_BUCKET_FMT = "Laimėjimų rezervas: %.0f / %.0f (+%.0f, kai kredito mažai)"; // Naudojama: reklamų valdymo lange
 TXL_AD_CREDIT_RULES_FMT = "Laimėjimas: -%d, pralaimėjimas: -%d, prisijungimas: +%d"; // Reklamų taisyklės
 TXL_AD_HOLIDAY_ACTIVE = "Pertrauka nuo reklamų"; // Naudojama: reklamų valdymo lange
 TXL_AD_HOLIDAY_INACTIVE = "Pertraukos nuo reklamų nėra"; // Naudojama: reklamų valdymo lange

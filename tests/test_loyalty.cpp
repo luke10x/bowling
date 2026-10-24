@@ -8,7 +8,13 @@ int main()
     assert(!Loyalty_OnActivation(fresh, 20261021));
     assert(Loyalty_OnActivation(fresh, 20261022));
     assert(fresh.streak == 2);
-    fresh.claimedDay = 20261022;
+    // Returning focus while the window is open can queue the same reward again.
+    bool pendingWindow = true;
+    assert(Loyalty_ClaimToday(fresh, pendingWindow, 20261022));
+    assert(!pendingWindow && fresh.claimedDay == 20261022);
+    pendingWindow = true;
+    assert(!Loyalty_ClaimToday(fresh, pendingWindow, 20261022));
+    assert(!pendingWindow);
     assert(!Loyalty_OnActivation(fresh, 20261022));
 
     // The DAY cheat clears only today's claim; a later activation offers it again.

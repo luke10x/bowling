@@ -90,6 +90,7 @@ TXL_CREDITS = "クレジット"; // Used in: campaign and results windows (clayt
 TXL_AD_MANAGER_TITLE = "広告管理"; // 広告管理ウィンドウ
 TXL_AD_SPONSOR_PROMPT = "スポンサーからのお知らせ"; // ブラウザー広告のボタン
 TXL_AD_CREDIT_FMT = "広告クレジット: %.1f / %.0f"; // 広告管理ウィンドウ
+TXL_AD_CREDIT_BUCKET_FMT = "勝利貯金: %.0f / %.0f (低クレジット勝利 +%.0f)"; // 広告管理ウィンドウ
 TXL_AD_CREDIT_RULES_FMT = "勝利: -%d、敗北: -%d、毎日ログイン: +%d"; // 広告ルール
 TXL_AD_HOLIDAY_ACTIVE = "広告休暇中"; // 広告管理ウィンドウ
 TXL_AD_HOLIDAY_INACTIVE = "広告休暇はありません"; // 広告管理ウィンドウ

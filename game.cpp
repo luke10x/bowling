@@ -214,6 +214,7 @@ static inline void Game_ShowMoneyReward(SDL_AudioDeviceID audioDevice)
 #include "gasfactory.h"
 #include "crystalcavern.h"
 #include "aurora.h"
+#include "sky_fireworks.h"
 #include "city.h"
 #include "city_biome.h"
 #include "traffic.h"
@@ -1368,6 +1369,9 @@ struct UserContext
     GasFactoryBiome gasFactory;
     CrystalCavernBiome crystalCavern;
 	Aurora aurora;
+    SkyFireworks skyFireworks;
+    float skyFireworksAmount = 0.0f;
+    float skyFireworksUntilS = -1.0f;
     City city;
     CityBiome cityBiome;
     Traffic traffic;
@@ -1904,6 +1908,26 @@ struct UserContext
     glm::vec3 cameraReturnEndEye = glm::vec3(0.0f);
     glm::vec3 cameraReturnEndTarget = glm::vec3(0.0f);
 };
+
+static inline void Celebration_BurstConfetti(UserContext *usr, const glm::vec3 &position)
+{
+    const glm::vec3 worldUp(0.0f, 1.0f, 0.0f);
+    glm::vec3 forward = usr->cameraTarget - usr->cameraEye;
+    forward = glm::dot(forward, forward) > 1.0e-5f
+        ? glm::normalize(forward) : glm::vec3(0.0f, 0.0f, -1.0f);
+    glm::vec3 right = glm::cross(forward, worldUp);
+    right = glm::dot(right, right) > 1.0e-5f
+        ? glm::normalize(right) : glm::vec3(1.0f, 0.0f, 0.0f);
+    glm::vec3 nearPosition = glm::mix(position, usr->cameraEye, 0.4f);
+    nearPosition.y = position.y - 0.20f;
+    const glm::vec3 burstPositions[] = {
+        position,
+        nearPosition - right * 0.55f,
+        nearPosition + right * 0.55f,
+    };
+    usr->particles.burstConfettiSequence(burstPositions, 3, 0.18f);
+    usr->skyFireworksUntilS = std::max(usr->skyFireworksUntilS, usr->rawTime + 3.0f);
+}
 
 // All gameplay physics step intervals live here, in milliseconds. The second
 // column is used when a frame falls below the FPS threshold. Equal columns
@@ -11753,8 +11777,9 @@ static inline bool AdPolicy_ChargeOutcome(UserContext *usr, bool won)
     if (!usr) return false;
     const int64_t now = static_cast<int64_t>(std::time(nullptr));
     const float previousCredit = usr->adPolicy.credit;
+    const float previousBucket = usr->adPolicy.creditBucket;
     const bool show = AdPolicy_OnOutcome(usr->adPolicy, won, AdPolicy_LocalDay(now), now);
-    if (usr->adPolicy.credit != previousCredit)
+    if (usr->adPolicy.credit != previousCredit || usr->adPolicy.creditBucket != previousBucket)
         AdPolicy_Save(usr);
     return show;
 }
@@ -14516,7 +14541,7 @@ static inline void SchoolSpin_UpdatePinTargetProgress(UserContext *usr)
             usr->sound.playSfxWin();
             glm::vec3 p = SchoolSpin_PinTargetPosition(usr, 1, usr->school.spinLevel);
             p.y += 0.35f;
-            usr->particles.burstConfetti(p);
+            Celebration_BurstConfetti(usr, p);
         }
     }
 }
@@ -15380,7 +15405,8 @@ static inline void CampaignEndgameConfetti_Tick(UserContext *usr)
         return;
     }
 
-    constexpr float kBurstIntervalS = 0.5f;
+    // Let each small shower drift and fade before another one joins it.
+    constexpr float kBurstIntervalS = 1.05f;
     const float now = usr->rawTime;
     if (usr->campaignEndgameConfettiNextS < 0.0f ||
         now - usr->campaignEndgameConfettiNextS > 2.0f)
@@ -15390,7 +15416,7 @@ static inline void CampaignEndgameConfetti_Tick(UserContext *usr)
 
     if (now >= usr->campaignEndgameConfettiNextS)
     {
-        usr->particles.burstConfetti(CampaignEndgameConfetti_VisiblePosition(usr));
+        Celebration_BurstConfetti(usr, CampaignEndgameConfetti_VisiblePosition(usr));
         usr->campaignEndgameConfettiNextS = now + kBurstIntervalS;
     }
 }
@@ -20862,7 +20888,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                                 {
                                     glm::vec3 p = usr->ballStart;
                                     p.y += 0.35f;
-                                    usr->particles.burstConfetti(p);
+                                    Celebration_BurstConfetti(usr, p);
                                 }
 
                                 if (usr->school.spinSafeCoins >= 3)
@@ -20960,9 +20986,8 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->windowStack.loyaltyAcceptRequested = false;
                     const int today = AdPolicy_LocalDay(static_cast<int64_t>(std::time(nullptr)));
                     if (!usr->windowStack.loyaltyPayoutActive &&
-                        usr->loyalty.claimedDay != today)
+                        Loyalty_ClaimToday(usr->loyalty, usr->loyaltyWindowPending, today))
                     {
-                        usr->loyalty.claimedDay = today;
                         Loyalty_Save(usr);
                         const int previousBank = (int)std::lround(usr->carousel.bank);
                         usr->carousel.bank += kLoyaltyDailyReward;
@@ -20975,6 +21000,13 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->hudMoneyBlinkTime = 0.0f;
                         usr->hudMoneySpinning = true;
                         usr->windowStack.loyaltyPayoutActive = true;
+                    }
+                    else if (usr->loyalty.claimedDay == today &&
+                             !usr->windowStack.loyaltyPayoutActive)
+                    {
+                        // A stale duplicate must close on its first click.
+                        usr->loyaltyWindowPending = false;
+                        usr->windowStack.windowStackCloseTopWindow();
                     }
                 }
                 if (usr->windowStack.menuRenameRequested)
@@ -24361,7 +24393,7 @@ swing_checks_done:
                                                             usr->sound.playSfxWin();
                                                             glm::vec3 p = usr->initialPins[0];
                                                             p.y += 0.35f;
-                                                            usr->particles.burstConfetti(p);
+                                                            Celebration_BurstConfetti(usr, p);
                                                         }
                                                         else if (!heavyWasPassed && heavyNowPassed)
                                                         {
@@ -24370,7 +24402,7 @@ swing_checks_done:
                                                             usr->sound.playSfxWin();
                                                             glm::vec3 p = usr->initialPins[0];
                                                             p.y += 0.35f;
-                                                            usr->particles.burstConfetti(p);
+                                                            Celebration_BurstConfetti(usr, p);
                                                         }
                                                     }
 
@@ -24436,7 +24468,7 @@ swing_checks_done:
                                             usr->school.unlockedLessons = 5;
                                             glm::vec3 p = usr->initialPins[0];
                                             p.y += 0.35f;
-                                            usr->particles.burstConfetti(p);
+                                            Celebration_BurstConfetti(usr, p);
                                             usr->sound.playSfxWin();
                                             // Always show graduation message (even if it was already passed before);
                                             // keep it modal to offer "Practice more" vs "Back to game".
@@ -24500,7 +24532,7 @@ swing_checks_done:
                                         {
                                             glm::vec3 p = usr->initialPins[0];
                                             p.y += 0.35f;
-                                            usr->particles.burstConfetti(p);
+                                            Celebration_BurstConfetti(usr, p);
                                         }
 
                                         const int need = SchoolAimTuning::REQUIRED_POINTS;
@@ -24809,7 +24841,7 @@ swing_checks_done:
 				                            // Victory confetti at the pin deck.
 				                            glm::vec3 p = usr->initialPins[0];
 				                            p.y += 0.35f;
-				                            usr->particles.burstConfetti(p);
+				                            Celebration_BurstConfetti(usr, p);
 				                        }
 				                        else
 				                            usr->sound.playSfxLose();
@@ -24972,7 +25004,7 @@ swing_checks_done:
                                         usr->sound.playSfxWin();
                                         glm::vec3 p = usr->initialPins[0];
                                         p.y += 0.35f;
-                                        usr->particles.burstConfetti(p);
+                                        Celebration_BurstConfetti(usr, p);
                                         Campaign_SetResultWindowLabels(usr, /*advanced=*/true);
                                     }
                                     else
@@ -26792,14 +26824,27 @@ END_LINE:
         usr->frameProfileGraph.mark(FrameProfileGraph::SceneClear);
 
         usr->auroraVibe.update(deltaTime);
+        const bool celebrationFireworks = !trackerOnlyMode && usr->settings.highDetailsEnabled &&
+            (CampaignEndgameConfetti_ShouldRun(usr) || usr->rawTime < usr->skyFireworksUntilS);
+        const float fireworksTarget = celebrationFireworks ? 1.0f : 0.0f;
+        const float fireworksRate = celebrationFireworks ? 1.8f : 0.75f;
+        const float fireworksStep = 1.0f - std::exp(-safeDeltaTime * fireworksRate);
+        usr->skyFireworksAmount = glm::mix(usr->skyFireworksAmount,
+                                            fireworksTarget, fireworksStep);
+        if (!celebrationFireworks && usr->skyFireworksAmount < 0.003f)
+            usr->skyFireworksAmount = 0.0f;
         // Fullscreen background passes should ignore scene depth, same as previews.
         glDisable(GL_DEPTH_TEST);
         glDepthMask(GL_FALSE);
         usr->aurora.renderAurora(
             deltaTime * TUNE,
             glm::inverse(usr->cameraMat),
-            usr->auroraVibe.value
+            usr->auroraVibe.value,
+            usr->skyFireworksAmount
         ); //  * projectionMatrix);
+        usr->skyFireworks.render(usr->rawTime, usr->skyFireworksAmount,
+                                  ctx->screenWidth * ctx->pixelRatio,
+                                  ctx->screenHeight * ctx->pixelRatio);
         glEnable(GL_DEPTH_TEST);
         glDepthMask(GL_TRUE);
         usr->frameProfileGraph.mark(FrameProfileGraph::Aurora);
@@ -27639,7 +27684,7 @@ END_LINE:
                                     usr->sound.playSfxWin();
                                     glm::vec3 p = usr->initialPins[0];
                                     p.y += 0.35f;
-                                    usr->particles.burstConfetti(p);
+                                    Celebration_BurstConfetti(usr, p);
 		                        }
 		                    }
 		                }

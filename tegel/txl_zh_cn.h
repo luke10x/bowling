@@ -66,6 +66,7 @@ TXL_CREDITS = "制作名单"; // Used in: campaign and results windows (clayton/
 TXL_AD_MANAGER_TITLE = "广告管理"; // 用于广告管理窗口
 TXL_AD_SPONSOR_PROMPT = "赞助商的话"; // 浏览器插页广告按钮
 TXL_AD_CREDIT_FMT = "广告积分：%.1f / %.0f"; // 用于广告管理窗口
+TXL_AD_CREDIT_BUCKET_FMT = "胜利储备：%.0f / %.0f（低积分获胜 +%.0f）"; // 用于广告管理窗口
 TXL_AD_CREDIT_RULES_FMT = "胜利：-%d，失败：-%d，每日登录：+%d"; // 广告规则
 TXL_AD_HOLIDAY_ACTIVE = "广告假期进行中"; // 用于广告管理窗口
 TXL_AD_HOLIDAY_INACTIVE = "当前没有广告假期"; // 用于广告管理窗口

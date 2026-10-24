@@ -32,6 +32,8 @@
 #define ADS_CREDIT_INITIAL 50 
 #define ADS_CREDIT_MAX 100
 #define ADS_CREDIT_DAILY_LOGIN_BONUS 10
+#define ADS_CREDIT_BUCKET_SIZE 20
+#define ADS_CREDIT_BUCKET_WIN_BONUS 10
 #define ADS_CREDIT_WIN_COST 1
 #define ADS_CREDIT_LOSS_COST 50 // jsut to test somethingi shoould be ~ 5
 #define ADS_INTERSTITIAL_DAILY_LIMIT 500 // just  to test, normal value ~ 5
@@ -45,6 +47,8 @@ namespace AdsConfig
 inline constexpr float CreditInitial = ADS_CREDIT_INITIAL;
 inline constexpr float CreditMax = ADS_CREDIT_MAX;
 inline constexpr float DailyLoginBonus = ADS_CREDIT_DAILY_LOGIN_BONUS;
+inline constexpr float CreditBucketSize = ADS_CREDIT_BUCKET_SIZE;
+inline constexpr float CreditBucketWinBonus = ADS_CREDIT_BUCKET_WIN_BONUS;
 inline constexpr float WinCost = ADS_CREDIT_WIN_COST;
 inline constexpr float LossCost = ADS_CREDIT_LOSS_COST;
 inline constexpr int InterstitialDailyLimit = ADS_INTERSTITIAL_DAILY_LIMIT;

@@ -82,7 +82,8 @@ struct Aurora
      *       fractional = mode - floor(mode)
      *       Then mix styleIndex and (styleIndex+1)%NUM_STYLES using fractional
      */
-    void renderAurora(float deltaTime, const glm::mat4 cameraMatrix, float animationMode = 0.0f)
+    void renderAurora(float deltaTime, const glm::mat4 cameraMatrix,
+                      float animationMode = 0.0f, float fireworksDim = 0.0f)
     {
         glUseProgram(this->auroraShaderId);
 
@@ -97,6 +98,8 @@ struct Aurora
         this->time += 0.25f * deltaTime;
         glUniform1f(glGetUniformLocation(this->auroraShaderId, "uTime"), this->time);
         glUniform1f(glGetUniformLocation(this->auroraShaderId, "uAnimationMode"), animationMode);
+        glUniform1f(glGetUniformLocation(this->auroraShaderId, "uFireworksDim"),
+                    glm::clamp(fireworksDim, 0.0f, 1.0f));
         // Pass num styles for wrapping logic in shader
         glUniform1f(glGetUniformLocation(this->auroraShaderId, "uNumStyles"), float(NUM_ANIMATION_STYLES));
 
@@ -121,7 +124,7 @@ const char *Aurora::AURORA_FRAGMENT_SHADER = GLSL_VERSION R"(
     precision highp float;
     in vec2 TexCoord;
     out vec4 FragColor;
-    uniform float uYaw, uPitch, uTime, uAnimationMode, uNumStyles;
+    uniform float uYaw, uPitch, uTime, uAnimationMode, uNumStyles, uFireworksDim;
 
     // ========== SHARED UTILITIES ==========
     vec3 mod289(vec3 x) { return x - floor(x * (1.0/289.0)) * 289.0; }
@@ -332,6 +335,7 @@ const char *Aurora::AURORA_FRAGMENT_SHADER = GLSL_VERSION R"(
     void main() {
         vec2 uv = TexCoord;
         vec3 color = mixAnimationStyles(uv, uTime, uYaw, uPitch, uAnimationMode, uNumStyles);
+        color *= 1.0 - 0.62 * uFireworksDim;
         float pitchNorm = (uPitch + 1.5708) / 3.14159;
         float opacity = clamp(pitchNorm, 0.2, 1.0);
         FragColor = vec4(color, opacity);

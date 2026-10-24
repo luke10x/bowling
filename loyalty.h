@@ -40,6 +40,16 @@ static inline bool Loyalty_OnActivation(LoyaltyState &state, int today)
     return state.claimedDay != today;
 }
 
+// A focus event can queue another window while the current reward is open.
+// Claiming consumes that pending request as well as the day's reward.
+static inline bool Loyalty_ClaimToday(LoyaltyState &state, bool &windowPending, int today)
+{
+    windowPending = false;
+    if (today <= 0 || state.claimedDay == today) return false;
+    state.claimedDay = today;
+    return true;
+}
+
 static inline bool Loyalty_Parse(LoyaltyState &state, const char *text)
 {
     LoyaltyState parsed;

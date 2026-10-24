@@ -45,6 +45,7 @@ TXL_CREDITS = "Credits"; // Used in: campaign and results windows (clayton/win_s
 TXL_AD_MANAGER_TITLE = "AD MANAGER"; // Used in: cheat-only ad manager window (clayton/win_stack.h)
 TXL_AD_SPONSOR_PROMPT = "A word from our sponsors"; // Browser interstitial prompt
 TXL_AD_CREDIT_FMT = "Ad credit: %.1f / %.0f"; // Used in: ad manager window
+TXL_AD_CREDIT_BUCKET_FMT = "Win reserve: %.0f / %.0f (+%.0f per low-credit win)"; // Used in: ad manager window
 TXL_AD_CREDIT_RULES_FMT = "Win: -%d, loss: -%d, daily login: +%d"; // Ad manager rules
 TXL_AD_HOLIDAY_ACTIVE = "Ad holiday active"; // Used in: ad manager window
 TXL_AD_HOLIDAY_INACTIVE = "No ad holiday"; // Used in: ad manager window

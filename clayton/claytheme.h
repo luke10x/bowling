@@ -441,7 +441,7 @@ static inline Clay_Color ClayTheme_HoverColor(Clay_Color base, float rgbLift, fl
     {                                                                                              \
         .layout =                                                                                  \
             {                                                                                      \
-                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(40)},                             \
+                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},                             \
                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},                      \
             },                                                                                     \
         .backgroundColor = CLAY_THEME_HOVER_COLOR(CLAY_COLOR_BTN_SUCCESS, 20.0f, 0.0f),           \
@@ -452,7 +452,7 @@ static inline Clay_Color ClayTheme_HoverColor(Clay_Color base, float rgbLift, fl
     {                                                                                              \
         .layout =                                                                                  \
             {                                                                                      \
-                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(40)},                             \
+                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},                             \
                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},                      \
             },                                                                                     \
         .backgroundColor = CLAY_THEME_HOVER_COLOR(CLAY_COLOR_BTN_DISABLED, 12.0f, 0.0f),          \
@@ -539,7 +539,7 @@ static inline Clay_Color ClayTheme_HoverColor(Clay_Color base, float rgbLift, fl
     {                                                                                              \
         .layout =                                                                                  \
             {                                                                                      \
-                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},                                 \
+                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},                             \
                 .padding = {12, 12, 12, 12},                                                       \
                 .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},                      \
             },                                                                                     \

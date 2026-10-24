@@ -7,6 +7,8 @@
 #include <vector>
 #include <cstdlib>
 #include <cstddef>
+#include <algorithm>
+#include <cmath>
 
 #include "./framework/gl_header.h"
 #include "./framework/gl_util.h"
@@ -18,10 +20,15 @@ struct Particles
 {
     struct ParticleVertex
     {
-        glm::vec3 position;
+        glm::vec2 corner;
+        glm::vec3 origin;
         glm::vec3 velocity;
         glm::vec4 color;
-        float life;
+        float spawnTime;
+        float ttl;
+        float size;
+        float spin;
+        float phase;
     };
 
     struct SnowVertex
@@ -129,7 +136,8 @@ struct Particles
         glm::vec4 color;
     };
 
-    static constexpr int CONFETTI_PARTICLES = 200;
+    static constexpr int CONFETTI_PARTICLES = 432;
+    static constexpr int CONFETTI_PER_BURST = 36;
     static constexpr int SNOW_FLAKES = 220;
     static constexpr int BALL_TRACE_PARTICLES = 480;
     static constexpr float SNOW_SPAWN_INTERVAL = 1.25f;
@@ -176,6 +184,9 @@ struct Particles
     std::vector<BlockSparkVertex> blockSparkVerts;
     std::vector<SpinRingVertex> spinRingVerts;
     float time = 1000.0f;
+    float confettiAliveUntil = 0.0f;
+    unsigned int confettiSeed = 0x6d2b79f5u;
+    int confettiCursor = 0;
     float snowTime = 0.0f;
     float ballTraceTime = 0.0f;
     float ballTraceLastAliveUntil = 0.0f;
@@ -200,7 +211,6 @@ struct Particles
     int visibleBallTraceParticles = BALL_TRACE_PARTICLES;
     int visibleLaneDustParticles = LANE_DUST_PARTICLES;
     int visibleBlockSparkParticles = BLOCK_SPARK_PARTICLES;
-    glm::mat4 modelToWorld = glm::mat4(1.0f);
 
     static const char *VS;
     static const char *FS;
@@ -218,7 +228,9 @@ struct Particles
     void init()
     {
         regenerateConfettiVerts();
-        time = 1000.0f;
+        time = (float)SDL_GetTicks64() * 0.001f;
+        confettiCursor = 0;
+        confettiAliveUntil = 0.0f;
 
         shader = vtx::createShaderProgram(VS, FS);
 
@@ -235,26 +247,43 @@ struct Particles
         );
 
         glVertexAttribPointer(
-            0, (int)(sizeof(ParticleVertex::position) / sizeof(float)), GL_FLOAT, GL_FALSE,
-            sizeof(ParticleVertex), (void *)offsetof(ParticleVertex, position)
+            0, 2, GL_FLOAT, GL_FALSE,
+            sizeof(ParticleVertex), (void *)offsetof(ParticleVertex, corner)
         );
         glVertexAttribPointer(
-            1, (int)(sizeof(ParticleVertex::velocity) / sizeof(float)), GL_FLOAT, GL_FALSE,
+            1, 3, GL_FLOAT, GL_FALSE,
+            sizeof(ParticleVertex), (void *)offsetof(ParticleVertex, origin)
+        );
+        glVertexAttribPointer(
+            2, 3, GL_FLOAT, GL_FALSE,
             sizeof(ParticleVertex), (void *)offsetof(ParticleVertex, velocity)
         );
         glVertexAttribPointer(
-            2, (int)(sizeof(ParticleVertex::color) / sizeof(float)), GL_FLOAT, GL_FALSE,
+            3, 4, GL_FLOAT, GL_FALSE,
             sizeof(ParticleVertex), (void *)offsetof(ParticleVertex, color)
         );
         glVertexAttribPointer(
-            3, (int)(sizeof(float) / sizeof(float)), GL_FLOAT, GL_FALSE, sizeof(ParticleVertex),
-            (void *)offsetof(ParticleVertex, life)
+            4, 1, GL_FLOAT, GL_FALSE, sizeof(ParticleVertex),
+            (void *)offsetof(ParticleVertex, spawnTime)
         );
-
-        glEnableVertexAttribArray(0);
-        glEnableVertexAttribArray(1);
-        glEnableVertexAttribArray(2);
-        glEnableVertexAttribArray(3);
+        glVertexAttribPointer(
+            5, 1, GL_FLOAT, GL_FALSE, sizeof(ParticleVertex),
+            (void *)offsetof(ParticleVertex, ttl)
+        );
+        glVertexAttribPointer(
+            6, 1, GL_FLOAT, GL_FALSE, sizeof(ParticleVertex),
+            (void *)offsetof(ParticleVertex, size)
+        );
+        glVertexAttribPointer(
+            7, 1, GL_FLOAT, GL_FALSE, sizeof(ParticleVertex),
+            (void *)offsetof(ParticleVertex, spin)
+        );
+        glVertexAttribPointer(
+            8, 1, GL_FLOAT, GL_FALSE, sizeof(ParticleVertex),
+            (void *)offsetof(ParticleVertex, phase)
+        );
+        for (int attribute = 0; attribute <= 8; ++attribute)
+            glEnableVertexAttribArray(attribute);
 
         glBindVertexArray(0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -268,9 +297,54 @@ struct Particles
 
     void burstConfetti(const glm::vec3 &worldPos)
     {
-        time = 0.0f;
-        modelToWorld = glm::translate(glm::mat4(1.0f), worldPos);
-        regenerateConfettiVerts();
+        burstConfettiSequence(&worldPos, 1, 0.0f);
+    }
+
+    // Schedule nearby bursts in one particle-buffer upload.
+    void burstConfettiSequence(const glm::vec3 *positions, int count, float intervalS)
+    {
+        if (!positions || count <= 0)
+            return;
+        time = (float)SDL_GetTicks64() * 0.001f;
+        static const glm::vec2 corners[6] = {
+            {-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f},
+            {-1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}
+        };
+        static const glm::vec3 palette[] = {
+            {0.98f, 0.79f, 0.34f}, {1.00f, 0.95f, 0.78f},
+            {0.88f, 0.47f, 0.42f}, {0.55f, 0.82f, 0.84f},
+            {0.76f, 0.65f, 0.90f}, {0.96f, 0.62f, 0.29f}
+        };
+        for (int burst = 0; burst < count; ++burst)
+        for (int i = 0; i < CONFETTI_PER_BURST; ++i)
+        {
+            confettiSeed = confettiSeed * 1664525u + 1013904223u;
+            const float angle = glm::two_pi<float>() * float((confettiSeed >> 8) & 0xffffffu) / 16777215.0f;
+            confettiSeed = confettiSeed * 1664525u + 1013904223u;
+            const float spread = float((confettiSeed >> 8) & 0xffffffu) / 16777215.0f;
+            confettiSeed = confettiSeed * 1664525u + 1013904223u;
+            const float variety = float((confettiSeed >> 8) & 0xffffffu) / 16777215.0f;
+            const float radial = 0.40f + spread * 0.95f;
+            const glm::vec3 velocity(std::cos(angle) * radial,
+                                     1.15f + variety * 1.25f,
+                                     std::sin(angle) * radial * 0.72f);
+            const glm::vec3 origin = positions[burst] + glm::vec3(std::cos(angle) * 0.035f,
+                                                           spread * 0.06f,
+                                                           std::sin(angle) * 0.035f);
+            const glm::vec3 rgb = palette[(confettiSeed >> 24) % 6u];
+            const glm::vec4 color(rgb, 0.76f + 0.20f * spread);
+            const float born = time + float(burst) * intervalS + variety * 0.13f;
+            const float ttl = 2.65f + spread * 0.85f;
+            confettiAliveUntil = std::max(confettiAliveUntil, born + ttl);
+            const float size = 0.018f + variety * 0.013f;
+            const float spin = (spread - 0.5f) * 5.0f;
+            const float phase = angle;
+            const int slot = confettiCursor;
+            confettiCursor = (confettiCursor + 1) % CONFETTI_PARTICLES;
+            for (int corner = 0; corner < 6; ++corner)
+                verts[slot * 6 + corner] = {corners[corner], origin, velocity, color,
+                                            born, ttl, size, spin, phase};
+        }
 
         glBindVertexArray(vao);
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
@@ -286,25 +360,36 @@ struct Particles
 
     void draw(float deltaTime, const glm::mat4 &view, const glm::mat4 &proj)
     {
+        (void)deltaTime;
         if (!shader || !vao)
             return;
 
-        time += deltaTime;
-        // Confetti is short-lived; don't keep drawing forever.
-        if (time > 3.0f)
+        time = (float)SDL_GetTicks64() * 0.001f;
+        if (time > confettiAliveUntil)
             return;
+
+        const GLboolean blendEnabled = glIsEnabled(GL_BLEND);
+        const GLboolean depthEnabled = glIsEnabled(GL_DEPTH_TEST);
+        GLboolean depthWrite = GL_TRUE;
+        glGetBooleanv(GL_DEPTH_WRITEMASK, &depthWrite);
+        glEnable(GL_BLEND);
+        glDisable(GL_DEPTH_TEST);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glDepthMask(GL_FALSE);
 
         glUseProgram(shader);
         glBindVertexArray(vao);
 
         glUniformMatrix4fv(glGetUniformLocation(shader, "u_worldToView"), 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(glGetUniformLocation(shader, "u_projection"), 1, GL_FALSE, glm::value_ptr(proj));
-        glUniformMatrix4fv(glGetUniformLocation(shader, "u_modelToWorld"), 1, GL_FALSE, glm::value_ptr(modelToWorld));
         glUniform1f(glGetUniformLocation(shader, "u_time"), time);
 
         glDrawArrays(GL_TRIANGLES, 0, (GLsizei)verts.size());
 
         glBindVertexArray(0);
+        glDepthMask(depthWrite);
+        if (depthEnabled) glEnable(GL_DEPTH_TEST);
+        if (!blendEnabled) glDisable(GL_BLEND);
     }
 
     void drawSnow(float deltaTime, float spinDeltaRadians, const glm::mat4 &view, const glm::mat4 &proj)
@@ -981,32 +1066,9 @@ struct Particles
 
     void regenerateConfettiVerts()
     {
-        verts.clear();
-        static int seed = 0;
-        srand(seed++);
-
-        const float size = 0.3f;
-        for (int i = 0; i < CONFETTI_PARTICLES; i++)
-        {
-            glm::vec3 vel(
-                (rand() % 100 - 50) / 50.0f,
-                (rand() % 100) / 40.0f,
-                (rand() % 100 - 50) / 50.0f
-            );
-            glm::vec4 color(
-                (rand() / (float)RAND_MAX),
-                (rand() / (float)RAND_MAX),
-                (rand() / (float)RAND_MAX),
-                1.0f
-            );
-
-            ParticleVertex p1 = {glm::vec3(-size, -size, 0.0f), vel, color, 1.0f};
-            ParticleVertex p2 = {glm::vec3(size, -size, 0.0f), vel, color, 1.0f};
-            ParticleVertex p3 = {glm::vec3(0.0f, size, 0.0f), vel, color, 1.0f};
-            verts.push_back(p1);
-            verts.push_back(p2);
-            verts.push_back(p3);
-        }
+        // Dead slots let several short celebrations overlap without allocating
+        // or uploading new geometry every frame.
+        verts.assign(CONFETTI_PARTICLES * 6, ParticleVertex{});
     }
 
     void initSnow()
@@ -1865,24 +1927,47 @@ const char *Particles::VS =
 precision highp float;
 
 uniform float u_time;
-uniform mat4 u_modelToWorld;
 uniform mat4 u_worldToView;
 uniform mat4 u_projection;
 
-layout(location = 0) in vec3  a_position;
-layout(location = 1) in vec3  a_velocity;
-layout(location = 2) in vec4  a_color;
-layout(location = 3) in float a_life;
+layout(location = 0) in vec2  a_corner;
+layout(location = 1) in vec3  a_origin;
+layout(location = 2) in vec3  a_velocity;
+layout(location = 3) in vec4  a_color;
+layout(location = 4) in float a_spawnTime;
+layout(location = 5) in float a_ttl;
+layout(location = 6) in float a_size;
+layout(location = 7) in float a_spin;
+layout(location = 8) in float a_phase;
 
 out vec4 v_color;
+out vec2 v_corner;
+out float v_phase;
 
 void main() {
-    float delta = u_time;
-    vec3 currentVelocity = a_velocity * 2.0 + vec3(0.0, -9.8 * 0.2, 0.0) * delta;
-    vec3 movedPos = a_position + currentVelocity * delta;
-    v_color = a_color;
-    vec3 worldPos = vec3(u_modelToWorld * vec4(movedPos, 1.0));
-    gl_Position = u_projection * u_worldToView * vec4(worldPos, 1.0);
+    float age = u_time - a_spawnTime;
+    float alive = step(0.0, age) * step(age, a_ttl) * step(0.01, a_ttl);
+    float fadeIn = smoothstep(0.0, 0.15, age);
+    float fadeOut = 1.0 - smoothstep(a_ttl * 0.70, a_ttl, age);
+    vec3 worldPos = a_origin + a_velocity * max(age, 0.0) +
+                    vec3(0.0, -0.68 * age * age, 0.0);
+    // Paper drifts and tumbles after the initial toss.
+    worldPos.x += sin(age * 5.3 + a_phase) * min(age, 1.0) * 0.09;
+    worldPos.z += cos(age * 4.7 + a_phase) * min(age, 1.0) * 0.05;
+    vec4 viewPos = u_worldToView * vec4(worldPos, 1.0);
+    // Keep the shower's screen position while bringing its paper near the camera.
+    // UI is drawn later, so confetti remains behind dialogs.
+    if (viewPos.z < -3.2) viewPos.xyz *= 3.2 / -viewPos.z;
+    float angle = a_phase + a_spin * age;
+    mat2 rotation = mat2(cos(angle), sin(angle), -sin(angle), cos(angle));
+    float face = abs(cos(age * 7.0 + a_phase));
+    vec2 ribbon = rotation * (a_corner * vec2(a_size * (0.16 + 0.50 * face), a_size));
+    viewPos.xy += ribbon;
+    gl_Position = u_projection * viewPos;
+    v_color = vec4(a_color.rgb * (0.64 + 0.36 * face),
+                   a_color.a * alive * fadeIn * fadeOut);
+    v_corner = a_corner;
+    v_phase = a_phase;
 }
 )";
 
@@ -1890,9 +1975,13 @@ const char *Particles::FS =
     GLSL_VERSION R"(
 precision mediump float;
 in vec4 v_color;
+in vec2 v_corner;
+in float v_phase;
 out vec4 FragColor;
 void main() {
-    FragColor = v_color;
+    float edge = max(abs(v_corner.x), abs(v_corner.y));
+    float coverage = 1.0 - smoothstep(0.88, 1.0, edge);
+    FragColor = vec4(v_color.rgb, v_color.a * coverage);
 }
 )";
 

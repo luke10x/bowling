@@ -1381,7 +1381,6 @@ struct UserContext
 	Aurora aurora;
     SkyFireworks skyFireworks;
     float skyFireworksAmount = 0.0f;
-    float skyFireworksUntilS = -1.0f;
     City city;
     CityBiome cityBiome;
     Traffic traffic;
@@ -1958,7 +1957,14 @@ static inline void Celebration_BurstConfetti(UserContext *usr, const glm::vec3 &
         nearPosition + right * 0.55f,
     };
     usr->particles.burstConfettiSequence(burstPositions, 3, 0.18f);
-    usr->skyFireworksUntilS = std::max(usr->skyFireworksUntilS, usr->rawTime + 3.0f);
+}
+
+static inline void Celebration_BurstConfettiInView(UserContext *usr)
+{
+    glm::vec3 forward = usr->cameraTarget - usr->cameraEye;
+    forward = glm::dot(forward, forward) > 1.0e-5f
+        ? glm::normalize(forward) : glm::vec3(0.0f, 0.0f, -1.0f);
+    Celebration_BurstConfetti(usr, usr->cameraEye + forward * 3.5f + glm::vec3(0.0f, 0.5f, 0.0f));
 }
 
 // All gameplay physics step intervals live here, in milliseconds. The second
@@ -15366,7 +15372,10 @@ static inline void School_StrikeLessonStartSwap(UserContext *usr)
     bool foundZ = false;
     for (int i = 0; i < CoinLane::MAX_COINS; i++)
     {
-        g_schoolStrikeSwapStartPositions[i] = usr->coinLane.coins[i].position;
+        // Animate the path anchors; gem wobble is added separately each frame.
+        // Starting from the rendered position would bake that wobble into the
+        // swap and make the gems jump when the target layout is installed.
+        g_schoolStrikeSwapStartPositions[i] = usr->coinLane.coins[i].basePosition;
         if (i < targetActiveCount && targetStates[i] == CoinState::Active)
         {
             const float z = g_schoolStrikeSwapStartPositions[i].z;
@@ -15426,8 +15435,8 @@ static inline void School_StrikeLessonTickSwap(UserContext *usr, float dt)
                 1.0f
             );
             float ease = localT * localT * (3.0f - 2.0f * localT);
-            c.position = glm::mix(g_schoolStrikeSwapStartPositions[i], g_schoolStrikeSwapTargetPositions[i], ease);
-            c.basePosition = c.position;
+            c.basePosition = glm::mix(g_schoolStrikeSwapStartPositions[i], g_schoolStrikeSwapTargetPositions[i], ease);
+            c.position = c.basePosition;
             c.updateTransform();
         }
         if (g_schoolStrikeSwapElapsed >= SCHOOL_STRIKE_SWAP_MAX_START_DELAY_S + SCHOOL_STRIKE_SWAP_DURATION_S)
@@ -25259,6 +25268,7 @@ swing_checks_done:
                                 ResetAllElectroBalls(usr);
                                 usr->phase = UserContext::Phase::RESULT;
                                 usr->sound.playSfxWin();
+                                Celebration_BurstConfettiInView(usr);
                                 usr->miniGameCoinsEarnedLastRun =
                                     glm::max(0, usr->carousel.bank - usr->miniGameBankAtStart);
                                 MiniGame_SetCompletionWindowLabels(usr);
@@ -25311,6 +25321,7 @@ swing_checks_done:
                                 }
                                 else
                                 {
+                                    Celebration_BurstConfettiInView(usr);
                                     Campaign_SetResultWindowLabels(usr, /*advanced=*/false);
                                     ResultWindow_ConfigureBowling(
                                         usr,
@@ -26140,7 +26151,10 @@ swing_checks_done:
             usr->clayton.newGameDetail = usr->miniGameResultDetail;
             usr->phase = UserContext::Phase::RESULT;
             if (usr->countMasters.phase == CountMastersPhase::WON)
+            {
                 usr->sound.playSfxWin();
+                Celebration_BurstConfettiInView(usr);
+            }
             else
                 usr->sound.playSfxLose();
         }
@@ -26219,7 +26233,10 @@ swing_checks_done:
             usr->clayton.newGameDetail = usr->miniGameResultDetail;
             usr->phase = UserContext::Phase::RESULT;
             if (usr->crowdControl.phase == CrowdControlPhase::WON)
+            {
                 usr->sound.playSfxWin();
+                Celebration_BurstConfettiInView(usr);
+            }
             else
                 usr->sound.playSfxLose();
         }
@@ -27115,14 +27132,15 @@ END_LINE:
         usr->frameProfileGraph.mark(FrameProfileGraph::SceneClear);
 
         usr->auroraVibe.update(deltaTime);
-        const bool celebrationFireworks = !trackerOnlyMode && usr->settings.highDetailsEnabled &&
-            (CampaignEndgameConfetti_ShouldRun(usr) || usr->rawTime < usr->skyFireworksUntilS);
-        const float fireworksTarget = celebrationFireworks ? 1.0f : 0.0f;
-        const float fireworksRate = celebrationFireworks ? 1.8f : 0.75f;
-        const float fireworksStep = 1.0f - std::exp(-safeDeltaTime * fireworksRate);
-        usr->skyFireworksAmount = glm::mix(usr->skyFireworksAmount,
-                                            fireworksTarget, fireworksStep);
-        if (!celebrationFireworks && usr->skyFireworksAmount < 0.003f)
+        // Fireworks belong only to the first full-campaign clear. This state
+        // persists through its summary, result, and Angel greeting screens.
+        const bool celebrationFireworks = !trackerOnlyMode && CampaignEndgameConfetti_ShouldRun(usr);
+        if (celebrationFireworks)
+        {
+            const float fireworksStep = 1.0f - std::exp(-safeDeltaTime * 1.8f);
+            usr->skyFireworksAmount = glm::mix(usr->skyFireworksAmount, 1.0f, fireworksStep);
+        }
+        else
             usr->skyFireworksAmount = 0.0f;
         // Fullscreen background passes should ignore scene depth, same as previews.
         glDisable(GL_DEPTH_TEST);
@@ -28244,8 +28262,10 @@ END_LINE:
                 usr->particles.drawBlockSparks((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
                 usr->particles.drawLaneDust((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
             }
-            usr->particles.draw((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
         }
+        // Celebration confetti is independent of the optional High Details FX.
+        // Particles::draw exits before issuing GL work when no burst is alive.
+        usr->particles.draw((float)deltaTime, usr->cameraMat, usr->perspectiveMat);
         usr->frameProfileGraph.mark(FrameProfileGraph::FxAmbientParticles);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glDepthMask(GL_TRUE);

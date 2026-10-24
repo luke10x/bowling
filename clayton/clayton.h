@@ -70,6 +70,7 @@ struct Clayton
     Gles3_ImageConfig chestRewardImage;
     Gles3_ImageConfig hudCoinImage;
     Gles3_ImageConfig hudDiamondImage;
+    Gles3_ImageConfig schoolSpinFingerImage;
     Gles3_ImageConfig hudRuneBoomImage;
     Gles3_ImageConfig hudRuneBoltImage;
     Gles3_ImageConfig hudRuneFreezeImage;
@@ -385,6 +386,14 @@ struct Clayton
             .v0 = 0.752661133f,
             .u1 = 0.866784863f,
             .v1 = 0.813214844f,
+        };
+        // Existing SVG finger shape in exportroot (Clay uses top-left UVs).
+        this->schoolSpinFingerImage = Gles3_ImageConfig{
+            .textureToUse = 0,
+            .u0 = 0.759282227f,
+            .v0 = 0.699208984f,
+            .u1 = 0.800411572f,
+            .v1 = 0.741341797f,
         };
         this->hudRuneBoomImage = Gles3_ImageConfig{
             .textureToUse = 0,

@@ -55,6 +55,7 @@ typedef struct Gles3_ImageConfig
     int textureToUse;
     float u0, v0;
     float u1, v1;
+    float opacity = 1.0f;
 } Gles3_ImageConfig;
 
 #ifndef CLAY_RENDERER_GLES3_IMPLEMENTATION
@@ -217,7 +218,7 @@ const char *GLES3_QUAD_FRAGMENT_SHADER =
     "        frag = vColor;\n"
     "    } else {\n"
     "        int slot = int(vTexSlot + 0.5);\n"
-    "        if (slot < 4) {\n"  
+    "        if (slot < 4) {\n"
     "            if (slot == 0) frag = texture(uTex0, vUV);\n"
     "            if (slot == 1) frag = texture(uTex1, vUV);\n"
     "            if (slot == 2) frag = texture(uTex2, vUV);\n"
@@ -230,6 +231,7 @@ const char *GLES3_QUAD_FRAGMENT_SHADER =
     "            if (slot == 7) coverage = texture(uTex7, vUV).r;\n"
     "            frag = vec4(vColor.rgb, vColor.a * coverage);\n"
     "        }\n"
+    "        if (slot < 4) frag.a *= vColor.a;\n"
     "    }\n"
     "}\n";
 
@@ -391,6 +393,7 @@ void Gles3_Initialize(Gles3_Renderer *renderer, int maxInstances)
                           stride, (void *)offsetof(RectInstance, texToUse));
     glVertexAttribDivisor(ATTR_QUAD_TEX, 1);
 
+
     glBindVertexArray(1);
     glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
@@ -500,6 +503,8 @@ void Gles3_Render(
             dst->g = gf;
             dst->b = bf;
             dst->a = af;
+            if (isImage)
+                dst->a = ((Gles3_ImageConfig *)cmd->renderData.image.imageData)->opacity;
 
             // corner radii
             Clay_CornerRadius r = config->cornerRadius;

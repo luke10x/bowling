@@ -53,6 +53,10 @@
 // A best score that lost to the opponent has the same muted coral tint everywhere
 // campaign records appear (level cards and the post-campaign applet).
 static constexpr Clay_Color kCampaignRecordLossTextColor = {220, 82, 74, 255};
+static inline bool CampaignRecord_IsSchoolPass(int levelIndex, int wins, int bestScore)
+{
+    return levelIndex == 0 && wins > 0 && bestScore < 100;
+}
 
 enum WindowKind // I like it 
 {
@@ -3401,9 +3405,8 @@ inline void WindowStack::renderCampaignEndgameSummaryWindow(WindowStack *self, C
                         char levelBuf[8], recordBuf[24], scoreBuf[16];
                         snprintf(levelBuf, sizeof(levelBuf), "%d", idx + 1);
                         snprintf(recordBuf, sizeof(recordBuf), "%d / %d", self->campaignEndgameWins[idx], self->campaignEndgameAttempts[idx]);
-                        const bool schoolPassedFirstLevel =
-                            idx == 0 && self->campaignEndgameWins[idx] > 0 &&
-                            self->campaignEndgameBestScores[idx] <= 0;
+                        const bool schoolPassedFirstLevel = CampaignRecord_IsSchoolPass(
+                            idx, self->campaignEndgameWins[idx], self->campaignEndgameBestScores[idx]);
                         if (schoolPassedFirstLevel)
                         {
                             const Clay_String pass = clayton->txl(TXL_PASS);
@@ -3663,7 +3666,10 @@ inline void renderCampaignLevelGrid(WindowStack *self, Clayton *clayton)
                         char levelBuf[8], recordBuf[24], scoreBuf[16];
                         snprintf(levelBuf, sizeof(levelBuf), "%d", idx + 1);
                         snprintf(recordBuf, sizeof(recordBuf), "%d / %d", self->campaignEndgameWins[idx], self->campaignEndgameAttempts[idx]);
-                        if (self->campaignEndgameBestScores[idx] <= 0)
+                        if (CampaignRecord_IsSchoolPass(idx, self->campaignEndgameWins[idx],
+                                                        self->campaignEndgameBestScores[idx]))
+                            snprintf(scoreBuf, sizeof(scoreBuf), "%s", Txl_Get(clayton->uiLanguage, TXL_PASS));
+                        else if (self->campaignEndgameBestScores[idx] <= 0)
                             snprintf(scoreBuf, sizeof(scoreBuf), "%s", idx == 0 ? "?" : "? - ?");
                         else if (self->campaignEndgameBestOpponentScores[idx] > 0)
                             snprintf(scoreBuf, sizeof(scoreBuf), "%d - %d", self->campaignEndgameBestScores[idx], self->campaignEndgameBestOpponentScores[idx]);
@@ -3884,7 +3890,9 @@ inline void WindowStack::renderCampaignLevelDetailWindow(WindowStack *self, Clay
     snprintf(quitsValue, sizeof(quitsValue), "%d", quits);
     const int bestPlayer = self->campaignEndgameBestScores[idx];
     const int bestEnemy = self->campaignEndgameBestOpponentScores[idx];
-    if (bestPlayer > 0)
+    if (CampaignRecord_IsSchoolPass(idx, wins, bestPlayer))
+        snprintf(scoreValue, sizeof(scoreValue), "%s", Txl_Get(clayton->uiLanguage, TXL_PASS));
+    else if (bestPlayer > 0)
         snprintf(scoreValue, sizeof(scoreValue), "%d - %d", bestPlayer, bestEnemy);
     else
         snprintf(scoreValue, sizeof(scoreValue), "? - ?");

@@ -86,7 +86,7 @@ const CatalogItem g_ballCatalog[] = {
     // ═══════════════════════════════════════════════════════════════
     // 🔥 FIRE THEME
     // ═══════════════════════════════════════════════════════════════
-    { .id = kBallEmberStrike, .name = "Ember Strike", .rarity = "COMMON", .theme = "Fire",   .price = 17.0f,  .mass = 0.39f, .radius = 0.49f, .spin = 0.64f, .skid = 0.50f, .bite = 0.45f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.48f },
+    { .id = kBallEmberStrike, .name = "Ember Strike", .rarity = "COMMON", .theme = "Fire",   .price = 17.0f,  .mass = 0.36f, .radius = 0.49f, .spin = 0.64f, .skid = 0.50f, .bite = 0.55f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.48f },
     { .id = kBallFlameRoll,   .name = "Flame Roll",   .rarity = "COMMON", .theme = "Fire",   .price = 53.0f,  .mass = 0.55f, .radius = 0.52f, .spin = 0.68f, .skid = 0.47f, .bite = 0.50f, .restitution = 0.02f, .launchBuff = 0.26f, .hitBuff = 0.50f },
     { .id = kBallBlazeHook,   .name = "Blaze Hook",   .rarity = "RARE",   .theme = "Fire",   .price = 429.0f, .mass = 0.50f, .radius = 0.60f, .spin = 0.72f, .skid = 0.55f, .bite = 0.58f, .restitution = 0.02f, .launchBuff = 0.31f, .hitBuff = 0.60f },
     { .id = kBallInfernoFury, .name = "Inferno Fury", .rarity = "EPIC",   .theme = "Fire",   .price = 1246.0f,.mass = 0.74f, .radius = 0.77f, .spin = 0.69f, .skid = 0.63f, .bite = 0.76f, .restitution = 0.02f, .launchBuff = 0.41f, .hitBuff = 0.82f },

@@ -39,6 +39,7 @@ struct SchoolMassTuning
 
 struct SchoolSpinTuning
 {
+    static constexpr float BITE_BONUS = 0.05f;
     static constexpr int LEVELS = 2;
     static constexpr int COINS_PER_LEVEL = 3;
     static constexpr int TOTAL_REQUIRED = LEVELS * COINS_PER_LEVEL; // 9
@@ -51,8 +52,8 @@ struct SchoolSpinTuning
     // Both rounds stay near the middle. A tighter pickup area still requires
     // a small turn, even for the fixed targets in round one.
     static constexpr float AMP_LVL1 = 0.19f;
-    static constexpr float AMP_LVL2 = 0.26f;
-    static constexpr float MOVING_TARGET_MIN_ABS_X = 0.22f;
+    static constexpr float AMP_LVL2 = 0.21f; // moving targets 5 cm closer to centre
+    static constexpr float MOVING_TARGET_MIN_ABS_X = 0.17f;
     static constexpr float PICKUP_RADIUS_SCALE = 0.70f;
 
     static constexpr float LAUNCH_SPEED_SCALE = 0.85f;

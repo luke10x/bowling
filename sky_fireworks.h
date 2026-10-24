@@ -3,11 +3,11 @@
 #include "framework/gl_header.h"
 #include "framework/gl_util.h"
 
-// Five overlapping bursts of 150 sparks, based on the supplied hash-and-polar
+// Ten overlapping bursts of 150 sparks, based on the supplied hash-and-polar
 // firework. Each spark is one GPU instance instead of a loop in every sky pixel.
 struct SkyFireworks
 {
-    static constexpr int NUM_EXPLOSIONS = 5;
+    static constexpr int NUM_EXPLOSIONS = 10;
     static constexpr int NUM_PARTICLES = 150;
     GLuint program = 0;
     GLuint vao = 0;
@@ -40,14 +40,19 @@ struct SkyFireworks
                 void main() {
                     int burst = gl_InstanceID / 150;
                     int particle = gl_InstanceID - burst * 150;
-                    float t = u_time * 0.72 + float(burst) / 5.0;
+                    // Each burst lasts one third as long; extra staggered bursts
+                    // keep the sky populated while individual flares clear sooner.
+                    float t = u_time * 2.16 + float(burst) / 10.0;
                     float cycle = floor(t);
                     float age = fract(t);
                     vec2 randomOffset = hash12(float(burst) + 1.0 + cycle);
-                    vec2 origin = vec2((randomOffset.x - 0.5) * u_aspect * 1.48,
+                    // Keep burst centres and their flares inside the sky view,
+                    // including narrow portrait screens.
+                    vec2 origin = vec2((randomOffset.x - 0.5) * u_aspect * 0.48,
                                        0.23 + randomOffset.y * 0.19);
                     vec2 direction = hash12Polar(float(particle) + 1.0 +
-                                                 float(burst) * 97.0 + cycle * 131.0) * 0.27;
+                                                 float(burst) * 97.0 + cycle * 131.0) *
+                                     vec2(0.20 * min(u_aspect, 1.0), 0.20);
                     vec2 centre = origin + direction * age;
                     vec2 corner = vec2((gl_VertexID == 1 || gl_VertexID == 2 || gl_VertexID == 4) ? 1.0 : -1.0,
                                        (gl_VertexID == 2 || gl_VertexID == 4 || gl_VertexID == 5) ? 1.0 : -1.0);
@@ -57,7 +62,7 @@ struct SkyFireworks
                     vec3 color = sin(4.0 * vec3(0.34, 0.54, 0.43) * cycle + float(burst)) * 0.25 + 0.75;
                     float twinkle = 0.65 + 0.35 * sin(age * 20.0 + float(particle));
                     float envelope = smoothstep(0.0, 0.09, age) *
-                                     (1.0 - smoothstep(0.58, 1.0, age));
+                                     (1.0 - smoothstep(0.58, 0.86, age));
                     v_color = color;
                     v_alpha = envelope * twinkle * u_amount;
                     v_corner = corner;
@@ -73,7 +78,10 @@ struct SkyFireworks
                     float radius = length(v_corner);
                     float core = exp(-radius * radius * 9.0);
                     float halo = exp(-radius * radius * 2.4) * 0.28;
-                    FragColor = vec4(v_color * (core * 1.7 + halo), v_alpha);
+                    // The glow must become transparent before its quad edge;
+                    // otherwise each spark reveals the square decal boundary.
+                    float edgeFade = 1.0 - smoothstep(0.50, 0.98, radius);
+                    FragColor = vec4(v_color * (core * 1.7 + halo), v_alpha * edgeFade);
                 }
             )";
             program = vtx::createShaderProgram(vertex, fragment);

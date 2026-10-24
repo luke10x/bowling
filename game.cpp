@@ -1662,6 +1662,27 @@ struct UserContext
     char hudToastText[96] = {};
     float hudToastTime = 0.0f;
     bool hudToastHeld = false;
+    int schoolHintLesson = 0;
+    int schoolHintMassBand = -1;
+    int schoolHintStrikeStage = 0;
+    float schoolHintNextAt = 0.0f;
+    Phase schoolHintPreviousPhase = Phase::IDLE;
+    bool schoolOilFreshHintPending = false;
+    bool schoolOilWearHintPending = false;
+    bool schoolOilDueHintShown = false;
+    bool schoolOilOpeningThrowShown = false;
+    // Lesson 3 finger guide: demo two turns each way, then follow any direction
+    // the player chooses until a full net turn has been made.
+    bool schoolSpinFingerActive = false;
+    bool schoolSpinFingerFading = false;
+    bool schoolSpinFingerFollowing = false;
+    float schoolSpinFingerAngle = 0.0f;
+    float schoolSpinFingerStageAngle = 0.0f;
+    float schoolSpinFingerUserAngle = 0.0f;
+    float schoolSpinFingerOppositeAngle = 0.0f;
+    float schoolSpinFingerOpacity = 0.0f;
+    int schoolSpinFingerStage = 0;
+    int schoolSpinFingerDirection = -1;
     Keypad keypad;
     NumKeypad numKeypad;
     Clayton_Click renameButton;
@@ -1863,6 +1884,7 @@ struct UserContext
     // Celebration overlay (Strike/Spare)
     float strikeSpareFlashTime = 0.0f;
     int strikeSpareKind = 0; // 0=none, 1=strike, 2=spare
+    int strikeSpareBonusToastKind = 0; // confirmed mark, shown after its banner ends
     float strikeSpareEarlyAllDownTime = 0.0f;
     bool strikeSpareEarlyDeclared = false;
     int strikeSpareEarlyKind = 0; // 0=none, 1=strike, 2=spare
@@ -7328,13 +7350,16 @@ static inline void UI_ResetBannersForNewRoll(UserContext *usr, const char *reaso
     usr->splitBannerFlashTime = 0.0f;
 
     usr->neutralBannerFlashTime = 0.0f;
-    if (preserveActiveResultFlashes)
+    if (preserveActiveResultFlashes || usr->strikeSpareBonusToastKind != 0)
     {
         if (prevStrikeSpareFlashTime > 0.0f && (prevStrikeSpareKind == 1 || prevStrikeSpareKind == 2))
         {
             usr->strikeSpareKind = prevStrikeSpareKind;
             usr->strikeSpareFlashTime = prevStrikeSpareFlashTime;
         }
+    }
+    if (preserveActiveResultFlashes)
+    {
         if (prevNegativeFlashTime > 0.0f && (prevNegativeKind == 1 || prevNegativeKind == 2))
         {
             usr->negativeBannerKind = prevNegativeKind;
@@ -7361,6 +7386,7 @@ static inline void UI_DismissTransientOverlaysForDialog(UserContext *usr)
     usr->resultPendingStrikeSpareCoinSourceValid = false;
     usr->strikeSpareKind = 0;
     usr->strikeSpareFlashTime = 0.0f;
+    usr->strikeSpareBonusToastKind = 0;
     usr->strikeSpareEarlyAllDownTime = 0.0f;
     usr->strikeSpareEarlyDeclared = false;
     usr->strikeSpareEarlyKind = 0;
@@ -7398,6 +7424,190 @@ static inline void UI_SetHeldHudToast(UserContext *usr, const char *text, bool v
     {
         usr->hudToastHeld = false;
         usr->hudToastTime = glm::min(usr->hudToastTime, 0.22f);
+    }
+}
+
+static inline void SchoolSpinFinger_Reset(UserContext *usr)
+{
+    usr->schoolSpinFingerActive = false;
+    usr->schoolSpinFingerFading = false;
+    usr->schoolSpinFingerFollowing = false;
+    usr->schoolSpinFingerOpacity = 0.0f;
+    usr->schoolSpinFingerStageAngle = 0.0f;
+    usr->schoolSpinFingerUserAngle = 0.0f;
+    usr->schoolSpinFingerOppositeAngle = 0.0f;
+    usr->schoolSpinFingerStage = 0;
+    usr->schoolSpinFingerDirection = -1;
+    usr->schoolSpinFingerAngle = 0.0f;
+}
+
+static inline void SchoolSpinFinger_OnInput(UserContext *usr, float angleDelta)
+{
+    if (!usr->schoolSpinFingerActive || usr->schoolSpinFingerFading)
+        return;
+    // The finger's screen orbit uses the same direction as the player's
+    // measured spin input; the whirlpool shader uses a different convention.
+    const float visibleDelta = angleDelta;
+    usr->schoolSpinFingerUserAngle += visibleDelta;
+    if (std::fabs(usr->schoolSpinFingerUserAngle) >= glm::two_pi<float>())
+    {
+        usr->schoolSpinFingerFading = true;
+        return;
+    }
+    if (std::fabs(visibleDelta) < 0.005f)
+        return;
+    const int inputDirection = visibleDelta > 0.0f ? 1 : -1;
+    if (inputDirection != usr->schoolSpinFingerDirection)
+    {
+        usr->schoolSpinFingerOppositeAngle += std::fabs(visibleDelta);
+        if (usr->schoolSpinFingerOppositeAngle >= 0.18f)
+        {
+            usr->schoolSpinFingerDirection = inputDirection;
+            usr->schoolSpinFingerStageAngle = 0.0f;
+            usr->schoolSpinFingerFollowing = true;
+            usr->schoolSpinFingerOppositeAngle = 0.0f;
+        }
+    }
+    else
+        usr->schoolSpinFingerOppositeAngle = 0.0f;
+}
+
+static inline void SchoolSpinFinger_Tick(UserContext *usr, float dt)
+{
+    if (!usr->schoolSpinFingerActive)
+        return;
+    const float step = glm::two_pi<float>() * 1.1f * glm::clamp(dt, 0.0f, 0.05f);
+    if (usr->schoolSpinFingerFading)
+    {
+        usr->schoolSpinFingerOpacity = glm::max(0.0f, usr->schoolSpinFingerOpacity - dt * 2.5f);
+        if (usr->schoolSpinFingerOpacity <= 0.0f)
+            usr->schoolSpinFingerActive = false;
+        return;
+    }
+    usr->schoolSpinFingerOpacity = glm::min(1.0f, usr->schoolSpinFingerOpacity + dt * 3.0f);
+    usr->schoolSpinFingerAngle += step * usr->schoolSpinFingerDirection;
+    usr->schoolSpinFingerStageAngle += step;
+    const float turns = usr->schoolSpinFingerFollowing ? 1.0f : 2.0f;
+    if (usr->schoolSpinFingerStageAngle >= glm::two_pi<float>() * turns)
+    {
+        usr->schoolSpinFingerStageAngle = 0.0f;
+        if (!usr->schoolSpinFingerFollowing)
+        {
+            usr->schoolSpinFingerStage = 1 - usr->schoolSpinFingerStage;
+            usr->schoolSpinFingerDirection = usr->schoolSpinFingerStage == 0 ? -1 : 1;
+        }
+    }
+}
+
+static inline void School_TickHints(UserContext *usr, float dt)
+{
+    if (!usr) return;
+    if (usr->gameMode != UserContext::GameMode::SCHOOL)
+    {
+        SchoolSpinFinger_Reset(usr);
+        usr->schoolHintLesson = 0;
+        usr->schoolHintPreviousPhase = usr->phase;
+        return;
+    }
+
+    const int lesson = usr->school.selectedLesson;
+    if (lesson != usr->schoolHintLesson)
+    {
+        SchoolSpinFinger_Reset(usr);
+        usr->schoolHintLesson = lesson;
+        usr->schoolHintMassBand = -1;
+        usr->schoolHintStrikeStage = 0;
+        usr->schoolHintNextAt = usr->gameplayTime;
+        usr->schoolHintPreviousPhase = usr->phase;
+        usr->schoolOilFreshHintPending = false;
+        usr->schoolOilWearHintPending = false;
+        usr->schoolOilDueHintShown = false;
+        usr->schoolOilOpeningThrowShown = false;
+    }
+
+    const bool throwStarted = usr->phase == UserContext::Phase::THROW &&
+                              usr->schoolHintPreviousPhase != UserContext::Phase::THROW;
+    usr->schoolHintPreviousPhase = usr->phase;
+    const bool foregroundClear = usr->windowStack.count == 0 && !usr->dialog.active;
+    if (throwStarted && foregroundClear)
+    {
+        if (lesson == 1)
+            UI_ShowHudToast(usr, Txl_Get(usr->language, TXL_SCHOOL_HINT_HIT_PIN), 3.0f);
+        else if (lesson == 4)
+        {
+            if (usr->schoolOilFreshHintPending || !usr->schoolOilOpeningThrowShown)
+            {
+                usr->schoolOilOpeningThrowShown = true;
+                usr->schoolOilFreshHintPending = false;
+                usr->schoolOilWearHintPending = true;
+                UI_ShowHudToast(usr, Txl_Get(usr->language, TXL_SCHOOL_HINT_FRESH_OIL), 3.5f);
+            }
+            else if (usr->schoolOilWearHintPending)
+            {
+                usr->schoolOilWearHintPending = false;
+                UI_ShowHudToast(usr, Txl_Get(usr->language, TXL_SCHOOL_HINT_OIL_WEAR), 3.5f);
+            }
+        }
+        else if (lesson == 3)
+        {
+            SchoolSpinFinger_Reset(usr);
+            usr->schoolSpinFingerActive = true;
+        }
+    }
+    if (lesson == 3 && usr->phase == UserContext::Phase::THROW && foregroundClear)
+        SchoolSpinFinger_Tick(usr, dt);
+    else if (usr->schoolSpinFingerActive)
+        SchoolSpinFinger_Reset(usr);
+    if (!foregroundClear || usr->hudToastTime > 0.0f || usr->hudToastHeld)
+        return;
+
+    if (lesson == 2 && !usr->school.massTestCompleted)
+    {
+        const float mass = usr->school.massSlider.value;
+        const int band = mass <= SchoolMassTuning::LIGHT_TEST_MAX_KG ? 0 :
+                         mass >= SchoolMassTuning::HEAVY_TEST_MIN_KG ? 2 : 1;
+        if (band != usr->schoolHintMassBand || usr->gameplayTime >= usr->schoolHintNextAt)
+        {
+            const TxlKey key = band == 0 ? TXL_SCHOOL_HINT_LIGHT_BALL :
+                               band == 2 ? TXL_SCHOOL_HINT_HEAVY_BALL : TXL_SCHOOL_HINT_SET_MASS;
+            UI_ShowHudToast(usr, Txl_Get(usr->language, key), 3.5f);
+            usr->schoolHintMassBand = band;
+            usr->schoolHintNextAt = usr->gameplayTime + 9.0f;
+        }
+    }
+    else if (lesson == 3 && !usr->school.spinTestCompleted &&
+             usr->gameplayTime >= usr->schoolHintNextAt)
+    {
+        UI_ShowHudToast(usr, Txl_Get(usr->language, TXL_SCHOOL_HINT_SPIN_BALL), 3.0f);
+        usr->schoolHintNextAt = usr->gameplayTime + 9.0f;
+    }
+    else if (lesson == 4)
+    {
+        if (usr->schoolOilFreshHintPending)
+        {
+            usr->schoolOilFreshHintPending = false;
+            UI_ShowHudToast(usr, Txl_Get(usr->language, TXL_SCHOOL_HINT_FRESH_OIL), 3.5f);
+        }
+        else if (usr->school.spinSafeCoins < 3 &&
+                 School_OilLessonCanReoil(usr) && !usr->schoolOilDueHintShown)
+        {
+            usr->schoolOilDueHintShown = true;
+            UI_ShowHudToast(usr, Txl_Get(usr->language, TXL_SCHOOL_HINT_REOIL_NOW), 3.5f);
+        }
+    }
+    else if (lesson == 5 && !usr->school.strikeCompletedThisVisit &&
+             usr->gameplayTime >= usr->schoolHintNextAt)
+    {
+        static constexpr TxlKey hints[] = {
+            TXL_SCHOOL_HINT_STRIKE_REQUIRED,
+            TXL_SCHOOL_HINT_STRIKE_BONUS,
+            TXL_SCHOOL_HINT_MORE_ENERGY,
+            TXL_SCHOOL_HINT_GEMS_ENERGY,
+        };
+        UI_ShowHudToast(usr, Txl_Get(usr->language,
+                        hints[usr->schoolHintStrikeStage % 4]), 3.5f);
+        ++usr->schoolHintStrikeStage;
+        usr->schoolHintNextAt = usr->gameplayTime + 5.0f;
     }
 }
 
@@ -15252,6 +15462,8 @@ static bool g_schoolStrikeArmImpulseActive = false;
 // Restore normal-game coin lane state after leaving school (lesson 5 uses a special pattern).
 static CoinLane g_coinLaneBeforeSchool = {};
 static bool g_coinLaneBeforeSchoolValid = false;
+static int g_schoolPreviousLaneTextureIdx = 0;
+static int g_schoolPreviousPinTextureIdx = 0;
 static float g_clearedCoinsBeforeSchool = 0.0f;
 
 struct SchoolStrikeDifficultyTuning
@@ -15530,6 +15742,8 @@ static inline void EnterSchool(UserContext *usr, bool playStory, bool advanceMus
     std::memcpy(&g_coinLaneBeforeSchool, &usr->coinLane, sizeof(CoinLane));
     g_clearedCoinsBeforeSchool = usr->clearedCoins;
     g_coinLaneBeforeSchoolValid = true;
+    g_schoolPreviousLaneTextureIdx = usr->laneTextureIdx;
+    g_schoolPreviousPinTextureIdx = usr->pinTextureIdx;
     ResetAllElectroBalls(usr);
 
     usr->school.ballIdBeforeSchool = usr->myBall.id;
@@ -15652,6 +15866,14 @@ static void School_Exit(UserContext *usr)
         std::memcpy(&usr->coinLane, &g_coinLaneBeforeSchool, sizeof(CoinLane));
         usr->clearedCoins = g_clearedCoinsBeforeSchool;
         g_coinLaneBeforeSchoolValid = false;
+    }
+    // Campaign setup may already have restored its own biome. This also
+    // restores the entry scene when school was left before that setup path.
+    if (usr->playerRoute != PlayerRoute::CAMPAIGN ||
+        (!usr->milestone100Reached && usr->campaignLevelIndex == 1))
+    {
+        usr->laneTextureIdx = g_schoolPreviousLaneTextureIdx;
+        usr->pinTextureIdx = g_schoolPreviousPinTextureIdx;
     }
 
     resetScoreboard(&usr->board);
@@ -19298,7 +19520,11 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 		            // Bite controls how readily counter-spin reverses existing lateral drift.
 		            glm::vec3 v = usr->phy.get_ball_swing_movement();
 		            float vx = std::isfinite(v.x) ? v.x : 0.0f;
-		            sideDrive = BiteReversal::SideDrive(sideDrive, vx, usr->myBall.bite);
+		            const float lessonBite =
+		                usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3
+		                    ? SchoolSpinTuning::BITE_BONUS : 0.0f;
+		            sideDrive = BiteReversal::SideDrive(
+		                sideDrive, vx, glm::clamp(usr->myBall.bite + lessonBite, 0.0f, 1.0f));
 
 		            if (!std::isfinite(sideDrive))
 		            {
@@ -20918,6 +21144,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                             {
                                 School_ApplyOilLessonDefaults(usr);
                                 usr->reoilLaneBlinkPending = true;
+                                usr->schoolOilFreshHintPending = true;
+                                usr->schoolOilWearHintPending = true;
+                                usr->schoolOilDueHintShown = false;
+                                usr->schoolOilOpeningThrowShown = true;
                                 usr->school.spinSafeCoins = glm::clamp(usr->school.spinSafeCoins + 1, 0, 3);
                                 usr->sound.playSfxBuy();
                                 {
@@ -22788,6 +23018,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                     float speedScale = 0.05f;
                     float weight = glm::clamp(speed * speedScale, 0.0f, 1.0f);
                     angleDelta *= weight;
+
+                    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+                        usr->school.selectedLesson == 3)
+                        SchoolSpinFinger_OnInput(usr, angleDelta);
 
                     usr->totalAngle += angleDelta;
 	                    usr->angularVelocity = angleDelta / glm::max(gameplayAimSwingStepDt, 1e-4f);
@@ -24672,6 +24906,8 @@ swing_checks_done:
 		                            usr->neutralBannerFlashTime = 0.0f;
 		                            usr->strikeSpareKind = 1;
 		                            usr->strikeSpareFlashTime = glm::max(usr->strikeSpareFlashTime, 1.25f);
+                                    if (!IsEnemyTurn(usr))
+                                        usr->strikeSpareBonusToastKind = 1;
                                     for (int award = 0; award < newStrikeCount; ++award)
                                     {
                                         ResultWindow_AwardStrikeSpareBonus(
@@ -24694,6 +24930,8 @@ swing_checks_done:
 		                            usr->neutralBannerFlashTime = 0.0f;
 		                            usr->strikeSpareKind = 2;
 		                            usr->strikeSpareFlashTime = glm::max(usr->strikeSpareFlashTime, 1.25f);
+                                    if (!IsEnemyTurn(usr))
+                                        usr->strikeSpareBonusToastKind = 2;
                                     for (int award = 0; award < newSpareCount; ++award)
                                     {
                                         ResultWindow_AwardStrikeSpareBonus(
@@ -25322,6 +25560,7 @@ swing_checks_done:
             Txl_Get(usr->language, TXL_NOS_NO_ENERGY),
             playerNosEmptyHeld
         );
+        School_TickHints(usr, gameplaySafeDeltaTime);
 
         // A drain step can consume the final charge in the same tick that NOS
         // was accelerating the ball. Switch sounds immediately to the empty
@@ -26903,6 +27142,13 @@ END_LINE:
 
         if (!trackerOnlyMode)
         {
+        // School always uses the first-level forest and lane appearance.
+        // Lesson-specific oil and physics tuning remains independent of visuals.
+        if (usr->gameMode == UserContext::GameMode::SCHOOL)
+        {
+            usr->laneTextureIdx = 0;
+            usr->pinTextureIdx = 0;
+        }
         // usr->tri.render(usr->everythingTexture.id);
 
         usr->mainShader.updateLightPos(ChestRender::WorldLightPos(usr->cameraMat[3].z));
@@ -26922,7 +27168,12 @@ END_LINE:
                 cityNearPlane,
                 500.0f
             );
-            if (Visual_ShouldUseCrystalCavernBackdrop(usr))
+            if (usr->gameMode == UserContext::GameMode::SCHOOL)
+            {
+                usr->forest.update(gameplayDeltaTime);
+                usr->forest.renderForest(usr->cameraMat, cityPerspectiveMat);
+            }
+            else if (Visual_ShouldUseCrystalCavernBackdrop(usr))
             {
                 usr->crystalCavern.setWaterLineY(Visual_WaterLineY(usr));
                 usr->crystalCavern.update(gameplayDeltaTime);
@@ -27615,7 +27866,16 @@ END_LINE:
 
         usr->frameProfileGraph.mark(FrameProfileGraph::FxTransparent);
         if (usr->strikeSpareFlashTime > 0.0f)
+        {
             usr->strikeSpareFlashTime = glm::max(0.0f, usr->strikeSpareFlashTime - gameplayDeltaTime);
+            if (usr->strikeSpareFlashTime <= 0.0f && usr->strikeSpareBonusToastKind != 0)
+            {
+                UI_ShowHudToast(usr, Txl_Get(usr->language,
+                    usr->strikeSpareBonusToastKind == 1
+                        ? TXL_STRIKE_BONUS_NEXT_ROLLS : TXL_SPARE_BONUS_NEXT_ROLL));
+                usr->strikeSpareBonusToastKind = 0;
+            }
+        }
         if (usr->negativeBannerFlashTime > 0.0f)
             usr->negativeBannerFlashTime = glm::max(0.0f, usr->negativeBannerFlashTime - gameplayDeltaTime);
         if (usr->splitBannerFlashTime > 0.0f)
@@ -29116,6 +29376,13 @@ END_LINE:
                                 }
                             }
                         }
+                        // The school toast sits beneath whichever lesson meter is present.
+                        // Keep this anchor even in spin or during the first lesson's throw,
+                        // when the meter row is intentionally absent.
+                        CLAY(
+                            CLAY_ID("SchoolHintAnchor"),
+                            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(0)}}}
+                        ) {};
                     }
 
 	                    if (usr->gameMode != UserContext::GameMode::TRACKER &&
@@ -30154,7 +30421,6 @@ END_LINE:
 
         if (usr->hudToastTime > 0.0f && usr->hudToastText[0] &&
             usr->gameMode != UserContext::GameMode::TRACKER &&
-            usr->gameMode != UserContext::GameMode::SCHOOL &&
             !MiniGame_IsActive(usr))
         {
             // Fade only at the end so consecutive operational messages read cleanly.
@@ -30172,7 +30438,12 @@ END_LINE:
                 CLAY_ID("HudSystemToast"),
                 {
                     .layout = {
-                        .sizing = {CLAY_SIZING_PERCENT(0.76f), CLAY_SIZING_FIT()},
+                        .sizing = {
+                            usr->gameMode == UserContext::GameMode::SCHOOL
+                                ? CLAY_SIZING_FIXED((float)scoreBoardWidth)
+                                : CLAY_SIZING_PERCENT(0.76f),
+                            CLAY_SIZING_FIT()
+                        },
                         .padding = {12, 14, 10, 14},
                         .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER},
                     },
@@ -30180,7 +30451,9 @@ END_LINE:
                     .cornerRadius = {10, 10, 10, 10},
                     .floating = {
                         .offset = {0.0f, 10.0f},
-                        .parentId = CLAY_ID("MenuAndShopRow").id,
+                        .parentId = (usr->gameMode == UserContext::GameMode::SCHOOL
+                                         ? CLAY_ID("SchoolHintAnchor")
+                                         : CLAY_ID("MenuAndShopRow")).id,
                         .zIndex = 60,
                         .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
                         .attachPoints = {CLAY_ATTACH_POINT_CENTER_TOP, CLAY_ATTACH_POINT_CENTER_BOTTOM},
@@ -30192,6 +30465,37 @@ END_LINE:
             {
                 CLAY_TEXT(toastText, CLAY_TEXT_CONFIG(toastCfg));
             }
+        }
+
+        if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+            usr->school.selectedLesson == 3 &&
+            usr->phase == UserContext::Phase::THROW &&
+            usr->schoolSpinFingerActive &&
+            usr->windowStack.count == 0 && !usr->dialog.active)
+        {
+            // Orbit the actual spin circle centre in HUD coordinates while
+            // keeping the hand upright, as a fixed-orientation teaching cue.
+            const float iconSize = 48.0f;
+            const float orbitRadius = usr->circle.settings.bigRadius * 1.5f;
+            const float angle = usr->schoolSpinFingerAngle;
+            const float x = (float)ctx->screenWidth * 0.5f + std::cos(angle) * orbitRadius - iconSize * 0.5f;
+            const float y = (float)ctx->screenHeight * 0.75f - std::sin(angle) * orbitRadius - iconSize * 0.5f;
+            usr->clayton.schoolSpinFingerImage.opacity = usr->schoolSpinFingerOpacity;
+            CLAY(
+                CLAY_ID("SchoolSpinFingerGuide"),
+                {
+                    .layout = {.sizing = {CLAY_SIZING_FIXED(iconSize), CLAY_SIZING_FIXED(iconSize)}},
+                    .image = {.imageData = &usr->clayton.schoolSpinFingerImage},
+                    .floating = {
+                        .offset = {x, y},
+                        .parentId = CLAY_ID("Root").id,
+                        .zIndex = 61,
+                        .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_PASSTHROUGH,
+                        .attachPoints = {CLAY_ATTACH_POINT_LEFT_TOP, CLAY_ATTACH_POINT_LEFT_TOP},
+                        .attachTo = CLAY_ATTACH_TO_ELEMENT_WITH_ID,
+                    },
+                }
+            ) {};
         }
 
     // Render window stack as floating layers attached to Root so the dim overlay covers the entire

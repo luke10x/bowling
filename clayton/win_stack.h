@@ -3482,6 +3482,7 @@ inline void renderCampaignSequelContent(WindowStack *self, Clayton *clayton)
     CampaignSequel_ChartRange(recent, chartFloor, chartCeiling);
     Clay_ElementDeclaration chartCard = CLAY_THEME_SECTION;
     chartCard.layout.childGap = 4;
+    chartCard.layout.padding = {6, 6, 6, 6};
     CLAY(CLAY_ID("SequelChartCard"), chartCard)
     {
         CLAY(CLAY_ID("SequelChartHeading"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
@@ -3501,14 +3502,14 @@ inline void renderCampaignSequelContent(WindowStack *self, Clayton *clayton)
                 for (int slot = 0; slot < recent.count; ++slot)
                 {
                     const CampaignSequelGame &game = recent.games[recent.count - slot - 1];
-                    const int height = std::max(5, (game.score - chartFloor) * 68 / std::max(1, chartCeiling - chartFloor));
+                    const int height = std::max(5, (game.score - chartFloor) * 48 / std::max(1, chartCeiling - chartFloor));
                     const Clay_Color barColor = game.score > game.opponentScore
                         ? Clay_Color{72, 213, 140, 255} : Clay_Color{236, 101, 112, 255};
                     CLAY(CLAY_IDI("SequelBarColumn", slot), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
                         .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
                     {
                         CLAY_TEXT(ClayArena_FormatString(arena, "%d", game.score), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
-                        CLAY(CLAY_IDI("SequelBarSpacer", slot), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED((float)(72 - height))}}}) {}
+                        CLAY(CLAY_IDI("SequelBarSpacer", slot), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED((float)(52 - height))}}}) {}
                         CLAY(CLAY_IDI("SequelBarFill", slot), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED((float)height)}},
                             .backgroundColor = barColor, .cornerRadius = {5, 5, 2, 2}}) {}
                     }
@@ -3516,8 +3517,53 @@ inline void renderCampaignSequelContent(WindowStack *self, Clayton *clayton)
             }
         }
     }
+    Clay_ElementDeclaration recordCard = CLAY_THEME_SECTION;
+    recordCard.layout.childGap = 4;
+    recordCard.layout.padding = {6, 6, 6, 6};
+    CLAY(CLAY_ID("SequelRecordCard"), recordCard)
+    {
+        CLAY(CLAY_ID("SequelRecordHeading"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+            .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+        {
+            CLAY_TEXT(clayton->txl(TXL_POST_CAMPAIGN), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
+            CLAY(CLAY_ID("SequelRecordHeadingGap"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}) {}
+            CLAY_TEXT(self->campaignPostgameBestScore > 0
+                ? ClayArena_FormatString(arena, "%s %d - %d",
+                    Txl_Get(clayton->uiLanguage, TXL_POST_CAMPAIGN_BEST_SCORE),
+                    self->campaignPostgameBestScore, self->campaignPostgameBestOpponentScore)
+                : ClayArena_FormatString(arena, "%s ? - ?",
+                    Txl_Get(clayton->uiLanguage, TXL_POST_CAMPAIGN_BEST_SCORE)),
+                CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
+        }
+        CLAY(CLAY_ID("SequelRecordTotals"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+            .childGap = 8, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+        {
+            auto total = [&](int index, TxlKey key, int value)
+            {
+                CLAY(CLAY_IDI("SequelRecordTotal", index), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                { CLAY_TEXT(ClayArena_FormatString(arena, Txl_Get(clayton->uiLanguage, key), value),
+                    CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)); }
+            };
+            total(0, TXL_POST_CAMPAIGN_WON_FMT, self->campaignPostgameWins);
+            total(1, TXL_POST_CAMPAIGN_LOST_FMT, self->campaignPostgameLosses);
+            total(2, TXL_POST_CAMPAIGN_QUIT_FMT, self->campaignPostgameQuits);
+            if (self->campaignPostgameBestScore > 0)
+            {
+                char bestTools[24];
+                std::snprintf(bestTools, sizeof(bestTools), "N%c B%c R%c",
+                    self->campaignPostgameBestNosEnabled ? '+' : '-',
+                    self->campaignPostgameBestBlocksEnabled ? '+' : '-',
+                    self->campaignPostgameBestRunesEnabled ? '+' : '-');
+                CLAY(CLAY_ID("SequelRecordBestTools"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                { CLAY_TEXT(ClayArena_AllocString(arena, bestTools), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)); }
+            }
+        }
+    }
     Clay_ElementDeclaration scoresCard = CLAY_THEME_SECTION;
-    scoresCard.layout.childGap = 4;
+    scoresCard.layout.childGap = 2;
+    scoresCard.layout.padding = {6, 6, 6, 6};
     CLAY(CLAY_ID("SequelScoresCard"), scoresCard)
     {
         CLAY(CLAY_ID("SequelScoresHeading"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
@@ -3536,7 +3582,7 @@ inline void renderCampaignSequelContent(WindowStack *self, Clayton *clayton)
         const CampaignSequelList top = CampaignSequel_Top(self->campaignSequelHistory, self->campaignSequelCurrentOnly, current);
         auto row = [&](int index, bool heading)
         {
-            CLAY(CLAY_IDI("SequelScoreRow", index), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(26)},
+            CLAY(CLAY_IDI("SequelScoreRow", index), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(22)},
                 .childGap = 6, .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}},
                 .backgroundColor = index % 2 ? Clay_Color{75, 45, 96, 255} : Clay_Color{62, 35, 83, 255}})
             {
@@ -3573,6 +3619,7 @@ inline void renderCampaignSequelContent(WindowStack *self, Clayton *clayton)
     }
     Clay_ElementDeclaration toolsCard = CLAY_THEME_SECTION;
     toolsCard.layout.childGap = 4;
+    toolsCard.layout.padding = {6, 6, 6, 6};
     CLAY(CLAY_ID("SequelToolsCard"), toolsCard)
     {
         CLAY_TEXT(clayton->txl(TXL_SEQUEL_NEXT_SETTINGS), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
@@ -3582,7 +3629,7 @@ inline void renderCampaignSequelContent(WindowStack *self, Clayton *clayton)
             auto toggle = [&](Clay_ElementId id, TxlKey key, bool enabled)
             {
                 Clay_ElementDeclaration button = CLAY_THEME_BTN_PRIMARY;
-                button.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(44)};
+                button.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(64)};
                 button.backgroundColor = enabled ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_DISABLED;
                 CLAY(id, button) { CLAY_TEXT(clayton->txl(key), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
             };
@@ -3593,46 +3640,9 @@ inline void renderCampaignSequelContent(WindowStack *self, Clayton *clayton)
     }
 }
 
-inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clayton *clayton)
+inline void renderCampaignLevelGrid(WindowStack *self, Clayton *clayton)
 {
-    if (!self || !clayton)
-        return;
-
     ClayArena *arena = &clayton->clayArena;
-    CLAY(CLAY_ID("CampaignLevelSelectWindow"), CLAY_THEME_WINDOW_PANEL)
-    {
-        CLAY(CLAY_ID("CampaignLevelSelectHeading"),
-             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
-        {
-            CLAY_TEXT(
-                clayton->txl(self->campaignLevelSelectCampaignComplete
-                    ? TXL_CAMPAIGN_COMPLETE
-                    : TXL_CAMPAIGN_TITLE),
-                CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE)
-            );
-            CLAY(CLAY_ID("CampaignLevelSelectHeadingSpacer"), {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
-            CLAY(clayton->campaignLevelSelectCloseClick.clayId, CLAY_THEME_BTN_DANGER)
-            { CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
-        }
-        if (self->campaignLevelSelectCampaignComplete)
-        {
-            CLAY(CLAY_ID("CampaignViewTabs"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                .childGap = 8, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
-            {
-                auto tab = [&](Clay_ElementId id, TxlKey label, bool active)
-                {
-                    Clay_ElementDeclaration button = CLAY_THEME_BTN_PRIMARY;
-                    button.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(42)};
-                    button.backgroundColor = active ? CLAY_COLOR_TAB_ACTIVE_SURFACE : CLAY_COLOR_TAB_INACTIVE;
-                    CLAY(id, button) { CLAY_TEXT(clayton->txl(label), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
-                };
-                tab(clayton->campaignCompletedTabClick.clayId, TXL_COMPLETED_TAB, !self->campaignSequelTab);
-                tab(clayton->campaignSequelTabClick.clayId, TXL_SEQUEL_TAB, self->campaignSequelTab);
-            }
-        }
-        if (!self->campaignSequelTab)
-        {
         CLAY(CLAY_ID("CampaignLevelSelectGrid"),
              {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 7,
                          .layoutDirection = CLAY_TOP_TO_BOTTOM}})
@@ -3714,121 +3724,102 @@ inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clay
                 }
             }
         }
-        if (self->campaignLevelSelectCampaignComplete)
-        {
-            char bestScore[64];
-            if (self->campaignPostgameBestScore > 0)
-                snprintf(bestScore, sizeof(bestScore), "%d-%d", self->campaignPostgameBestScore, self->campaignPostgameBestOpponentScore);
-            else
-                snprintf(bestScore, sizeof(bestScore), "?-?");
-            Clay_String bestScoreStr = ClayArena_AllocString(arena, bestScore);
-            Clay_String wonRecordStr = ClayArena_FormatString(
-                arena, Txl_Get(clayton->uiLanguage, TXL_POST_CAMPAIGN_WON_FMT), self->campaignPostgameWins
-            );
-            Clay_String lostRecordStr = ClayArena_FormatString(
-                arena, Txl_Get(clayton->uiLanguage, TXL_POST_CAMPAIGN_LOST_FMT), self->campaignPostgameLosses
-            );
-            Clay_String quitRecordStr = ClayArena_FormatString(
-                arena, Txl_Get(clayton->uiLanguage, TXL_POST_CAMPAIGN_QUIT_FMT), self->campaignPostgameQuits
-            );
-            CLAY(CLAY_ID("CampaignPostgameApplet"),
-                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                             .padding = {16, 16, 12, 12}, .childGap = 8,
-                             .layoutDirection = CLAY_TOP_TO_BOTTOM},
-                  .backgroundColor = CLAY_COLOR_PANEL_BG,
-                  .cornerRadius = {CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD, CLAY_RADIUS_MD},
-                  CLAY_THEME_WINDOW_BORDER})
-            {
-            CLAY(CLAY_ID("CampaignPostgameHeading"),
-                 {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                             .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
-            {
-                CLAY_TEXT(clayton->txl(TXL_POST_CAMPAIGN), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+ }
 
-            }
-                CLAY(CLAY_ID("CampaignPostgameBestRow"),
-                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 8,
-                                 .layoutDirection = CLAY_LEFT_TO_RIGHT}})
-                {
-                    CLAY(CLAY_ID("CampaignPostgameBestLabel"),
-                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
-                    { CLAY_TEXT(clayton->txl(TXL_POST_CAMPAIGN_BEST_SCORE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)); }
-                    CLAY(CLAY_ID("CampaignPostgameBestValue"),
-                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
-                    {
-                        Clay_TextElementConfig bestScoreCfg = CLAY_THEME_TEXT_BODY;
-                        if (self->campaignPostgameBestOpponentScore > self->campaignPostgameBestScore)
-                            bestScoreCfg.textColor = kCampaignRecordLossTextColor;
-                        CLAY_TEXT(bestScoreStr, CLAY_TEXT_CONFIG(bestScoreCfg));
-                    }
-                    CLAY(CLAY_ID("CampaignPostgameBestTools"),
-                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 8,
-                                     .layoutDirection = CLAY_LEFT_TO_RIGHT,
-                                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
-                    {
-                        if (self->campaignPostgameBestScore > 0)
-                        {
-                            Clay_TextElementConfig blocksCfg = CLAY_THEME_TEXT_BODY;
-                            blocksCfg.textColor = self->campaignPostgameBestBlocksEnabled
-                                ? Clay_Color{230, 230, 240, 255} : Clay_Color{115, 110, 130, 255};
-                            Clay_TextElementConfig nosCfg = CLAY_THEME_TEXT_BODY;
-                            nosCfg.textColor = self->campaignPostgameBestNosEnabled
-                                ? Clay_Color{230, 230, 240, 255} : Clay_Color{115, 110, 130, 255};
-                            Clay_TextElementConfig runesCfg = CLAY_THEME_TEXT_BODY;
-                            runesCfg.textColor = self->campaignPostgameBestRunesEnabled
-                                ? Clay_Color{230, 230, 240, 255} : Clay_Color{115, 110, 130, 255};
-                            CLAY_TEXT(clayton->txl(TXL_BLOCKS_SHORT), CLAY_TEXT_CONFIG(blocksCfg));
-                            CLAY_TEXT(clayton->txl(TXL_NOS_SHORT), CLAY_TEXT_CONFIG(nosCfg));
-                            CLAY_TEXT(clayton->txl(TXL_RUNES_SHORT), CLAY_TEXT_CONFIG(runesCfg));
-                        }
-                    }
-                }
-                CLAY(CLAY_ID("CampaignPostgameRecordRow"),
-                     {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 12,
-                                 .layoutDirection = CLAY_LEFT_TO_RIGHT}})
-                {
-                    CLAY(CLAY_ID("CampaignPostgameWon"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
-                    { CLAY_TEXT(wonRecordStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)); }
-                    CLAY(CLAY_ID("CampaignPostgameLost"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
-                    { CLAY_TEXT(lostRecordStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)); }
-                    CLAY(CLAY_ID("CampaignPostgameQuit"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
-                    { CLAY_TEXT(quitRecordStr, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)); }
-                }
-            }
-        }
-        if (self->campaignLevelSelectCampaignComplete)
+inline void WindowStack::renderCampaignLevelSelectWindow(WindowStack *self, Clayton *clayton)
+{
+    if (!self || !clayton)
+        return;
+    Clay_ElementDeclaration window = CLAY_THEME_WINDOW_PANEL;
+    if (self->campaignLevelSelectCampaignComplete)
+    {
+        window.layout.sizing.height = CLAY_SIZING_PERCENT(0.95f);
+        window.layout.padding.top = 12;
+        window.layout.padding.bottom = 12;
+    }
+    CLAY(CLAY_ID("CampaignLevelSelectWindow"), window)
+    {
+        CLAY(CLAY_ID("CampaignLevelSelectHeading"),
+             {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .layoutDirection = CLAY_LEFT_TO_RIGHT,
+                         .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
         {
-            CLAY(CLAY_ID("CampaignLevelSelectCompletedActions"),
-            {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 8,
-                             .layoutDirection = CLAY_LEFT_TO_RIGHT}})
-            {
-                Clay_ElementDeclaration restartCampaignButton = CLAY_THEME_BTN_DANGER;
-                restartCampaignButton.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)};
-                restartCampaignButton.layout.padding = {.left = 18, .right = 18, .top = 0, .bottom = 0};
-                restartCampaignButton.backgroundColor = Clay_PointerOver(clayton->campaignLevelRestartClick.clayId)
-                    ? Clay_Color{250, 80, 120, 255}
-                    : CLAY_COLOR_BTN_DANGER;
-                CLAY(clayton->campaignLevelRestartClick.clayId, restartCampaignButton)
-                { CLAY_TEXT(clayton->txl(TXL_RESTART_CAMPAIGN), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
-                Clay_ElementDeclaration completedNext = CLAY_THEME_BTN_PRIMARY;
-                completedNext.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)};
-                CLAY(clayton->campaignLevelContinueClick.clayId, completedNext)
-                { CLAY_TEXT(clayton->txl(TXL_NEXT), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
-            }
+            CLAY_TEXT(clayton->txl(self->campaignLevelSelectCampaignComplete
+                ? TXL_CAMPAIGN_COMPLETE : TXL_CAMPAIGN_TITLE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_TITLE));
+            CLAY(CLAY_ID("CampaignLevelSelectHeadingSpacer"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(1)}}}) {}
+            CLAY(clayton->campaignLevelSelectCloseClick.clayId, CLAY_THEME_BTN_DANGER)
+            { CLAY_TEXT(CLAY_STRING("x"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
         }
+        if (!self->campaignLevelSelectCampaignComplete)
+        {
+            renderCampaignLevelGrid(self, clayton);
         }
         else
         {
-            renderCampaignSequelContent(self, clayton);
-        }
-        if (self->campaignSequelTab)
+        CLAY(CLAY_ID("CampaignTabbedArea"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+            .layoutDirection = CLAY_TOP_TO_BOTTOM, .childGap = 0}})
         {
-            Clay_ElementDeclaration nextButton = CLAY_THEME_BTN_PRIMARY;
-            nextButton.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(56)};
-            CLAY(clayton->campaignLevelContinueClick.clayId, nextButton)
-            { CLAY_TEXT(clayton->txl(TXL_NEXT), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
+            CLAY(CLAY_ID("CampaignViewTabs"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                .padding = {12, 12, 0, 0}, .childGap = 8,
+                .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_BOTTOM}}})
+            {
+                auto tab = [&](Clay_ElementId id, TxlKey label, bool active)
+                {
+                    Clay_ElementDeclaration button = CLAY_THEME_BTN_PRIMARY;
+                    button.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(42)};
+                    button.cornerRadius.bottomLeft = 0;
+                    button.cornerRadius.bottomRight = 0;
+                    button.backgroundColor = Shop_TabColor(id, active,
+                        CLAY_COLOR_TAB_ACTIVE_SURFACE, CLAY_COLOR_TAB_INACTIVE);
+                    CLAY(id, button)
+                    { CLAY_TEXT(clayton->txl(label), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
+                };
+                tab(clayton->campaignCompletedTabClick.clayId, TXL_COMPLETED_TAB, !self->campaignSequelTab);
+                tab(clayton->campaignSequelTabClick.clayId, TXL_SEQUEL_TAB, self->campaignSequelTab);
+            }
+            CLAY(CLAY_ID("CampaignTabbedContent"),
+                {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                    .padding = {8, 8, 8, 8}, .childGap = 6, .layoutDirection = CLAY_TOP_TO_BOTTOM},
+                 .backgroundColor = CLAY_COLOR_TAB_ACTIVE_SURFACE,
+                 .cornerRadius = {0, 0, CLAY_RADIUS_XL, CLAY_RADIUS_XL}})
+            {
+                if (!self->campaignSequelTab)
+                {
+                    Clay_ElementDeclaration levelsSection = CLAY_THEME_SECTION;
+                    levelsSection.layout.childGap = 0;
+                    levelsSection.layout.padding = {6, 6, 6, 6};
+                    CLAY(CLAY_ID("CompletedLevelsSection"), levelsSection)
+                    { renderCampaignLevelGrid(self, clayton); }
+                    CLAY(CLAY_ID("CompletedBottomSpacer"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}) {}
+                    CLAY(CLAY_ID("CampaignLevelSelectCompletedActions"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 8,
+                            .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+                    {
+                        Clay_ElementDeclaration restart = CLAY_THEME_BTN_DANGER;
+                        restart.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)};
+                        restart.backgroundColor = Shop_ButtonHoverColor(
+                            clayton->campaignLevelRestartClick.clayId, CLAY_COLOR_BTN_DANGER);
+                        CLAY(clayton->campaignLevelRestartClick.clayId, restart)
+                        { CLAY_TEXT(clayton->txl(TXL_RESTART_CAMPAIGN), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
+                        Clay_ElementDeclaration next = CLAY_THEME_BTN_PRIMARY;
+                        next.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)};
+                        CLAY(clayton->campaignLevelContinueClick.clayId, next)
+                        { CLAY_TEXT(clayton->txl(TXL_NEXT), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
+                    }
+                }
+                else
+                {
+                    renderCampaignSequelContent(self, clayton);
+                    CLAY(CLAY_ID("SequelBottomSpacer"),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}) {}
+                    Clay_ElementDeclaration next = CLAY_THEME_BTN_PRIMARY;
+                    next.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(56)};
+                    CLAY(clayton->campaignLevelContinueClick.clayId, next)
+                    { CLAY_TEXT(clayton->txl(TXL_NEXT), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
+                }
+            }
+        }
         }
     }
 }

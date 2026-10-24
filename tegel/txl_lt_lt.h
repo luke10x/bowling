@@ -45,6 +45,7 @@ TXL_TRACKER = "Trekeris"; // Used in: main menu (clayton/menu_clay.h)
 TXL_CREDITS = "Kreditai"; // Used in: campaign and results windows (clayton/win_stack.h), main menu (clayton/menu_clay.h)
 TXL_AD_MANAGER_TITLE = "REKLAMŲ VALDYMAS"; // Naudojama: reklamų valdymo lange
 TXL_AD_SPONSOR_PROMPT = "Žodis mūsų sponsoriams"; // Naršyklės reklamos mygtukas
+TXL_AD_CONTINUE = "Pereiti prie reklamos"; // Naršyklės reklamos veiksmo užrašas
 TXL_AD_CREDIT_FMT = "Reklamų kreditas: %.1f / %.0f"; // Naudojama: reklamų valdymo lange
 TXL_AD_CREDIT_BUCKET_FMT = "Laimėjimų rezervas: %.0f / %.0f (+%.0f, kai kredito mažai)"; // Naudojama: reklamų valdymo lange
 TXL_AD_CREDIT_RULES_FMT = "Laimėjimas: -%d, pralaimėjimas: -%d, prisijungimas: +%d"; // Reklamų taisyklės

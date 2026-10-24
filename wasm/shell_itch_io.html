@@ -236,21 +236,30 @@
                     }, 1000);
                 }
 
-                window.bowlingShowGameAd = function (placement, prompt) {
+                window.bowlingShowGameAd = function (placement, prompt, continueLabel) {
                     if (document.getElementById('loss-ad-overlay')) {
                         window.bowlingInterstitialFinishedCount = (window.bowlingInterstitialFinishedCount | 0) + 1;
                         return;
                     }
                     var overlay = document.createElement('div');
                     overlay.id = 'loss-ad-overlay';
-                    overlay.style.cssText = 'position:fixed;inset:0;z-index:2000;background:#111b;color:white;display:flex;align-items:center;justify-content:center';
-                    var button = document.createElement('button');
-                    button.textContent = prompt || 'Continue';
-                    button.style.cssText = 'font:600 24px sans-serif;padding:20px 48px;border:0;border-radius:12px;background:#fff;color:#111;max-width:calc(100vw - 32px);white-space:normal';
-                    overlay.appendChild(button);
+                    overlay.style.cssText = 'position:fixed;inset:0;z-index:2000;background:#111d;color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;padding:24px;box-sizing:border-box;cursor:pointer;text-align:center';
+                    overlay.tabIndex = 0;
+                    overlay.setAttribute('role', 'button');
+                    var heading = document.createElement('div');
+                    heading.textContent = prompt || 'A word from our sponsors';
+                    heading.style.cssText = 'font:600 clamp(22px,5vw,32px) sans-serif;max-width:90vw';
+                    overlay.appendChild(heading);
+                    // This is a visual cue; the full overlay is the tap target.
+                    var actionCue = document.createElement('div');
+                    actionCue.textContent = continueLabel || 'Continue to ad';
+                    actionCue.style.cssText = 'font:700 clamp(18px,4vw,24px) sans-serif;padding:18px 36px;border-radius:12px;background:#2bc86f;color:#092818;box-shadow:0 5px 0 #157c42;max-width:calc(100vw - 48px);box-sizing:border-box';
+                    overlay.appendChild(actionCue);
                     document.body.appendChild(overlay);
-                    button.addEventListener('click', function () {
-                        button.disabled = true;
+                    var opening = false;
+                    function openAd() {
+                        if (opening) return;
+                        opening = true;
                         if (useInGamePromo) {
                             showInGamePromo(false, function () {
                                 overlay.remove();
@@ -293,7 +302,15 @@
                             console.warn('Game ad unavailable:', error);
                             finish();
                         }
+                    }
+                    overlay.addEventListener('click', openAd);
+                    overlay.addEventListener('keydown', function (event) {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            openAd();
+                        }
                     });
+                    overlay.focus();
                 };
 
                 window.bowlingShowMoneyRewardAd = function () {

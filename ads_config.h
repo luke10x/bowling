@@ -29,17 +29,17 @@
 #define ADS_H5_HOUSE_PROMO_WHILE_PENDING 1
 
 // Game rules shown in the cheat-only Ad Manager window.
-#define ADS_CREDIT_INITIAL 50 
+#define ADS_CREDIT_INITIAL 20 
 #define ADS_CREDIT_MAX 100
 #define ADS_CREDIT_DAILY_LOGIN_BONUS 10
-#define ADS_CREDIT_BUCKET_SIZE 20
+#define ADS_CREDIT_BUCKET_SIZE 15 
 #define ADS_CREDIT_BUCKET_WIN_BONUS 10
 #define ADS_CREDIT_WIN_COST 1
-#define ADS_CREDIT_LOSS_COST 50 // jsut to test somethingi shoould be ~ 5
-#define ADS_INTERSTITIAL_DAILY_LIMIT 500 // just  to test, normal value ~ 5
+#define ADS_CREDIT_LOSS_COST 5 // jsut to test somethingi shoould be ~ 5
+#define ADS_INTERSTITIAL_DAILY_LIMIT 5 // just  to test, normal value ~ 5
 #define ADS_HOLIDAY_HOURS 24
-#define ADS_MONEY_DAILY_LIMIT 30 // normal value 3, we retest something
-#define ADS_MONEY_PER_RESTOCK_LIMIT 10 // normal 1
+#define ADS_MONEY_DAILY_LIMIT 5 // normal value 3, we retest something
+#define ADS_MONEY_PER_RESTOCK_LIMIT 1 // normal 1
 #define ADS_MONEY_REWARD 100
 
 namespace AdsConfig

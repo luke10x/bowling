@@ -2,14 +2,17 @@
 #include "../3rdparty/json/tests/thirdparty/doctest/doctest.h"
 #include "../campaign_sequel.h"
 
-TEST_CASE("Sequel keeps five recent games and five leaders per settings combination")
+TEST_CASE("Sequel keeps ten recent games and five leaders per settings combination")
 {
     CampaignSequelHistory history;
     for (int i = 0; i < 12; ++i)
         CampaignSequel_Record(history, {100 + i, 90, 1000 + i, (unsigned char)(i % 2)});
-    CHECK(history.recent.count == 5);
+    CHECK(history.recent.count == 10);
     CHECK(history.recent.games[0].score == 111);
-    CHECK(history.recent.games[4].score == 107);
+    CHECK(history.recent.games[9].score == 102);
+    const auto restoredRecent = CampaignSequel_Decode(CampaignSequel_Encode(history.recent), 10);
+    CHECK(restoredRecent.count == 10);
+    CHECK(restoredRecent.games[9].score == 102);
     CHECK(history.top[0].count == 5);
     CHECK(history.top[1].count == 5);
     CHECK(history.top[0].games[0].score == 110);
@@ -27,7 +30,7 @@ TEST_CASE("Sequel list survives storage encoding and chart bounds cover every ga
     CampaignSequelHistory history;
     CampaignSequel_Record(history, {80, 111, 1000, 0});
     CampaignSequel_Record(history, {114, 100, 2000, 7});
-    const auto loaded = CampaignSequel_Decode(CampaignSequel_Encode(history.recent));
+    const auto loaded = CampaignSequel_Decode(CampaignSequel_Encode(history.recent), 10);
     CHECK(loaded.count == 2);
     CHECK(loaded.games[0].score == 114);
     CHECK(loaded.games[1].settings == 0);

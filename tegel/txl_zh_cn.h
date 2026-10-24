@@ -65,6 +65,7 @@ TXL_TRACKER = "音轨编辑"; // Used in: main menu (clayton/menu_clay.h)
 TXL_CREDITS = "制作名单"; // Used in: campaign and results windows (clayton/win_stack.h), main menu (clayton/menu_clay.h)
 TXL_AD_MANAGER_TITLE = "广告管理"; // 用于广告管理窗口
 TXL_AD_SPONSOR_PROMPT = "赞助商的话"; // 浏览器插页广告按钮
+TXL_AD_CONTINUE = "继续观看广告"; // 浏览器插页广告操作提示
 TXL_AD_CREDIT_FMT = "广告积分：%.1f / %.0f"; // 用于广告管理窗口
 TXL_AD_CREDIT_BUCKET_FMT = "胜利储备：%.0f / %.0f（低积分获胜 +%.0f）"; // 用于广告管理窗口
 TXL_AD_CREDIT_RULES_FMT = "胜利：-%d，失败：-%d，每日登录：+%d"; // 广告规则

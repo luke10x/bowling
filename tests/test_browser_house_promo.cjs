@@ -21,6 +21,8 @@ function browser(housePromo) {
         const element = {
             tag, style: {}, dataset: {}, children: [], disabled: false,
             appendChild(child) { this.children.push(child); child.parent = this; },
+            setAttribute(name, value) { this[name] = value; },
+            focus() {},
             addEventListener(type, fn) { listeners.set(type, fn); },
             click() { if (!this.disabled) listeners.get('click')?.(); },
             remove() { elements.splice(elements.indexOf(this), 1); }
@@ -81,8 +83,14 @@ test('live browser promo gives the shop reward only after a completed view', () 
 
 test('live interstitial completes through promo; switch off restores Google path', () => {
     const app = browser(true);
-    app.window.bowlingShowGameAd('win');
-    app.document.getElementById('loss-ad-overlay').children[0].click();
+    app.window.bowlingShowGameAd('win', 'A word from our sponsors', 'Continue to ad');
+    const overlay = app.document.getElementById('loss-ad-overlay');
+    assert.equal(overlay.children[0].textContent, 'A word from our sponsors');
+    assert.equal(overlay.children[1].textContent, 'Continue to ad');
+    assert.match(overlay.children[1].style.cssText, /background:#2bc86f/);
+    overlay.click();
+    overlay.click();
+    assert.ok(app.document.getElementById('in-game-promo'));
     app.tick(4);
     app.button('Continue').click();
     assert.equal(app.window.bowlingInterstitialShownCount, 1);

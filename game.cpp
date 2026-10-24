@@ -29,9 +29,9 @@ EM_JS(void, WebPerfLogFab_SetVisible, (int enabled), {
         window.setPerfLogFabVisible(!!enabled);
 });
 
-EM_JS(void, WebGameAd_Show, (int won, const char *prompt), {
+EM_JS(void, WebGameAd_Show, (int won, const char *prompt, const char *continueLabel), {
     if (window.bowlingShowGameAd)
-        window.bowlingShowGameAd(won ? 'win' : 'loss', UTF8ToString(prompt));
+        window.bowlingShowGameAd(won ? 'win' : 'loss', UTF8ToString(prompt), UTF8ToString(continueLabel));
     else
         window.bowlingInterstitialFinishedCount = (window.bowlingInterstitialFinishedCount | 0) + 1;
 });
@@ -119,25 +119,29 @@ extern "C" void Game_SetAdAudioPaused(int paused)
 
 extern "C" void Game_OnInterstitialFinished(void);
 extern "C" void Game_OnMoneyRewardFinished(void);
-static inline void Game_ShowInterstitial(SDL_AudioDeviceID audioDevice, bool won, const char *prompt)
+static inline void Game_ShowInterstitial(SDL_AudioDeviceID audioDevice, bool won,
+                                         const char *prompt, const char *continueLabel)
 {
 #ifdef __EMSCRIPTEN__
     (void)audioDevice;
-    WebGameAd_Show(won ? 1 : 0, prompt);
+    WebGameAd_Show(won ? 1 : 0, prompt, continueLabel);
 #elif defined(__ANDROID__) || defined(ANDROID)
     (void)audioDevice;
     (void)won;
     (void)prompt;
+    (void)continueLabel;
     PlatformAds_ShowInterstitial();
 #elif defined(__APPLE__) && TARGET_OS_IPHONE
     (void)won;
     (void)prompt;
+    (void)continueLabel;
     g_lossAdAudioDevice.store(audioDevice);
     PlatformAds_ShowInterstitial();
 #else
     (void)audioDevice;
     (void)won;
     (void)prompt;
+    (void)continueLabel;
     Game_OnInterstitialFinished();
 #endif
 }
@@ -269,6 +273,7 @@ static inline void Game_ShowMoneyReward(SDL_AudioDeviceID audioDevice)
 #include "block/block_render.h"
 #include "ball_loss.h"
 #include "runes.h"
+#include "bite_reversal.h"
 #include "ortho3d.h"
 #include "physics/physics.h"
 #include "rendertexture.h"
@@ -1949,14 +1954,20 @@ struct PhysicsStepSchedule
         { 20.0f,  20.0f}, // IDLE: keep restocked pins supported
         { 50.0f,  80.0f}, // AIM
         {  5.0f,  10.0f}, // SWING
-        { 15.0f,  15.0f}, // THROW approach: ball z <= NearPinDeckZ
+        { 15.0f,  15.0f}, // THROW approach: ball is farther from the active pin deck
         {  5.0f,   5.0f}, // THROW near pin deck: preserve ball/pin contacts even at low FPS
         {  5.0f,   5.0f}, // RESULT
         {  5.0f,   5.0f}  // Count Masters PIN_CRASH, overrides phase
     }};
 
+    static constexpr bool nearPinDeck(float ballZ, float pinFrontZ,
+                                      float forwardDirection, float distanceM)
+    {
+        return (pinFrontZ - ballZ) * forwardDirection < distanceM;
+    }
+
     static constexpr float interval(UserContext::Phase phase, bool lowFps,
-                                    float ballZ, bool countMastersPinCrash)
+                                    bool ballNearPinDeck, bool countMastersPinCrash)
     {
         Row row = Other;
         switch (phase)
@@ -1965,7 +1976,7 @@ struct PhysicsStepSchedule
         case UserContext::Phase::AIM: row = Aim; break;
         case UserContext::Phase::SWING: row = Swing; break;
         case UserContext::Phase::THROW:
-            row = ballZ > NearPinDeckZ ? ThrowNearDeck : ThrowApproach;
+            row = ballNearPinDeck ? ThrowNearDeck : ThrowApproach;
             break;
         case UserContext::Phase::RESULT: row = Result; break;
         case UserContext::Phase::FINAL_RESULT:
@@ -1975,6 +1986,11 @@ struct PhysicsStepSchedule
         return (lowFps ? Milliseconds[row].lowFpsMs : Milliseconds[row].normalMs) * 0.001f;
     }
 };
+
+static_assert(PhysicsStepSchedule::nearPinDeck(0.6f, 1.0f, 1.0f, 0.5f));
+static_assert(PhysicsStepSchedule::nearPinDeck(-0.6f, -1.0f, -1.0f, 0.5f));
+static_assert(!PhysicsStepSchedule::nearPinDeck(0.4f, 1.0f, 1.0f, 0.5f));
+static_assert(!PhysicsStepSchedule::nearPinDeck(-0.4f, -1.0f, -1.0f, 0.5f));
 
 static inline void PlaceCenteredConfiguredBlock(UserContext *usr, int configIndex);
 static inline void PlayBlockPlacedFeedback(UserContext *usr, int configIndex);
@@ -11774,7 +11790,8 @@ static inline void Campaign_ShowOutcomeInterstitialAfterStory(UserContext *usr)
     usr->deferredStoryEventAfterInterstitial = usr->dialog.consumeEvent();
     usr->adInterstitialInFlight = true;
     Game_ShowInterstitial(usr->sound.audioDev, won,
-                          Txl_Get(usr->language, TXL_AD_SPONSOR_PROMPT));
+                          Txl_Get(usr->language, TXL_AD_SPONSOR_PROMPT),
+                          Txl_Get(usr->language, TXL_AD_CONTINUE));
 }
 
 static inline bool AdPolicy_ChargeOutcome(UserContext *usr, bool won)
@@ -11802,7 +11819,8 @@ static inline void Game_ScheduleOutcomeInterstitial(UserContext *usr, bool won, 
             break;
         case OutcomeInterstitialPlacement::Immediately:
             Game_ShowInterstitial(usr->sound.audioDev, won,
-                                  Txl_Get(usr->language, TXL_AD_SPONSOR_PROMPT));
+                                  Txl_Get(usr->language, TXL_AD_SPONSOR_PROMPT),
+                                  Txl_Get(usr->language, TXL_AD_CONTINUE));
             break;
         case OutcomeInterstitialPlacement::OnRetry:
             usr->pendingLossInterstitial = true;
@@ -15457,10 +15475,6 @@ struct BallSwingTuning
     // Soft cap for swipe-derived angular velocity (prevents crazy spins on low FPS / fast swipes).
     static constexpr float INPUT_ANGVEL_SOFTCAP = 4.0f;
 
-    // Bite adds extra "drive" when you are trying to reverse hook direction while the ball is
-    // still moving laterally the other way (vx). This is applied in THROW when spin input
-    // and current vx disagree.
-    static constexpr float BITE_DRIVE_FROM_LATERAL_VEL = 5.0f;
 };
 
 // (SceneTuning lives near the top of the file as the single source of truth.)
@@ -19281,24 +19295,10 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 			            // Positive angVel (CCW input) => positive spin => hooks toward +X (lane-left in our view).
 			            float sideDrive = angVel * (usr->myBall.spin * usr->myBall.spin) * 0.125f;
 
-		            // Bite "drive": if ball is still sliding laterally opposite to where the
-		            // current spin input wants to take it, add extra drive to flip direction sooner.
+		            // Bite controls how readily counter-spin reverses existing lateral drift.
 		            glm::vec3 v = usr->phy.get_ball_swing_movement();
 		            float vx = std::isfinite(v.x) ? v.x : 0.0f;
-		            float bite01 = glm::clamp(usr->myBall.bite, 0.0f, 1.0f);
-		            bite01 = bite01 * bite01;
-		            if (fabsf(sideDrive) > 1e-6f && fabsf(vx) > 0.02f)
-		            {
-			                // sideDrive -> y angular velocity. With our curve model, y>0 drifts to +x.
-			                float desiredLateralDir = (sideDrive > 0.0f) ? 1.0f : -1.0f; // +1 => +x, -1 => -x
-			                float movingDir = (vx > 0.0f) ? 1.0f : -1.0f;
-			                bool disagree = (movingDir != desiredLateralDir);
-			                if (disagree)
-			                {
-			                    float drive = bite01 * BallSwingTuning::BITE_DRIVE_FROM_LATERAL_VEL * fabsf(vx);
-			                    sideDrive += (sideDrive > 0.0f) ? drive : -drive;
-			                }
-			            }
+		            sideDrive = BiteReversal::SideDrive(sideDrive, vx, usr->myBall.bite);
 
 		            if (!std::isfinite(sideDrive))
 		            {
@@ -19773,7 +19773,7 @@ void vtx::init(vtx::VertexContext *ctx)
         {
             std::string saved;
             if (usr->storage.getCharKey("campaign_sequel_recent", saved))
-                usr->campaignSequelHistory.recent = CampaignSequel_Decode(saved);
+                usr->campaignSequelHistory.recent = CampaignSequel_Decode(saved, 10);
             for (int i = 0; i < 8; ++i)
             {
                 char key[40];
@@ -23198,7 +23198,8 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->pendingLossInterstitial = false;
             usr->adInterstitialInFlight = true;
             Game_ShowInterstitial(usr->sound.audioDev, false,
-                                  Txl_Get(usr->language, TXL_AD_SPONSOR_PROMPT));
+                                  Txl_Get(usr->language, TXL_AD_SPONSOR_PROMPT),
+                                  Txl_Get(usr->language, TXL_AD_CONTINUE));
         }
         const bool repeatCampaignLevel = Campaign_ShouldRepeatResultLevel(
             usr->windowStack.resultRepeatRequested,
@@ -25231,8 +25232,15 @@ swing_checks_done:
     usr->playerNosUsageActiveThisFrame = false;
     usr->enemyNosUsageActiveThisFrame = false;
     usr->frameProfileGraph.mark(FrameProfileGraph::RollAndScore);
+    const float playerPinFrontZ = Campaign_PlayerPinFrontZ(usr);
+    const float nearPinDeckDistanceM = playerPinFrontZ - PhysicsStepSchedule::NearPinDeckZ;
+    const bool enemyPinDeck = IsEnemyTurn(usr) && usr->enemyPinsInit;
+    const float pinFrontZ = enemyPinDeck ? Campaign_EnemyPinFrontZ(usr) : playerPinFrontZ;
+    const bool ballNearPinDeck = PhysicsStepSchedule::nearPinDeck(
+        ballModel[3].z, pinFrontZ, enemyPinDeck ? -1.0f : 1.0f,
+        nearPinDeckDistanceM);
     const float physicsInterval = PhysicsStepSchedule::interval(
-        usr->phase, lowFpsAimSwingFrame, ballModel[3].z,
+        usr->phase, lowFpsAimSwingFrame, ballNearPinDeck,
         MiniGame_IsCountMasters(usr) && usr->countMasters.phase == CountMastersPhase::PIN_CRASH);
     RuneGuardPins_Tick(usr, (float)gameplayDeltaTime);
     RuneFootball_RefreshRestitutionForLaneZ(usr);
@@ -31367,7 +31375,7 @@ if (usr->shouldShowImgui)
 		            ImGui::BulletText("edgeMult = lerp(1..SKID_EDGE_MULT_AT_EDGE, edgeT)");
 		            ImGui::BulletText("skidMult *= lerp(1..edgeMult, (1 - skidRamp))");
 		            ImGui::BulletText("currentFriction = clamp(ballBaseFriction × skidMult, 0..BALL_FRICTION_MAX)");
-		            ImGui::BulletText("THROW bite drive: if vx disagrees with input spin, sideDrive += sign(sideDrive)×(bite^2)×BITE_DRIVE_FROM_LATERAL_VEL×abs(vx)");
+		            ImGui::BulletText("THROW counter-spin: low bite halves input drive; high bite adds bounded lateral-velocity assist");
 		        }
 
         ImGui::End();

@@ -3478,69 +3478,11 @@ inline Clay_String CampaignSequel_Ago(ClayArena *arena, TxlLanguage language, in
 inline void renderCampaignSequelContent(WindowStack *self, Clayton *clayton)
 {
     ClayArena *arena = &clayton->clayArena;
-    const CampaignSequelList &recent = self->campaignSequelHistory.recent;
-    int chartFloor = 0, chartCeiling = 100;
-    CampaignSequel_ChartRange(recent, chartFloor, chartCeiling);
-    Clay_ElementDeclaration chartCard = CLAY_THEME_SECTION;
-    chartCard.layout.childGap = 4;
-    chartCard.layout.padding = {6, 6, 6, 6};
-    chartCard.layout.sizing.height = CLAY_SIZING_GROW();
-    CLAY(CLAY_ID("SequelChartCard"), chartCard)
-    {
-        CLAY(CLAY_ID("SequelChartHeading"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-            .layoutDirection = CLAY_LEFT_TO_RIGHT}})
-        {
-            CLAY_TEXT(clayton->txl(TXL_SEQUEL_LATEST_FIVE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
-            CLAY(CLAY_ID("SequelChartHeadingGap"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}) {}
-            CLAY_TEXT(ClayArena_FormatString(arena, "%d - %d", chartFloor, chartCeiling), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
-        }
-        const float previousBarsHeight = Clay_GetElementData(CLAY_ID("SequelBars")).boundingBox.height;
-        const int barSpace = std::max(12, (int)previousBarsHeight - 24);
-        CLAY(CLAY_ID("SequelBars"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-            .childGap = 7, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
-        {
-            for (int slot = 0; slot < 5; ++slot)
-            {
-                const bool hasGame = slot < recent.count;
-                const CampaignSequelGame *game = hasGame ? &recent.games[recent.count - slot - 1] : nullptr;
-                const int height = hasGame
-                    ? std::max(5, (game->score - chartFloor) * barSpace / std::max(1, chartCeiling - chartFloor))
-                    : 3;
-                const Clay_Color barColor = !hasGame ? Clay_Color{106, 83, 129, 255}
-                    : game->score > game->opponentScore
-                        ? Clay_Color{72, 213, 140, 255} : Clay_Color{236, 101, 112, 255};
-                CLAY(CLAY_IDI("SequelBarColumn", slot), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
-                    .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
-                {
-                    CLAY_TEXT(hasGame ? ClayArena_FormatString(arena, "%d", game->score)
-                        : CLAY_STRING("--"), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
-                    CLAY(CLAY_IDI("SequelBarSpacer", slot),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}) {}
-                    CLAY(CLAY_IDI("SequelBarFill", slot),
-                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED((float)height)}},
-                         .backgroundColor = barColor, .cornerRadius = {5, 5, 2, 2}}) {}
-                }
-            }
-        }
-    }
     Clay_ElementDeclaration recordCard = CLAY_THEME_SECTION;
     recordCard.layout.childGap = 4;
     recordCard.layout.padding = {6, 6, 6, 6};
     CLAY(CLAY_ID("SequelRecordCard"), recordCard)
     {
-        CLAY(CLAY_ID("SequelRecordHeading"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-            .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
-        {
-            CLAY_TEXT(clayton->txl(TXL_POST_CAMPAIGN), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
-            CLAY(CLAY_ID("SequelRecordHeadingGap"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}) {}
-            CLAY_TEXT(self->campaignPostgameBestScore > 0
-                ? ClayArena_FormatString(arena, "%s %d - %d",
-                    Txl_Get(clayton->uiLanguage, TXL_POST_CAMPAIGN_BEST_SCORE),
-                    self->campaignPostgameBestScore, self->campaignPostgameBestOpponentScore)
-                : ClayArena_FormatString(arena, "%s ? - ?",
-                    Txl_Get(clayton->uiLanguage, TXL_POST_CAMPAIGN_BEST_SCORE)),
-                CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
-        }
         CLAY(CLAY_ID("SequelRecordTotals"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
             .childGap = 8, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
         {
@@ -3554,16 +3496,52 @@ inline void renderCampaignSequelContent(WindowStack *self, Clayton *clayton)
             total(0, TXL_POST_CAMPAIGN_WON_FMT, self->campaignPostgameWins);
             total(1, TXL_POST_CAMPAIGN_LOST_FMT, self->campaignPostgameLosses);
             total(2, TXL_POST_CAMPAIGN_QUIT_FMT, self->campaignPostgameQuits);
-            if (self->campaignPostgameBestScore > 0)
+        }
+    }
+    const CampaignSequelList &recent = self->campaignSequelHistory.recent;
+    int chartFloor = 0, chartCeiling = 100;
+    CampaignSequel_ChartRange(recent, chartFloor, chartCeiling);
+    Clay_ElementDeclaration chartCard = CLAY_THEME_SECTION;
+    chartCard.layout.childGap = 4;
+    chartCard.layout.padding = {6, 6, 6, 6};
+    chartCard.layout.sizing.height = CLAY_SIZING_GROW();
+    CLAY(CLAY_ID("SequelChartCard"), chartCard)
+    {
+        CLAY(CLAY_ID("SequelChartHeading"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+            .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+        {
+            CLAY_TEXT(clayton->txl(TXL_SEQUEL_LATEST_FIVE), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_LABEL));
+        }
+        const float previousBarsHeight = Clay_GetElementData(CLAY_ID("SequelBars")).boundingBox.height;
+        const int barSpace = std::max(12, (int)previousBarsHeight - 16);
+        Clay_TextElementConfig scoreLabel = CLAY_THEME_TEXT_BODY;
+        scoreLabel.fontSize = 12;
+        scoreLabel.lineHeight = 14;
+        scoreLabel.textAlignment = CLAY_TEXT_ALIGN_CENTER;
+        CLAY(CLAY_ID("SequelBars"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+            .childGap = 4, .layoutDirection = CLAY_LEFT_TO_RIGHT}})
+        {
+            for (int slot = 0; slot < 10; ++slot)
             {
-                char bestTools[24];
-                std::snprintf(bestTools, sizeof(bestTools), "N%c B%c R%c",
-                    self->campaignPostgameBestNosEnabled ? '+' : '-',
-                    self->campaignPostgameBestBlocksEnabled ? '+' : '-',
-                    self->campaignPostgameBestRunesEnabled ? '+' : '-');
-                CLAY(CLAY_ID("SequelRecordBestTools"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
-                    .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
-                { CLAY_TEXT(ClayArena_AllocString(arena, bestTools), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)); }
+                const bool hasGame = slot < recent.count;
+                const CampaignSequelGame *game = hasGame ? &recent.games[recent.count - slot - 1] : nullptr;
+                const int height = hasGame
+                    ? std::max(5, (game->score - chartFloor) * barSpace / std::max(1, chartCeiling - chartFloor))
+                    : 3;
+                const Clay_Color barColor = !hasGame ? Clay_Color{106, 83, 129, 255}
+                    : game->score > game->opponentScore
+                        ? Clay_Color{72, 213, 140, 255} : Clay_Color{236, 101, 112, 255};
+                CLAY(CLAY_IDI("SequelBarColumn", slot), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                    .layoutDirection = CLAY_TOP_TO_BOTTOM, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+                {
+                    CLAY_TEXT(hasGame ? ClayArena_FormatString(arena, "%d", game->score)
+                        : CLAY_STRING("--"), CLAY_TEXT_CONFIG(scoreLabel));
+                    CLAY(CLAY_IDI("SequelBarSpacer", slot),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()}}}) {}
+                    CLAY(CLAY_IDI("SequelBarFill", slot),
+                        {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED((float)height)}},
+                         .backgroundColor = barColor, .cornerRadius = {5, 5, 2, 2}}) {}
+                }
             }
         }
     }
@@ -3579,6 +3557,8 @@ inline void renderCampaignSequelContent(WindowStack *self, Clayton *clayton)
             CLAY(CLAY_ID("SequelScoresGap"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(1)}}}) {}
             Clay_ElementDeclaration filter = CLAY_THEME_BTN_HUD;
             filter.layout.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIXED(60)};
+            filter.layout.padding.left = 12;
+            filter.layout.padding.right = 12;
             filter.backgroundColor = self->campaignSequelCurrentOnly ? CLAY_COLOR_BTN_SUCCESS : CLAY_COLOR_BTN_HUD;
             CLAY(clayton->campaignSequelFilterClick.clayId, filter)
             { CLAY_TEXT(clayton->txl(self->campaignSequelCurrentOnly ? TXL_SEQUEL_FILTER_ON : TXL_SEQUEL_FILTER_OFF), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BUTTON)); }
@@ -3586,42 +3566,56 @@ inline void renderCampaignSequelContent(WindowStack *self, Clayton *clayton)
         const unsigned char current = CampaignSequel_Settings(self->campaignPostgameNosEnabled,
             self->campaignPostgameBlocksEnabled, self->campaignPostgameRunesEnabled);
         const CampaignSequelList top = CampaignSequel_Top(self->campaignSequelHistory, self->campaignSequelCurrentOnly, current);
-        auto row = [&](int index, bool heading)
+        auto row = [&](int index)
         {
+            const bool heading = index == 0;
+            const bool hasGame = index > 0 && index <= top.count;
+            const CampaignSequelGame *game = hasGame ? &top.games[index - 1] : nullptr;
             CLAY(CLAY_IDI("SequelScoreRow", index), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(22)},
-                .childGap = 6, .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}},
+                .layoutDirection = CLAY_LEFT_TO_RIGHT, .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}},
                 .backgroundColor = index % 2 ? Clay_Color{75, 45, 96, 255} : Clay_Color{62, 35, 83, 255}})
             {
-                auto cell = [&](int cellIndex, Clay_String value, float weight)
+                auto cell = [&](int cellIndex, float width, Clay_String value,
+                    Clay_TextElementConfig config, Clay_LayoutAlignmentX alignment = CLAY_ALIGN_X_LEFT)
                 {
-                    CLAY(CLAY_IDI("SequelScoreCell", index * 4 + cellIndex), {.layout = {.sizing = {CLAY_SIZING_GROW(weight), CLAY_SIZING_FIT()},
-                        .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
-                    { CLAY_TEXT(value, CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY)); }
+                    CLAY(CLAY_IDI("SequelScoreCell", index * 6 + cellIndex),
+                        {.layout = {.sizing = {CLAY_SIZING_PERCENT(width), CLAY_SIZING_GROW()},
+                            .childAlignment = {alignment, CLAY_ALIGN_Y_CENTER}}})
+                    { CLAY_TEXT(value, CLAY_TEXT_CONFIG(config)); }
                 };
+                const Clay_TextElementConfig ordinary = heading ? CLAY_THEME_TEXT_LABEL : CLAY_THEME_TEXT_BODY;
+                cell(0, 0.06f, heading ? clayton->txl(TXL_SEQUEL_PLACE)
+                    : ClayArena_FormatString(arena, "%d", index), ordinary);
+                cell(1, 0.28f, heading ? clayton->txl(TXL_SEQUEL_WHEN)
+                    : hasGame ? CampaignSequel_Ago(arena, clayton->uiLanguage, game->finishedAt)
+                              : CLAY_STRING(" "), ordinary);
+                char settings[32] = {};
+                if (hasGame)
+                    std::snprintf(settings, sizeof(settings), "N%c B%c R%c", game->settings & 1 ? '+' : '-',
+                        game->settings & 2 ? '+' : '-', game->settings & 4 ? '+' : '-');
+                cell(2, 0.26f, heading ? clayton->txl(TXL_SEQUEL_SETTINGS)
+                    : ClayArena_AllocString(arena, settings), ordinary);
                 if (heading)
                 {
-                    cell(0, clayton->txl(TXL_SEQUEL_PLACE), 1);
-                    cell(1, clayton->txl(TXL_SEQUEL_WHEN), 3);
-                    cell(2, clayton->txl(TXL_SEQUEL_SETTINGS), 3);
-                    cell(3, clayton->txl(TXL_SEQUEL_SCORE), 1);
+                    cell(3, 0.40f, clayton->txl(TXL_SEQUEL_SCORE), ordinary, CLAY_ALIGN_X_CENTER);
                 }
                 else
                 {
-                    const CampaignSequelGame &game = top.games[index - 1];
-                    char settings[32];
-                    std::snprintf(settings, sizeof(settings), "N%c B%c R%c", game.settings & 1 ? '+' : '-',
-                        game.settings & 2 ? '+' : '-', game.settings & 4 ? '+' : '-');
-                    cell(0, ClayArena_FormatString(arena, "%d", index), 1);
-                    cell(1, CampaignSequel_Ago(arena, clayton->uiLanguage, game.finishedAt), 3);
-                    cell(2, ClayArena_AllocString(arena, settings), 3);
-                    cell(3, ClayArena_FormatString(arena, "%d", game.score), 1);
+                    Clay_TextElementConfig player = CLAY_THEME_TEXT_BODY;
+                    player.textColor = hasGame && game->score > game->opponentScore
+                        ? Clay_Color{72, 213, 140, 255} : Clay_Color{236, 101, 112, 255};
+                    Clay_TextElementConfig muted = CLAY_THEME_TEXT_BODY;
+                    muted.textColor = {170, 170, 182, 255};
+                    cell(3, 0.16f, hasGame ? ClayArena_FormatString(arena, "%d", game->score)
+                        : CLAY_STRING(" "), player, CLAY_ALIGN_X_RIGHT);
+                    cell(4, 0.06f, hasGame ? CLAY_STRING("-") : CLAY_STRING(" "),
+                        muted, CLAY_ALIGN_X_CENTER);
+                    cell(5, 0.18f, hasGame ? ClayArena_FormatString(arena, "%d", game->opponentScore)
+                        : CLAY_STRING(" "), muted);
                 }
             }
         };
-        row(0, true);
-        if (!top.count)
-            CLAY_TEXT(clayton->txl(TXL_SEQUEL_NO_SCORES), CLAY_TEXT_CONFIG(CLAY_THEME_TEXT_BODY));
-        for (int i = 1; i <= top.count; ++i) row(i, false);
+        for (int i = 0; i <= 5; ++i) row(i);
     }
     Clay_ElementDeclaration toolsCard = CLAY_THEME_SECTION;
     toolsCard.layout.childGap = 4;

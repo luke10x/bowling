@@ -16,7 +16,7 @@ struct CampaignSequelGame
 
 struct CampaignSequelList
 {
-    CampaignSequelGame games[5] = {};
+    CampaignSequelGame games[10] = {};
     int count = 0;
 };
 
@@ -34,10 +34,10 @@ inline unsigned char CampaignSequel_Settings(bool nos, bool blocks, bool runes)
 inline void CampaignSequel_Record(CampaignSequelHistory &history, CampaignSequelGame game)
 {
     game.settings &= 7;
-    for (int i = std::min(history.recent.count, 4); i > 0; --i)
+    for (int i = std::min(history.recent.count, 9); i > 0; --i)
         history.recent.games[i] = history.recent.games[i - 1];
     history.recent.games[0] = game;
-    history.recent.count = std::min(history.recent.count + 1, 5);
+    history.recent.count = std::min(history.recent.count + 1, 10);
 
     CampaignSequelList &top = history.top[game.settings];
     int place = 0;
@@ -87,11 +87,11 @@ inline std::string CampaignSequel_Encode(const CampaignSequelList &list)
     return out;
 }
 
-inline CampaignSequelList CampaignSequel_Decode(const std::string &encoded)
+inline CampaignSequelList CampaignSequel_Decode(const std::string &encoded, int limit = 5)
 {
     CampaignSequelList list;
     size_t pos = 0;
-    while (pos < encoded.size() && list.count < 5)
+    while (pos < encoded.size() && list.count < std::min(limit, 10))
     {
         size_t end = encoded.find(';', pos);
         const std::string item = encoded.substr(pos, end == std::string::npos ? end : end - pos);

@@ -89,6 +89,7 @@ TXL_TRACKER = "トラッカー"; // Used in: main menu (clayton/menu_clay.h)
 TXL_CREDITS = "クレジット"; // Used in: campaign and results windows (clayton/win_stack.h), main menu (clayton/menu_clay.h)
 TXL_AD_MANAGER_TITLE = "広告管理"; // 広告管理ウィンドウ
 TXL_AD_SPONSOR_PROMPT = "スポンサーからのお知らせ"; // ブラウザー広告のボタン
+TXL_AD_CONTINUE = "広告へ進む"; // ブラウザー広告の案内
 TXL_AD_CREDIT_FMT = "広告クレジット: %.1f / %.0f"; // 広告管理ウィンドウ
 TXL_AD_CREDIT_BUCKET_FMT = "勝利貯金: %.0f / %.0f (低クレジット勝利 +%.0f)"; // 広告管理ウィンドウ
 TXL_AD_CREDIT_RULES_FMT = "勝利: -%d、敗北: -%d、毎日ログイン: +%d"; // 広告ルール

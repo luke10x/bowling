@@ -1133,6 +1133,11 @@ struct UserContext
     bool campaignGlassLessonBlinkActive = false;
     bool campaignNosCoachPromptedThisLevel = false;
     bool campaignNosLessonBlinkActive = false;
+    bool campaignNosCoachRefillOnClose = false;
+    bool campaignNosCoachRefillActive = false;
+    float campaignNosCoachRefillElapsed = 0.0f;
+    float campaignNosCoachRefillAmount = 0.0f;
+    float campaignNosCoachRefillAdded = 0.0f;
     bool campaignSplitCoachShownThisLevel = false;
     bool campaignOilCoachShownThisLevel = false;
     bool campaignPlayerReoiledThisLevel = false;
@@ -1664,6 +1669,8 @@ struct UserContext
     int schoolHintLesson = 0;
     int schoolHintMassBand = -1;
     int schoolHintStrikeStage = 0;
+    bool schoolHintStrikeShownThisIdle = false;
+    bool schoolHintStrikePendingRoll = false;
     float schoolHintNextAt = 0.0f;
     Phase schoolHintPreviousPhase = Phase::IDLE;
     bool schoolOilFreshHintPending = false;
@@ -2990,6 +2997,44 @@ static inline void SyncNosHeld(UserContext *usr)
     }
 }
 
+static inline void CampaignNosLesson_OnDialogClosed(UserContext *usr)
+{
+    if (!usr || !usr->campaignNosCoachRefillOnClose)
+        return;
+    usr->campaignNosCoachRefillOnClose = false;
+    if (CampaignNosLesson_ShouldRefill(usr->electroBall.getCharge01()))
+    {
+        // Charge begins only after acknowledgement, then rises over one second.
+        usr->campaignNosCoachRefillActive = true;
+        usr->campaignNosCoachRefillElapsed = 0.0f;
+        usr->campaignNosCoachRefillAmount =
+            usr->electroBall.chargeCapacity - usr->electroBall.charge;
+        usr->campaignNosCoachRefillAdded = 0.0f;
+    }
+    usr->campaignNosLessonBlinkActive = true;
+}
+
+static inline void CampaignNosLesson_TickRefill(UserContext *usr, float dt)
+{
+    if (!usr || !usr->campaignNosCoachRefillActive)
+        return;
+    constexpr float kRefillSeconds = 1.0f;
+    usr->campaignNosCoachRefillElapsed += glm::clamp(dt, 0.0f, 0.10f);
+    const float t = glm::clamp(usr->campaignNosCoachRefillElapsed / kRefillSeconds, 0.0f, 1.0f);
+    const float eased = t * t * (3.0f - 2.0f * t);
+    const float added = usr->campaignNosCoachRefillAmount * eased;
+    // Apply only the new portion, preserving pickups and NOS use during the fill.
+    usr->electroBall.charge = glm::clamp(
+        usr->electroBall.charge + glm::max(0.0f, added - usr->campaignNosCoachRefillAdded),
+        0.0f, usr->electroBall.chargeCapacity);
+    usr->campaignNosCoachRefillAdded = added;
+    if (t >= 1.0f)
+    {
+        usr->campaignNosCoachRefillActive = false;
+        usr->electroBall.triggerPickupPulse(1.0f);
+    }
+}
+
 static inline Clay_Color ClayColorMix(Clay_Color a, Clay_Color b, float t)
 {
     t = glm::clamp(t, 0.0f, 1.0f);
@@ -3382,6 +3427,12 @@ static inline void BuildBallChargeHud(UserContext *usr, float deltaTime)
     {
         const float blink = 0.5f + 0.5f * sinf(
             (NitroRuneTuning::BlinkSeconds - usr->nitroRuneBlinkRemaining) * 24.0f);
+        chargeFill = ClayColorMix(chargeFill, (Clay_Color){255, 255, 255, 255}, blink * 0.8f);
+        chargeBorder = ClayColorMix(chargeBorder, (Clay_Color){255, 255, 255, 255}, blink);
+    }
+    if (usr->campaignNosCoachRefillActive)
+    {
+        const float blink = 0.5f + 0.5f * sinf(usr->campaignNosCoachRefillElapsed * 24.0f);
         chargeFill = ClayColorMix(chargeFill, (Clay_Color){255, 255, 255, 255}, blink * 0.8f);
         chargeBorder = ClayColorMix(chargeBorder, (Clay_Color){255, 255, 255, 255}, blink);
     }
@@ -7523,6 +7574,8 @@ static inline void School_TickHints(UserContext *usr, float dt)
         usr->schoolHintLesson = lesson;
         usr->schoolHintMassBand = -1;
         usr->schoolHintStrikeStage = 0;
+        usr->schoolHintStrikeShownThisIdle = false;
+        usr->schoolHintStrikePendingRoll = false;
         usr->schoolHintNextAt = usr->gameplayTime;
         usr->schoolHintPreviousPhase = usr->phase;
         usr->schoolOilFreshHintPending = false;
@@ -7535,6 +7588,49 @@ static inline void School_TickHints(UserContext *usr, float dt)
                               usr->schoolHintPreviousPhase != UserContext::Phase::THROW;
     usr->schoolHintPreviousPhase = usr->phase;
     const bool foregroundClear = usr->windowStack.count == 0 && !usr->dialog.active;
+    if (lesson == 5)
+    {
+        static constexpr TxlKey hints[] = {
+            TXL_SCHOOL_HINT_STRIKE_REQUIRED,
+            TXL_SCHOOL_HINT_STRIKE_BONUS,
+            TXL_SCHOOL_HINT_MORE_ENERGY,
+            TXL_SCHOOL_HINT_GEMS_ENERGY,
+        };
+        const int hintCount = (int)(sizeof(hints) / sizeof(hints[0]));
+        const char *shownHint = usr->schoolHintStrikePendingRoll
+            ? Txl_Get(usr->language, hints[usr->schoolHintStrikeStage % hintCount])
+            : nullptr;
+        const bool ownsToast = shownHint && std::strcmp(usr->hudToastText, shownHint) == 0;
+        if (usr->phase != UserContext::Phase::IDLE)
+        {
+            if (usr->schoolHintStrikeShownThisIdle && ownsToast)
+                usr->hudToastTime = glm::min(usr->hudToastTime, 0.20f);
+            usr->schoolHintStrikeShownThisIdle = false;
+            // A cancelled aim does not consume a hint; only a real roll does.
+            if (throwStarted && usr->schoolHintStrikePendingRoll)
+            {
+                ++usr->schoolHintStrikeStage;
+                usr->schoolHintStrikePendingRoll = false;
+            }
+            return;
+        }
+        if (usr->schoolHintStrikeShownThisIdle)
+        {
+            // Keep this one hint readable until the player begins aiming.
+            if (foregroundClear && ownsToast)
+                usr->hudToastTime = glm::max(usr->hudToastTime, 0.30f);
+            return;
+        }
+        if (foregroundClear && !usr->school.strikeCompletedThisVisit &&
+            usr->hudToastTime <= 0.0f && !usr->hudToastHeld)
+        {
+            UI_ShowHudToast(usr, Txl_Get(usr->language,
+                            hints[usr->schoolHintStrikeStage % hintCount]), 0.30f);
+            usr->schoolHintStrikeShownThisIdle = true;
+            usr->schoolHintStrikePendingRoll = true;
+        }
+        return;
+    }
     if (throwStarted && foregroundClear)
     {
         if (lesson == 1)
@@ -7600,20 +7696,6 @@ static inline void School_TickHints(UserContext *usr, float dt)
             usr->schoolOilDueHintShown = true;
             UI_ShowHudToast(usr, Txl_Get(usr->language, TXL_SCHOOL_HINT_REOIL_NOW), 3.5f);
         }
-    }
-    else if (lesson == 5 && !usr->school.strikeCompletedThisVisit &&
-             usr->gameplayTime >= usr->schoolHintNextAt)
-    {
-        static constexpr TxlKey hints[] = {
-            TXL_SCHOOL_HINT_STRIKE_REQUIRED,
-            TXL_SCHOOL_HINT_STRIKE_BONUS,
-            TXL_SCHOOL_HINT_MORE_ENERGY,
-            TXL_SCHOOL_HINT_GEMS_ENERGY,
-        };
-        UI_ShowHudToast(usr, Txl_Get(usr->language,
-                        hints[usr->schoolHintStrikeStage % 4]), 3.5f);
-        ++usr->schoolHintStrikeStage;
-        usr->schoolHintNextAt = usr->gameplayTime + 5.0f;
     }
 }
 
@@ -12664,6 +12746,8 @@ static inline void Progress_ResetCampaign(UserContext *usr, bool resetInventory)
     usr->campaignGlassLessonBlinkActive = false;
     usr->campaignNosCoachPromptedThisLevel = false;
     usr->campaignNosLessonBlinkActive = false;
+    usr->campaignNosCoachRefillOnClose = false;
+    usr->campaignNosCoachRefillActive = false;
     usr->pendingCampaignMidTurnStoryId = 0;
     usr->pendingCampaignCoachStoryId = 0;
     usr->pendingCampaignRuneLessonStoryId = 0;
@@ -14364,6 +14448,8 @@ static inline void Campaign_ApplyCurrentLevelSetup(UserContext *usr, bool resetS
     usr->campaignGlassLessonBlinkActive = false;
     usr->campaignNosCoachPromptedThisLevel = false;
     usr->campaignNosLessonBlinkActive = false;
+    usr->campaignNosCoachRefillOnClose = false;
+    usr->campaignNosCoachRefillActive = false;
     usr->campaignSplitCoachShownThisLevel = false;
     usr->campaignOilCoachShownThisLevel = false;
     usr->campaignPlayerReoiledThisLevel = false;
@@ -20401,6 +20487,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     float deltaTime = (float)usr->fpsCounter.startFrame();
     const float safeDeltaTime = std::isfinite(deltaTime) ? glm::clamp(deltaTime, 0.0f, 0.100f) : (1.0f / 60.0f);
     RuneNitro_Tick(usr, safeDeltaTime);
+    CampaignNosLesson_TickRefill(usr, safeDeltaTime);
     const bool lowFpsAimSwingFrame = safeDeltaTime > 1.0f / PhysicsStepSchedule::LowFpsThreshold;
     auto vec3Finite = [](const glm::vec3 &v) -> bool {
         return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
@@ -20511,11 +20598,7 @@ void vtx::loop(vtx::VertexContext *ctx)
         usr->dialog.open(coachStoryId);
         if (coachStoryId == kCampaignNosLessonStoryId)
         {
-            // The first NOS prompt must always be actionable: give a low
-            // meter a full charge before asking the player to use the pedal.
-            if (CampaignNosLesson_ShouldRefill(usr->electroBall.getCharge01()))
-                usr->electroBall.addGemCharge(usr->electroBall.chargeCapacity);
-            usr->campaignNosLessonBlinkActive = true;
+            usr->campaignNosCoachRefillOnClose = true;
         }
         usr->dialog.dialogAppearDelayLeft = 0.0f;
         usr->dialog.openedThisFrame = true;
@@ -21742,6 +21825,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     if (usr->dialog.closeRequested)
                     {
                         usr->dialog.finalizeClose();
+                        CampaignNosLesson_OnDialogClosed(usr);
                         Campaign_ShowOutcomeInterstitialAfterStory(usr);
                     }
                     continue;
@@ -31044,6 +31128,7 @@ END_LINE:
             if (usr->dialog.closeRequested)
             {
                 usr->dialog.finalizeClose();
+                CampaignNosLesson_OnDialogClosed(usr);
                 Campaign_ShowOutcomeInterstitialAfterStory(usr);
             }
         }

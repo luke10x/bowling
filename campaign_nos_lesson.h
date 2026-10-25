@@ -27,5 +27,5 @@ static inline bool CampaignNosLesson_ShouldWhiteBlink(
 
 static inline bool CampaignNosLesson_ShouldRefill(float charge01)
 {
-    return charge01 < 0.5f;
+    return charge01 < 0.999f;
 }

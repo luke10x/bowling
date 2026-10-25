@@ -19,10 +19,11 @@ TEST_CASE("NOS reminder white blink stops when NOS is pressed")
     CHECK_FALSE(CampaignNosLesson_ShouldWhiteBlink(true, false, 0.0f));
 }
 
-TEST_CASE("NOS lesson refills only a meter below half charge")
+TEST_CASE("NOS lesson fills any meter that is not already full")
 {
     CHECK(CampaignNosLesson_ShouldRefill(0.0f));
     CHECK(CampaignNosLesson_ShouldRefill(0.49f));
-    CHECK_FALSE(CampaignNosLesson_ShouldRefill(0.5f));
+    CHECK(CampaignNosLesson_ShouldRefill(0.5f));
+    CHECK(CampaignNosLesson_ShouldRefill(0.9f));
     CHECK_FALSE(CampaignNosLesson_ShouldRefill(1.0f));
 }

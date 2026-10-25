@@ -10,7 +10,8 @@ const PRECACHE_URLS = [
   'sw.js',
   'logo.svg',
   'icon-192.png',
-  'icon-512.png'
+  'icon-512.png',
+  'pwa_install_prompt.js'
 ];
 
 self.addEventListener('install', event => {

@@ -110,12 +110,67 @@
             #logs-container .log-status {
                 color: #6699ff;
             }
+            #pwa-install-overlay[hidden] { display: none !important; }
+            #pwa-install-overlay {
+                position: fixed;
+                inset: 0;
+                z-index: 2147483645;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-sizing: border-box;
+                padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+                    max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+                background: rgba(17, 11, 29, 0.88);
+                color: #fff6df;
+                font: 16px/1.45 system-ui, sans-serif;
+            }
+            #pwa-install-card {
+                width: min(100%, 480px);
+                max-height: 100%;
+                overflow-y: auto;
+                box-sizing: border-box;
+                padding: 28px;
+                border: 3px solid #b786ef;
+                border-radius: 24px;
+                background: #29183c;
+                box-shadow: 0 20px 70px rgba(0, 0, 0, .5);
+            }
+            #pwa-install-title { margin: 0 0 12px; font-size: 1.55rem; line-height: 1.2; }
+            #pwa-install-warning { margin: 0 0 22px; }
+            #pwa-install-browser-label { display: block; margin-bottom: 8px; font-weight: 700; }
+            #pwa-install-browser {
+                width: 100%; box-sizing: border-box; padding: 12px; border-radius: 10px;
+                border: 2px solid #a881d7; background: #41275d; color: white; font: inherit;
+            }
+            #pwa-install-steps { margin: 18px 0 24px; padding-left: 24px; }
+            #pwa-install-steps li { margin: 0 0 9px; }
+            #pwa-install-close {
+                display: block; width: 100%; min-height: 54px; padding: 10px 16px;
+                border: 0; border-radius: 12px; background: #27c780; color: #17251c;
+                font: 700 1rem system-ui, sans-serif; cursor: pointer;
+            }
+            #pwa-install-close:focus-visible, #pwa-install-browser:focus-visible {
+                outline: 3px solid #ffe285; outline-offset: 3px;
+            }
         </style>
     </head>
     <body>
         <canvas id="canvas"
             oncontextmenu="event.preventDefault()"
             tabindex=-1></canvas>
+
+        <div id="pwa-install-overlay" hidden>
+            <section id="pwa-install-card" role="dialog" aria-modal="true" aria-labelledby="pwa-install-title" aria-describedby="pwa-install-warning">
+                <h1 id="pwa-install-title"></h1>
+                <p id="pwa-install-warning"></p>
+                <label id="pwa-install-browser-label" for="pwa-install-browser"></label>
+                <select id="pwa-install-browser"></select>
+                <ol id="pwa-install-steps"></ol>
+                <button id="pwa-install-close" type="button"></button>
+            </section>
+        </div>
+        <script src="pwa_install_prompt.js"></script>
 
         <script src="ads_config.js"></script>
         <script>

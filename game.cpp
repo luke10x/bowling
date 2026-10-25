@@ -451,6 +451,17 @@ EM_JS(int, WebUpdate_IsStandaloneLike, (), {
     return standalone ? 1 : 0;
 });
 
+// The install guidance lives in the web shell. C++ supplies the saved language
+// and treats its visible DOM overlay like any other modal pause.
+EM_JS(void, PwaInstall_MaybeShow, (int language), {
+    if (window.bowlingPwaInstallPrompt)
+        window.bowlingPwaInstallPrompt.show(language);
+});
+
+EM_JS(int, PwaInstall_IsVisible, (), {
+    return window.bowlingPwaInstallPrompt && window.bowlingPwaInstallPrompt.visible() ? 1 : 0;
+});
+
 EM_JS(void, WebUpdate_Apply, (), {
     if (!window.__bowlingWebUpdate) {
         window.__bowlingWebUpdate = {
@@ -19310,7 +19321,8 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
     });
     const int audioState = audioLifecycleState & 3;
     const bool appRefocused = (audioLifecycleState & 4) != 0;
-    const bool greetingMuteActive = usr->saveGreetingMuteFrames > 0 || usr->loadGreetingMuteFrames > 0;
+    const bool greetingMuteActive = usr->saveGreetingMuteFrames > 0 || usr->loadGreetingMuteFrames > 0 ||
+        PwaInstall_IsVisible();
     if (audioState == 1)
     {
         if (!Tracker_IsSongFilePickerFocusMuted(usr))
@@ -20436,6 +20448,10 @@ void vtx::loop(vtx::VertexContext *ctx)
 
         usr->windowStack.windowStackInit();
         usr->greetingsWindowRequested = true;
+
+#ifdef __EMSCRIPTEN__
+        PwaInstall_MaybeShow(static_cast<int>(usr->language));
+#endif
 
         shouldHandleResize = true;
     }
@@ -22920,9 +22936,15 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
 
     const bool chestRewardPausesGameplay = Chest_IsRewardActive(usr);
+#ifdef __EMSCRIPTEN__
+    const bool browserInstallPromptVisible = PwaInstall_IsVisible();
+#else
+    const bool browserInstallPromptVisible = false;
+#endif
     const bool gameplayPausedByUi =
         trackerOnlyMode || usr->windowStack.count > 0 || usr->dialog.active ||
-        chestRewardPausesGameplay || usr->chestSummaryActive || usr->adInterstitialInFlight;
+        chestRewardPausesGameplay || usr->chestSummaryActive || usr->adInterstitialInFlight ||
+        browserInstallPromptVisible;
     if (usr->gameplayPausedByUiLastFrame && !gameplayPausedByUi &&
         usr->phase == UserContext::Phase::THROW)
     {

@@ -43,7 +43,7 @@
 
 TXL_MENU = "菜单"; // Used in: main menu (clayton/menu_clay.h), gameplay/HUD (game.cpp)
 TXL_RENAME = "作弊"; // Used in: main menu (clayton/menu_clay.h)
-TXL_GO_TO_SCHOOL = "去学校"; // Used in: main menu (clayton/menu_clay.h)
+TXL_GO_TO_SCHOOL = "教程"; // Used in: main menu (clayton/menu_clay.h)
 TXL_LANGUAGE = "语言"; // Used in: language selector (clayton/language_clay.h), main menu (clayton/menu_clay.h)
 TXL_CAMPAIGN = "战役"; // Used in: campaign and results windows (clayton/win_stack.h), main menu (clayton/menu_clay.h)
 TXL_CAMPAIGN_TITLE = "战役"; // Used in: campaign and results windows (clayton/win_stack.h)
@@ -194,13 +194,13 @@ TXL_CREDITS_MIXAMO = "角色动画来自 Mixamo。"; // Used in: campaign and re
 TXL_CREDITS_TECH = "使用 SDL、OpenGL ES、Clay、GLM、\nJolt Physics 和 ymfm 构建。"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_TRACKER = "所有音乐和音效均由\n游戏内置的追踪器制作。"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_THANKS = "特别感谢每一位游玩、测试，\n并继续多投一局的人。"; // Used in: campaign and results windows (clayton/win_stack.h)
-TXL_SCHOOL_TITLE_FMT = "第%d课：%s"; // Used in: school window (school/school_clay.h)
+TXL_SCHOOL_TITLE_FMT = "%d. %s"; // Used in: school window (school/school_clay.h)
 TXL_SCHOOL_PROGRESS_GOOD_SHOTS = "精彩投球"; // Used in: school progress row (school/school_clay.h)
 TXL_SCHOOL_PROGRESS_LIGHT = "轻球"; // Used in: school progress row (school/school_clay.h)
 TXL_SCHOOL_PROGRESS_HEAVY = "重球"; // Used in: school progress row (school/school_clay.h)
 TXL_SCHOOL_PROGRESS_HIT_ALL = "击中全部3个"; // Used in: school progress row (school/school_clay.h)
 TXL_SCHOOL_PROGRESS_REOILS = "重新上油"; // Used in: school progress row (school/school_clay.h)
-TXL_AIM_LESSON = "瞄准课"; // Used in: school window (school/school_clay.h)
+TXL_AIM_LESSON = "瞄准"; // Used in: school window (school/school_clay.h)
 TXL_BALL_MASS = "球的质量"; // Used in: school window (school/school_clay.h)
 TXL_SPIN_BALL = "给球上旋"; // Used in: school window (school/school_clay.h)
 TXL_OIL_AND_SKID = "油与滑行"; // Used in: school window (school/school_clay.h)
@@ -218,7 +218,7 @@ TXL_RARITY_RARE = "稀有"; // Used in: shop window (clayton/shop_clay.h)
 TXL_RARITY_EPIC = "史诗"; // Used in: shop window (clayton/shop_clay.h)
 TXL_RARITY_LEGENDARY = "传说"; // Used in: shop window (clayton/shop_clay.h)
 TXL_SPIN_TEST_FMT = "旋转测试：%d/%d 目标（第%d/%d关）"; // Used in: school window (school/school_clay.h)
-TXL_AIM_LESSON_POINTS_FMT = "瞄准课：%d/%d分"; // Used in: school window (school/school_clay.h)
+TXL_AIM_LESSON_POINTS_FMT = "瞄准：%d/%d分"; // Used in: school window (school/school_clay.h)
 TXL_PULL_BALL_BACK = "把球尽量向后拉"; // Used in: school window (school/school_clay.h)
 TXL_LET_IT_GO_NOW = "现在放手"; // Used in: school window (school/school_clay.h)
 TXL_MOVE_RIGHT = "向右移动"; // Used in: school window (school/school_clay.h)
@@ -238,8 +238,8 @@ TXL_LEVEL4_TITLE = "第4关  玻璃冰面"; // Used in: campaign and results win
 TXL_LEVEL4_SUBTITLE = "冰面球道  击败以西结"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL5_TITLE = "第5关  霓虹玻璃课"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
 TXL_LEVEL5_SUBTITLE = "郊区球道  击败以西结"; // Used in: gameplay/HUD (game.cpp)
-TXL_LEVEL6_TITLE = "第6关  霓虹里的狗"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
-TXL_LEVEL6_SUBTITLE = "霓虹球道  击败狗"; // Used in: gameplay/HUD (game.cpp)
+TXL_LEVEL6_TITLE = "第6关  基路伯之境"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
+TXL_LEVEL6_SUBTITLE = "霓虹球道  击败基路伯"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL7_TITLE = "第7关  力量金字塔"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
 TXL_LEVEL7_SUBTITLE = "沙漠球道  击败狗"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL8_TITLE = "第8关  木材地带"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
@@ -249,9 +249,9 @@ TXL_LEVEL9_SUBTITLE = "水晶洞窟  击败喙"; // Used in: gameplay/HUD (game.
 TXL_LEVEL10_TITLE = "第10关  煤气工厂告白"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
 TXL_LEVEL10_SUBTITLE = "煤气工厂  击败喙"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL11_TITLE = "第11关  墓园"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
-TXL_LEVEL11_SUBTITLE = "灰色沙漠  击败喙"; // Used in: gameplay/HUD (game.cpp)
+TXL_LEVEL11_SUBTITLE = "灰色沙漠  击败撒拉弗"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL12_TITLE = "第12关  城市之轮"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
-TXL_LEVEL12_SUBTITLE = "废墟城市球道  击败牛"; // Used in: gameplay/HUD (game.cpp)
+TXL_LEVEL12_SUBTITLE = "废墟城市球道  击败座天使"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL13_TITLE = "第13关  灰烬游行"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
 TXL_LEVEL13_SUBTITLE = "灰烬荒原  击败牛"; // Used in: gameplay/HUD (game.cpp)
 TXL_BALL_NAME_0 = "余烬强击"; // Used in: shop window (clayton/shop_clay.h)
@@ -291,7 +291,7 @@ TXL_BALL_NAME_33 = "符文球"; // Used in: shop window (clayton/shop_clay.h)
 TXL_BALL_NAME_34 = "神谕强击"; // Used in: shop window (clayton/shop_clay.h)
 TXL_YOU = "你"; // Used in: campaign and results windows (clayton/win_stack.h), new-game window (clayton/new_game_clay.h), high-score window (hiscore/hiscore_clay.h), gameplay/HUD (game.cpp)
 TXL_BONUS_ROUND = "奖励局"; // Used in: gameplay/HUD (game.cpp)
-TXL_TUTORIAL_FMT = "课程 %d"; // Used in: gameplay/HUD (game.cpp)
+TXL_TUTORIAL_FMT = "教程 %d"; // Used in: gameplay/HUD (game.cpp)
 TXL_COMPLETION_TIME_FMT = "通关时间 %s"; // Used in: gameplay/HUD (game.cpp)
 TXL_AUDIO_BUFFER_INCREASED_FMT = "性能偏低，音频缓冲已调至%d"; // Used in: gameplay/HUD (game.cpp)
 TXL_SPIN_TO_HOOK = "旋转可弯球"; // Used in: gameplay/HUD (game.cpp)
@@ -449,13 +449,13 @@ TXL_STORY_1 =
     "研习符文，及时取得百分。\n"
     "全中补中，自有前路可寻。\n"
     "细数每记，莫使侥幸欺心。\n"; // Context: Speaker: Ezekiel. Level 1's first-attempt introduction.
-TXL_STORY_2 = "可愿先入学堂修习？\n"; // Context: Speaker: Ezekiel. Follow-up prompt offering training from the first Level 1 introduction.
+TXL_STORY_2 = "可愿先试一试教程？\n"; // Context: Speaker: Ezekiel. Follow-up prompt offering training from the first Level 1 introduction.
 TXL_STORY_10 =
     "今日未取百分，首关依然紧闭。\n"
     "此路未能走通，莫让志气沉寂。\n"
     "且来吾之学堂，耐心习得新知；\n"
     "或有另一把钥，开启未见之地。\n"; // Ezekiel: Level 1 loss; school hints at another path beyond this gate.
-TXL_STORY_11 = "如今先入学堂，还是再闯天界第一关？\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
+TXL_STORY_11 = "如今先试教程，还是再闯天界第一关？\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
 // Ezekiel: Level 1 win with school unfinished; direct meeting invitation, then the school-or-Level-2 choice.
 TXL_STORY_20 =
     "百分既得，天门为你而开。\n"
@@ -470,16 +470,16 @@ TXL_STORY_22 =
     "吾乃以西结；可直来与吾相会。\n"
     "路已在你脚下，吾在前方等待。\n";
 TXL_STORY_30 =
-    "你现在还不能离开学校。\n"
-    "先把课程完成。\n"; // Context: Speaker: Ezekiel. Attempt to leave mandatory training before completing it.
+    "你现在还不能退出教程。\n"
+    "先完成当前部分。\n"; // Context: Speaker: Ezekiel. Attempt to leave mandatory training before completing it.
 TXL_STORY_31 =
     "确定吗？\n"
-    "这会取消当前课程尝试，并开始你选择的课程。\n"; // Context: Speaker: Ezekiel. Confirmation before replacing the current training attempt.
+    "这会取消当前尝试，并开始你选择的部分。\n"; // Context: Speaker: Ezekiel. Confirmation before replacing the current training attempt.
 TXL_STORY_32 =
-    "重新开始当前课程？\n"
-    "本课程的当前尝试会被重置。\n"; // Context: Speaker: Ezekiel. Confirmation before restarting the current training lesson.
+    "重新开始当前部分？\n"
+    "当前尝试会被重置。\n"; // Context: Speaker: Ezekiel. Confirmation before restarting the current training lesson.
 TXL_STORY_1000 =
-    "第2课：球的质量。\n"
+    "2. 球的质量。\n"
     "这里讲的是质量。\n"
     "每个球都有自己的质量，质量会改变它的手感和滚动方式。\n"
     "你的第一个测试，是用几颗轻球击中球瓶。\n"
@@ -490,18 +490,18 @@ TXL_STORY_1012 =
     "停在中间不会算进通过进度。\n"; // Context: Speaker: Ezekiel. Lesson 2 reminder to use a light or heavy ball.
 TXL_STORY_1013 = "很好。现在把滑块切到重球一端，再去击中球瓶。\n"; // Context: Speaker: Ezekiel. Lesson 2 prompt to use the heavy ball.
 TXL_STORY_1014 = "很好。现在把滑块切到轻球一端，再去击中球瓶。\n"; // Context: Speaker: Ezekiel. Lesson 2 prompt to use the light ball.
-TXL_STORY_1030 = "你随时都可以回到学校。\n"; // Context: Speaker: Ezekiel. General return-to-school message after a lesson.
+TXL_STORY_1030 = "你随时都可以回到教程。\n"; // Context: Speaker: Ezekiel. General return-to-school message after a lesson.
 TXL_STORY_1020 =
     "恭喜。你通过了旋转测试。\n"
     "每颗球对旋转都有自己天生的反应。\n"
     "像咬道这样的参数，也会影响它对旋转的响应程度。\n"; // Context: Speaker: Ezekiel. Lesson 3 completion: spin.
 TXL_STORY_1022 =
-    "第3课：给球上旋。\n"
+    "3. 给球上旋。\n"
     "在球出手后，立刻在屏幕上做旋转动作给球加旋。\n"
     "这样球就会开始朝某个方向发力。\n"
     "击倒所有轻量目标球瓶才能通过（共2关）。\n"; // Context: Speaker: Ezekiel. Lesson 3 introduction: ball spin.
 TXL_STORY_1052 =
-    "第4课：油与滑行。\n"
+    "4. 油与滑行。\n"
     "这条球道刚刚上过油，大约有半条到三分之二的长度都覆盖着满油。\n"
     "这一课里油会消耗得很快，所以打几球之后手感会明显改变。\n"
     "有些球馆本身就更滑，而球也有自己的滑行参数。\n"; // Context: Speaker: Ezekiel. Lesson 4 introduction: oil and skid.
@@ -510,26 +510,26 @@ TXL_STORY_1054 =
     "打开油道窗口，先重新上油，再继续投球。\n"; // Context: Speaker: Ezekiel. Lesson 4 prompt when the lane needs fresh oil.
 TXL_STORY_1060 = "很好！你通过了油道测试。\n"; // Context: Speaker: Ezekiel. Lesson 4 completion.
 TXL_STORY_1032 =
-    "第1课：瞄准课。\n"
+    "1. 瞄准。\n"
     "现在我们来学习如何出手。\n"
     "把球尽量往后拉，保持在中间，然后放手。\n"
     "只要击中任何球瓶，你就能得1分。\n"; // Context: Speaker: Ezekiel. Lesson 1 introduction: aiming.
 TXL_STORY_1040 = "很好！你通过了瞄准测试。\n"; // Context: Speaker: Ezekiel. Lesson 1 completion.
 TXL_STORY_1070 =
-    "第5课：全中线路。\n"
+    "5. 全中线路。\n"
     "跟着金币走。那条线会先从中间弯开，再回到口袋位。\n"
     "你的目标，是打出一次全中。\n"
     "你可以切换线路，练习另一侧口袋。\n"; // Context: Speaker: Ezekiel. Lesson 5 introduction: strike line.
 TXL_STORY_1072 =
     "漂亮！全中。\n"
-    "你从学校毕业了。\n"
+    "你完成了教程。\n"
     "你随时都可以回来。\n"; // Context: Speaker: Ezekiel. Lesson 5 and school completion.
 TXL_STORY_1080 =
     "我看得出你有点吃力。\n"
     "要不要试试这颗球？\n"; // Context: Speaker: Ezekiel. Suggested ball after the player struggles in training.
 TXL_STORY_1021 =
     "你可以继续在之字形金币那一课练更多旋转。\n"
-    "第3课已经解锁。\n"; // Context: Speaker: Ezekiel. Lesson 3 unlock notification after the zig-zag gold lesson.
+    "3. 给球上旋已解锁。\n"; // Context: Speaker: Ezekiel. Lesson 3 unlock notification after the zig-zag gold lesson.
 TXL_STORY_40 =
     "吾乃以西结，曾见你起落。\n"
     "天界默然，符文藏于其间。\n"
@@ -653,8 +653,8 @@ TXL_STORY_3106 =
     "裁断将至，森林亦挡在前方。\n"
     "斩开枝叶，使预言逐一成真。\n"; // Context: Speaker: Cherubel. Level 7 completion, leading to the forest.
 TXL_STORY_3007 =
-    "伐尽林木，使此世再无青绿。\n"
-    "生命曾居之地，终将化作荒漠。\n"
+    "伐开林木，令旧路改换形容。\n"
+    "枝影渐疏，前方道路终得相通。\n"
     "但留下木块，拦住滚动的球。\n"
     "面对撒拉弗，它们亦能助你。\n"; // Context: Speaker: Cherubel. Level 8 (Forest) introduction.
 TXL_STORY_3107 =
@@ -664,7 +664,7 @@ TXL_STORY_3107 =
     "去吧，让地底的黑暗迎接你。\n"; // Context: Speaker: Cherubel. Level 8 completion, leading to Seraphel's mines.
 TXL_STORY_3008 =
     "蛾摩拉已染瘟疫，此事须藏心底。\n"
-    "人口日渐凋零，吾称之为净化。\n"
+    "瘟疫已尽其功，吾称之为拯救。\n"
     "此乃吾最后之业，事毕便将离去。\n"
     "那座城的命数，早已刻入其心。\n"; // Context: Speaker: Seraphel. Before Level 11 (Grey Desert / Cemetery): Seraphel describes the plague at Gomorrah.
 TXL_STORY_3108 =
@@ -689,7 +689,7 @@ TXL_STORY_3010 =
     "罪之轻重，已在天使的秤上。\n"; // Context: Speaker: Seraphel. Before Level 10 (Gas Factory): Seraphel demands the return of stolen energy.
 TXL_STORY_3110 =
     "机器应还之力，已归大地深处。\n"
-    "瘟疫之影笼罩，生者将日渐稀少。\n"
+    "若恶仍藏其间，地狱之火将审其罪。\n"
     "随吾往城外去，墓地正在前方。\n"
     "你将见裁断，如何落到众人身上。\n"; // Context: Speaker: Seraphel. After winning Level 10, before Level 11 (Grey Desert / Cemetery).
 TXL_STORY_3011 =
@@ -711,13 +711,13 @@ TXL_STORY_3112 =
     "所言终已成真，大地化作灰尘。\n"
     "旧世最后一闪，从此不复存在。\n"
     "恶已尽，诸试已终，罪亦再无踪。\n"
-    "只因人间无人，唯你独留此中。\n"; // Context: Speaker: Thrones. Level 13 completion and campaign ending.
+    "唯余灰烬与寂静，连风也不再作声。\n"; // Context: Speaker: Thrones. Level 13 completion and campaign ending.
 TXL_STORY_32000 =
     "吾乃以西结，如今可明言一切。\n"
     "生者与亡者之间，你已历尽诸试。\n"
     "你助吾等除尽恶，世界从此寂静。\n"
     "此刻皆遂你愿，往后你将何行？\n"; // Context: Speaker: Ezekiel. Post-campaign result dialog before random-game free play.
-TXL_STORY_OPTION_ENTER_TRAINING = "去学校"; // Context: Choice button in Level 1 introductions/outros and the Level 2 recovery introduction: enter school.
+TXL_STORY_OPTION_ENTER_TRAINING = "进入教程"; // Context: Choice button in Level 1 introductions/outros and the Level 2 recovery introduction: enter school.
 TXL_STORY_OPTION_YES = "是"; // Context: Confirmation button for switching school lessons; tutorial confirmation uses the separate YES_TUTORIAL key.
 TXL_STORY_OPTION_NO = "否"; // Context: Cancel button for switching school lessons; tutorial refusal uses the separate NO_TUTORIAL key.
 TXL_STORY_OPTION_NOT_NOW = "现在先不去"; // Context: Choice after failing Level 1: decline training and try Level 1 again.
@@ -736,8 +736,8 @@ TXL_LOYALTY_TITLE = "每日登录奖励";
 TXL_LOYALTY_STREAK_FMT = "已连续登录 %d 天！";
 TXL_LOYALTY_AWARD_FMT = "忠诚奖励：$%d";
 TXL_LOYALTY_ACCEPT = "领取";
-TXL_STORY_OPTION_YES_TAKE_ME_TO_THE_NEXT_LESSON = "好，带我去下一课"; // Context: Legacy school choice to advance to the next lesson; not currently used by a story option.
-TXL_STORY_OPTION_NO_I_WANT_TO_LEAVE_SCHOOL = "不，我想离开学校"; // Context: Legacy school choice to leave school; not currently used by a story option.
+TXL_STORY_OPTION_YES_TAKE_ME_TO_THE_NEXT_LESSON = "好，进入下一部分"; // Context: Legacy school choice to advance to the next lesson; not currently used by a story option.
+TXL_STORY_OPTION_NO_I_WANT_TO_LEAVE_SCHOOL = "不，我想退出教程"; // Context: Legacy school choice to leave school; not currently used by a story option.
 TXL_STORY_OPTION_PRACTICE_MORE = "继续练习"; // Context: Legacy school choice to repeat practice; not currently used by a story option.
 TXL_STORY_OPTION_BACK_TO_GAME = "回到游戏"; // Context: Legacy school choice to return to gameplay; not currently used by a story option.
 TXL_STORY_OPTION_YES_TUTORIAL = "是"; // Context: Button following the first Level 1 introduction (story 2): accept the tutorial.

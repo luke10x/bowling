@@ -22,7 +22,7 @@
 
 TXL_MENU = "MENU"; // Used in: main menu (clayton/menu_clay.h), gameplay/HUD (game.cpp)
 TXL_RENAME = "Cheats"; // Used in: main menu (clayton/menu_clay.h)
-TXL_GO_TO_SCHOOL = "Enter training"; // Used in: main menu (clayton/menu_clay.h)
+TXL_GO_TO_SCHOOL = "Tutorial"; // Used in: main menu (clayton/menu_clay.h)
 TXL_LANGUAGE = "Language"; // Used in: language selector (clayton/language_clay.h), main menu (clayton/menu_clay.h)
 TXL_CAMPAIGN = "Campaign"; // Used in: campaign and results windows (clayton/win_stack.h), main menu (clayton/menu_clay.h)
 TXL_CAMPAIGN_TITLE = "CAMPAIGN"; // Used in: campaign and results windows (clayton/win_stack.h)
@@ -173,13 +173,13 @@ TXL_CREDITS_MIXAMO = "Character animations from Mixamo."; // Used in: campaign a
 TXL_CREDITS_TECH = "Built with SDL, OpenGL ES, Clay, GLM, Jolt Physics, and ymfm."; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_TRACKER = "All music and sound effects were created in this game's built-in tracker."; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_THANKS = "Special thanks to everyone who played, tested, and kept throwing another frame."; // Used in: campaign and results windows (clayton/win_stack.h)
-TXL_SCHOOL_TITLE_FMT = "Training %d. %s"; // Used in: school window (school/school_clay.h)
+TXL_SCHOOL_TITLE_FMT = "%d. %s"; // Used in: school window (school/school_clay.h)
 TXL_SCHOOL_PROGRESS_GOOD_SHOTS = "GOOD SHOTS"; // Used in: school progress row (school/school_clay.h)
 TXL_SCHOOL_PROGRESS_LIGHT = "LIGHT"; // Used in: school progress row (school/school_clay.h)
 TXL_SCHOOL_PROGRESS_HEAVY = "HEAVY"; // Used in: school progress row (school/school_clay.h)
 TXL_SCHOOL_PROGRESS_HIT_ALL = "HIT ALL 3"; // Used in: school progress row (school/school_clay.h)
 TXL_SCHOOL_PROGRESS_REOILS = "RE-OILS"; // Used in: school progress row (school/school_clay.h)
-TXL_AIM_LESSON = "Aim lesson"; // Used in: school window (school/school_clay.h)
+TXL_AIM_LESSON = "Aim"; // Used in: school window (school/school_clay.h)
 TXL_BALL_MASS = "Ball Mass"; // Used in: school window (school/school_clay.h)
 TXL_SPIN_BALL = "Spin ball"; // Used in: school window (school/school_clay.h)
 TXL_OIL_AND_SKID = "Oil and skid"; // Used in: school window (school/school_clay.h)
@@ -197,7 +197,7 @@ TXL_RARITY_RARE = "RARE"; // Used in: shop window (clayton/shop_clay.h)
 TXL_RARITY_EPIC = "EPIC"; // Used in: shop window (clayton/shop_clay.h)
 TXL_RARITY_LEGENDARY = "LEGENDARY"; // Used in: shop window (clayton/shop_clay.h)
 TXL_SPIN_TEST_FMT = "Spin test: %d/%d targets (Level %d/%d)"; // Used in: school window (school/school_clay.h)
-TXL_AIM_LESSON_POINTS_FMT = "Aim lesson: %d/%d points"; // Used in: school window (school/school_clay.h)
+TXL_AIM_LESSON_POINTS_FMT = "Aim: %d/%d points"; // Used in: school window (school/school_clay.h)
 TXL_PULL_BALL_BACK = "Pull the ball all the way back"; // Used in: school window (school/school_clay.h)
 TXL_LET_IT_GO_NOW = "Let it go now"; // Used in: school window (school/school_clay.h)
 TXL_MOVE_RIGHT = "Move right"; // Used in: school window (school/school_clay.h)
@@ -216,9 +216,9 @@ TXL_LEVEL3_SUBTITLE = "Desert  Face Ezekiel"; // Used in: gameplay/HUD (game.cpp
 TXL_LEVEL4_TITLE = "LEVEL 4  THE COLD PATH"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
 TXL_LEVEL4_SUBTITLE = "Ice  Face Ezekiel"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL5_TITLE = "LEVEL 5  THE BROKEN WINDOW"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
-TXL_LEVEL5_SUBTITLE = "Gomorah's border  Face Ezekiel"; // Used in: gameplay/HUD (game.cpp)
+TXL_LEVEL5_SUBTITLE = "City outskirts  Face Ezekiel"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL6_TITLE = "LEVEL 6  CHERUBEL'S REALM"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
-TXL_LEVEL6_SUBTITLE = "Gomorah  Face Cherubel"; // Used in: gameplay/HUD (game.cpp)
+TXL_LEVEL6_SUBTITLE = "The city  Face Cherubel"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL7_TITLE = "LEVEL 7  DESERT OF POWER"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
 TXL_LEVEL7_SUBTITLE = "Desert  Face Cherubel"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL8_TITLE = "LEVEL 8  WOOD BEFORE THE MINES"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
@@ -227,9 +227,9 @@ TXL_LEVEL9_TITLE = "LEVEL 9  KING SOLOMON'S CRYSTAL MINES"; // Used in: campaign
 TXL_LEVEL9_SUBTITLE = "Crystal Mines  Face Seraphel"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL10_TITLE = "LEVEL 10  THE POWERPLANT"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
 TXL_LEVEL10_SUBTITLE = "Powerplant  Face Seraphel"; // Used in: gameplay/HUD (game.cpp)
-TXL_LEVEL11_TITLE = "LEVEL 11  GATES OF GOMORAH"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
+TXL_LEVEL11_TITLE = "LEVEL 11  THE PLAGUE'S SHADOW"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
 TXL_LEVEL11_SUBTITLE = "Grey Desert  Face Seraphel"; // Used in: gameplay/HUD (game.cpp)
-TXL_LEVEL12_TITLE = "LEVEL 12  THRONES OF GOMORAH"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
+TXL_LEVEL12_TITLE = "LEVEL 12  CITY OF ASH"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
 TXL_LEVEL12_SUBTITLE = "Ruined City  Face Thrones"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL13_TITLE = "LEVEL 13  JUDGMENT DAY"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
 TXL_LEVEL13_SUBTITLE = "Ashland  Face Thrones"; // Used in: gameplay/HUD (game.cpp)
@@ -270,7 +270,7 @@ TXL_BALL_NAME_33 = "Rune Ball"; // Used in: shop window (clayton/shop_clay.h)
 TXL_BALL_NAME_34 = "Oracle Strike"; // Used in: shop window (clayton/shop_clay.h)
 TXL_YOU = "you"; // Used in: campaign and results windows (clayton/win_stack.h), new-game window (clayton/new_game_clay.h), high-score window (hiscore/hiscore_clay.h), gameplay/HUD (game.cpp)
 TXL_BONUS_ROUND = "BONUS ROUND"; // Used in: gameplay/HUD (game.cpp)
-TXL_TUTORIAL_FMT = "LESSON %d"; // Used in: gameplay/HUD (game.cpp)
+TXL_TUTORIAL_FMT = "TUTORIAL %d"; // Used in: gameplay/HUD (game.cpp)
 TXL_COMPLETION_TIME_FMT = "COMPLETION TIME %s"; // Used in: gameplay/HUD (game.cpp)
 TXL_AUDIO_BUFFER_INCREASED_FMT = "Audio buffer increased to %d for performance"; // Used in: gameplay/HUD (game.cpp)
 TXL_SPIN_TO_HOOK = "spin to hook"; // Used in: gameplay/HUD (game.cpp)
@@ -428,13 +428,13 @@ TXL_STORY_1 =
     "Learn runes and score one hundred before it is too late.\n"
     "Let strikes and spares reveal the road you seek.\n"
     "Count every mark, lest fortune make you weak.\n"; // Context: Speaker: Ezekiel. Level 1's first-attempt introduction.
-TXL_STORY_2 = "Will you enter training?\n"; // Context: Speaker: Ezekiel. Follow-up prompt offering training from the first Level 1 introduction.
+TXL_STORY_2 = "Would you like to try the tutorial?\n"; // Context: Speaker: Ezekiel. Follow-up prompt offering training from the first Level 1 introduction.
 TXL_STORY_10 =
     "The hundred mark escaped your hand today;\n"
     "The first gate holds; its lock will not give way.\n"
-    "Come to my school; let patient lessons be\n"
+    "Come train with me; let patient practice be\n"
     "A different key to what you long to see.\n"; // Ezekiel: Level 1 loss; school hints at another path beyond this gate.
-TXL_STORY_11 = "Will you enter training now, or face The Heavens once more?\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
+TXL_STORY_11 = "Try the tutorial now, or face The Heavens once more?\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
 // Ezekiel: Level 1 win with school unfinished; praises the player's skill and invites a direct meeting. Continues to story 21 for the training-or-Level-2 choice.
 TXL_STORY_20 =
     "Your hundred points have opened Heaven's door;\n"
@@ -449,18 +449,18 @@ TXL_STORY_22 =
     "I am Ezekiel; come straight to me, if you dare;\n"
     "The road is yours, and you will find me there.\n";
 TXL_STORY_30 =
-    "You cannot leave the training hall just yet.\n"
+    "You cannot leave the tutorial just yet.\n"
     "Complete the trials that before you are set.\n"; // Context: Speaker: Ezekiel. Attempt to leave mandatory training before completing it.
 TXL_STORY_31 =
     "Are you sure?\n"
-    "This will cancel the current lesson attempt and start the selected lesson instead.\n"; // Context: Speaker: Ezekiel. Confirmation before replacing the current training attempt.
+    "This will cancel the current attempt and start the selected stage instead.\n"; // Context: Speaker: Ezekiel. Confirmation before replacing the current training attempt.
 TXL_STORY_32 =
-    "Restart the current lesson?\n"
-    "Your current attempt in this lesson will be reset.\n"; // Context: Speaker: Ezekiel. Confirmation before restarting the current training lesson.
+    "Restart the current stage?\n"
+    "Your current attempt will be reset.\n"; // Context: Speaker: Ezekiel. Confirmation before restarting the current training lesson.
 TXL_STORY_1000 =
-    "Lesson 2. Ball Mass.\n"
-    "This is the school and this is a lesson about mass.\n"
-    "Every ball has its mass. Based on mass the balls feel and roll differently.\n"
+    "2. Ball Mass.\n"
+    "Mass changes how a ball feels and rolls.\n"
+    "Change the mass with the slider before each throw.\n"
     "Your first test is to throw several LIGHT balls and hit pins.\n"
     "To graduate you also need to hit pins with a HEAVY ball.\n"; // Context: Speaker: Ezekiel. Lesson 2 introduction: ball mass.
 TXL_STORY_1010 = "Nice! You passed the Mass test.\n"; // Context: Speaker: Ezekiel. Lesson 2 completion.
@@ -469,51 +469,51 @@ TXL_STORY_1012 =
     "Throwing in the middle does not count toward passing.\n"; // Context: Speaker: Ezekiel. Lesson 2 reminder to use a light or heavy ball.
 TXL_STORY_1013 = "Good. Now switch the slider to the HEAVY end and hit pins.\n"; // Context: Speaker: Ezekiel. Lesson 2 prompt to use the heavy ball.
 TXL_STORY_1014 = "Good. Now switch the slider to the LIGHT end and hit pins.\n"; // Context: Speaker: Ezekiel. Lesson 2 prompt to use the light ball.
-TXL_STORY_1030 = "You can come back to the school anytime.\n"; // Context: Speaker: Ezekiel. General return-to-school message after a lesson.
+TXL_STORY_1030 = "You can return to the tutorial anytime.\n"; // Context: Speaker: Ezekiel. General return-to-school message after a lesson.
 TXL_STORY_1020 =
     "Congrats. You passed the Spin test.\n"
     "Every ball has its intrinsic reaction to spin.\n"
     "Other params like bite affect how well the ball reacts.\n"; // Context: Speaker: Ezekiel. Lesson 3 completion: spin.
 TXL_STORY_1022 =
-    "Lesson 3. Spin ball.\n"
+    "3. Spin ball.\n"
     "Right after ball launch, spin the ball by spin movements on screen.\n"
     "Then the ball will start to drive to a particular direction.\n"
     "Knock down all lightweight target pins to pass (2 levels).\n"; // Context: Speaker: Ezekiel. Lesson 3 introduction: ball spin.
 TXL_STORY_1052 =
-    "Lesson 4. Oil and skid.\n"
+    "4. Oil and skid.\n"
     "This lane was just oiled. It is covered in max oil for about half to two-thirds of the track.\n"
-    "In this lesson the oil wears out very fast, so after a few shots it will feel different.\n"
+    "Here the oil wears out fast, so the lane will feel different after a few shots.\n"
     "Some houses have intrinsic slipperiness, and balls have a skid parameter.\n"; // Context: Speaker: Ezekiel. Lesson 4 introduction: oil and skid.
 TXL_STORY_1054 =
     "The lane is ready for fresh oil now.\n"
     "Open the Oil window and re-oil before throwing again.\n"; // Context: Speaker: Ezekiel. Lesson 4 prompt when the lane needs fresh oil.
 TXL_STORY_1060 = "Nice! You passed the Oil test.\n"; // Context: Speaker: Ezekiel. Lesson 4 completion.
 TXL_STORY_1032 =
-    "Lesson 1. Aim lesson.\n"
+    "1. Aim.\n"
     "Now we will learn to throw.\n"
     "Pull the ball all the way back, keep it centered, then let it go.\n"
     "If you hit any pins, you get a point.\n"; // Context: Speaker: Ezekiel. Lesson 1 introduction: aiming.
 TXL_STORY_1040 = "Nice! You passed the Aim test.\n"; // Context: Speaker: Ezekiel. Lesson 1 completion.
 TXL_STORY_1070 =
-    "Lesson 5. Strike line.\n"
+    "5. Strike line.\n"
     "Follow the coins. The line bends away from the middle and returns into the pocket.\n"
     "Your objective is to score a STRIKE.\n"
     "You can press SWAP LINE to practice the other pocket.\n"; // Context: Speaker: Ezekiel. Lesson 5 introduction: strike line.
 TXL_STORY_1072 =
     "Boom! STRIKE.\n"
-    "You graduated the School.\n"
+    "You completed the tutorial.\n"
     "You can come back anytime.\n"; // Context: Speaker: Ezekiel. Lesson 5 and school completion.
 TXL_STORY_1080 =
     "I see you struggling.\n"
     "Try this ball instead?\n"; // Context: Speaker: Ezekiel. Suggested ball after the player struggles in training.
 TXL_STORY_1021 =
     "You can practice spin more on the zig-zag coins.\n"
-    "Lesson 3 is now unlocked.\n"; // Context: Speaker: Ezekiel. Lesson 3 unlock notification after the zig-zag gold lesson.
+    "3. Spin is now unlocked.\n"; // Context: Speaker: Ezekiel. Lesson 3 unlock notification after the zig-zag gold lesson.
 TXL_STORY_40 =
     "I am Ezekiel; I watched you fall and rise.\n"
     "The Heavens hold runes beneath their watching skies.\n"
     "Score one hundred, lest the first gate stay closed.\n"
-    "If guidance calls, let training be disclosed.\n"; // Legacy Level 1 replay introduction; no longer routed.
+    "If guidance calls, let practice be disclosed.\n"; // Legacy Level 1 replay introduction; no longer routed.
 
 // Context: Speaker: Ezekiel. Before Level 2 (Wind Farm): Ezekiel introduces himself and promises that the player can save the world; the promise is deceptive (see lore.md).
 TXL_STORY_3002 =
@@ -573,19 +573,19 @@ TXL_STORY_3054 =
     "Choose what to save and spend it well.\n"; // Context: Speaker: Ezekiel. First Bolt rune discovery during the campaign: casting-ring guidance, automatically followed by the Bolt warning in story 3052.
 TXL_STORY_3103 =
     "No heat or drought can make you fold.\n"
-    "The hour of doom is close and cold.\n"
-    "We purged the world with heat before;\n"
-    "Now frost shall cleanse it even more.\n"; // Context: Speaker: Ezekiel. Level 3 completion, leading to the icy Level 4.
+    "The hour of judgment comes with cold.\n"
+    "The desert trial is now complete;\n"
+    "The frozen road awaits your feet.\n"; // Context: Speaker: Ezekiel. Level 3 completion, leading to the icy Level 4.
 TXL_STORY_3004 =
     "We'll guard the earth in ice's embrace.\n"
-    "We'll freeze what fire could not erase.\n"
+    "Where frost has settled, mind your pace;\n"
     "The ball speeds down the frozen lane;\n"
     "Keep straight despite the biting pain.\n"; // Context: Speaker: Ezekiel. Level 4 introduction.
 TXL_STORY_3104 =
     "You have no fear of ice or snow.\n"
     "Those who can glide know where to go.\n"
     "The frost will pass, the snow will thaw;\n"
-    "We press on still to purge each flaw.\n"; // Context: Speaker: Ezekiel. Level 4 completion, leading to the broken-glass level.
+    "New trials await beyond the thaw.\n"; // Context: Speaker: Ezekiel. Level 4 completion, leading to the broken-glass level.
 TXL_STORY_3040 =
     "The town of sin is drawing near,\n"
     "But first we have some work out here.\n"
@@ -610,7 +610,7 @@ TXL_STORY_3005 =
     "I am Cherubel. Who are you?\n"
     "Gomorrah, town of sin, lies in view.\n"
     "We'll gather crystals, shatter glass;\n"
-    "None of these sinners gets a pass.\n"; // Context: Speaker: Cherubel. Level 6 (Gomorrah) introduction by Cherub.
+    "Its deeds shall meet judgment as we pass.\n"; // Context: Speaker: Cherubel. Level 6 (Gomorrah) introduction by Cherub.
 TXL_STORY_3105 =
     "Their way of life has sealed their fate;\n"
     "We angels judge; we do not wait.\n"
@@ -630,12 +630,12 @@ TXL_STORY_3106 =
     "What fate decreed is ours this hour.\n"
     "We've claimed the crystals' full power.\n"
     "We'll use its power for our own gain,\n"
-    "And bring mankind a world of pain.\n"; // Context: Speaker: Cherubel. Level 7 completion, leading to the forest.
+    "And weigh their deeds beneath judgment's reign.\n"; // Context: Speaker: Cherubel. Level 7 completion, leading to the forest.
 TXL_STORY_3007 =
-    "No trees, no air; no air, no rain.\n"
-    "No water, life cannot remain.\n"
-    "We'll fell all trees, great and small;\n"
-    "They lived in sin, so let them fall.\n"; // Context: Speaker: Cherubel. Level 8 (Forest) introduction.
+    "No trees, no shade; the skies withhold their rain.\n"
+    "The forest's fall will change the winding lane.\n"
+    "We'll fell the trees, both great and small;\n"
+    "And let the scales of judgment weigh it all.\n"; // Context: Speaker: Cherubel. Level 8 (Forest) introduction.
 TXL_STORY_3107 =
     "Wood blocks can stop the best of throws;\n"
     "Our final match has reached its close.\n"
@@ -643,9 +643,9 @@ TXL_STORY_3107 =
     "Down to the mines that lie below.\n"; // Context: Speaker: Cherubel. Level 8 completion, leading to Seraphel's mines.
 TXL_STORY_3008 =
     "We angels keep this secret close:\n"
-    "For vile deeds, we sent them these woes.\n"
-    "The plague has thinned the human race;\n"
-    "No fatal thoughts now haunt this place.\n"; // Context: Speaker: Seraphel. Before Level 11 (Grey Desert / Cemetery): Seraphel describes the plague at Gomorrah.
+    "The plague has served the work we chose.\n"
+    "We say it saved them from their sin;\n"
+    "Yet silence waits where songs had been.\n"; // Context: Speaker: Seraphel. Before Level 11 (Grey Desert / Cemetery): Seraphel describes the plague at Gomorrah.
 TXL_STORY_3108 =
     "My work is done; yours starts tonight.\n"
     "Gomorrah must be set alight.\n"
@@ -659,8 +659,8 @@ TXL_STORY_3009 =
 TXL_STORY_3109 =
     "The Lamb breaks yet another seal.\n"
     "Each day, the kingdom grows more real.\n"
-    "Their fate is written in the sky:\n"
-    "The signs are clear; their end is nigh.\n"; // Context: Speaker: Seraphel. Level 9 completion, leading to the factory.
+    "The signs are written in the sky:\n"
+    "The hour of judgment draws nearby.\n"; // Context: Speaker: Seraphel. Level 9 completion, leading to the factory.
 TXL_STORY_3010 =
     "With mills and engines, night and day,\n"
     "They drain the power we send their way.\n"
@@ -668,9 +668,9 @@ TXL_STORY_3010 =
     "And curb their sins with our attack.\n"; // Context: Speaker: Seraphel. Before Level 10 (Gas Factory): Seraphel demands the return of stolen energy.
 TXL_STORY_3110 =
     "Power returns to depths below.\n"
-    "They must give back each soul they owe.\n"
-    "If any still remain that day,\n"
-    "Our fire will burn them all away.\n"; // Context: Speaker: Seraphel. After winning Level 10, before Level 11 (Grey Desert / Cemetery).
+    "The scales await the debts they owe.\n"
+    "Should evil cling to what remains,\n"
+    "Hellfire shall cleanse its darkest stains.\n"; // Context: Speaker: Seraphel. After winning Level 10, before Level 11 (Grey Desert / Cemetery).
 TXL_STORY_3011 =
     "I am the fourth seal's angel here.\n"
     "This town must blaze with fire and fear.\n"
@@ -678,25 +678,25 @@ TXL_STORY_3011 =
     "Now ash shall be its only name.\n"; // Context: Speaker: Thrones. Level 12 introduction: Thrones judges Gomorrah.
 TXL_STORY_3111 =
     "Gomorrah burns; its smoke climbs high.\n"
-    "All life on earth turns ash and dies.\n"
+    "The city lies hushed beneath ash-grey skies.\n"
     "One final task before we part:\n"
     "We'll strike at evil's very heart.\n"; // Context: Speaker: Thrones. Level 12 completion, leading to Judgment Day.
 TXL_STORY_3012 =
     "Judgment Day: the end comes fast.\n"
-    "Their endless pain shall cease at last.\n"
+    "The final judgment comes at last.\n"
     "Earth judged, its guilt now laid bare;\n"
     "All burns to ash in fire's glare.\n"; // Context: Speaker: Thrones. Before Level 13 (Ashland / Judgment Day): Thrones announces the final trial.
 TXL_STORY_3112 =
     "Evil is gone; the trial is done.\n"
     "The old world cursed beneath the sun.\n"
-    "Purged by fire, all strife shall cease;\n"
-    "No people left to spoil the peace.\n"; // Context: Speaker: Thrones. Level 13 completion and campaign ending.
+    "All ash and stone; the winds have ceased;\n"
+    "A silent world is what they call peace.\n"; // Context: Speaker: Thrones. Level 13 completion and campaign ending.
 TXL_STORY_32000 =
     "Know me? I'm back to praise your skill.\n"
     "Thanks to you, all evil lies still.\n"
-    "Well done! You laid the whole world low.\n"
+    "Well done! The world lies still below.\n"
     "Choose where you wish from here to go.\n"; // Context: Speaker: Ezekiel. Post-campaign result dialog before random-game free play.
-TXL_STORY_OPTION_ENTER_TRAINING = "Enter training"; // Context: Choice button in Level 1 introductions/outros and the Level 2 recovery introduction: enter school.
+TXL_STORY_OPTION_ENTER_TRAINING = "Tutorial"; // Context: Choice button in Level 1 introductions/outros and the Level 2 recovery introduction: enter school.
 TXL_STORY_OPTION_YES = "Yes"; // Context: Confirmation button for switching school lessons; tutorial confirmation uses the separate YES_TUTORIAL key.
 TXL_STORY_OPTION_NO = "No"; // Context: Cancel button for switching school lessons; tutorial refusal uses the separate NO_TUTORIAL key.
 TXL_STORY_OPTION_NOT_NOW = "Not now"; // Context: Choice after failing Level 1: decline training and try Level 1 again.
@@ -715,8 +715,8 @@ TXL_LOYALTY_TITLE = "DAILY LOYALTY REWARD";
 TXL_LOYALTY_STREAK_FMT = "You are on a %d-day streak!";
 TXL_LOYALTY_AWARD_FMT = "Your loyalty reward: $%d";
 TXL_LOYALTY_ACCEPT = "ACCEPT";
-TXL_STORY_OPTION_YES_TAKE_ME_TO_THE_NEXT_LESSON = "Yes, take me to the next lesson"; // Context: Legacy school choice to advance to the next lesson; not currently used by a story option.
-TXL_STORY_OPTION_NO_I_WANT_TO_LEAVE_SCHOOL = "No, I want to leave school"; // Context: Legacy school choice to leave school; not currently used by a story option.
+TXL_STORY_OPTION_YES_TAKE_ME_TO_THE_NEXT_LESSON = "Yes, take me to the next stage"; // Context: Legacy school choice to advance to the next lesson; not currently used by a story option.
+TXL_STORY_OPTION_NO_I_WANT_TO_LEAVE_SCHOOL = "No, I want to leave the tutorial"; // Context: Legacy school choice to leave school; not currently used by a story option.
 TXL_STORY_OPTION_PRACTICE_MORE = "Practice more"; // Context: Legacy school choice to repeat practice; not currently used by a story option.
 TXL_STORY_OPTION_BACK_TO_GAME = "Back to game"; // Context: Legacy school choice to return to gameplay; not currently used by a story option.
 TXL_STORY_OPTION_YES_TUTORIAL = "Yes"; // Context: Button following the first Level 1 introduction (story 2): accept the tutorial.

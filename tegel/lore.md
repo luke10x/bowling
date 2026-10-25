@@ -31,10 +31,10 @@ nitro are the practical rituals through which the campaign is carried out.
    as both obstacle and weapon before the mines.
 9. **Solomon's Mines:** Seraphel guards the underground power store. The
    resource is prepared for the punishment to come.
-10. **Plague and the city:** Seraphel's work reduces Gomorrah's population and
-    recasts mass death as purification.
+10. **Plague and the city:** Seraphel claims the plague served its purpose and
+    calls it a rescue from sin. The city's silence makes that claim unsettling.
 11. **Factory:** humankind's machines are portrayed as stealing angelic power.
-    The angels reclaim it and promise consequences for humanity.
+    The angels reclaim it and threaten evil with hypothetical hellfire.
 12. **Return to Gomorrah:** Ofanija brings the city to flame and ash.
 13. **Judgment Day:** the scope widens from Gomorrah to the whole Earth. The
     old world is burned away.
@@ -42,14 +42,16 @@ nitro are the practical rituals through which the campaign is carried out.
 ## The ending
 
 The campaign ends with an intentionally cruel irony: the angels declare that
-evil has been destroyed, yet the world is quiet only because humanity is gone.
-Ezekiel returns to congratulate the player, making clear that their success was
-not salvation but participation in total annihilation.
+evil has been defeated, yet the Earth is ash and silent. Ezekiel returns to
+congratulate the player. The dialogue leaves the human cost implicit rather
+than directly describing deaths or the destruction of humanity.
 
 ## Writing guidance
 
 - Reveal the true goal slowly. Early angels sound like stern guides; later
   scenes expose their pride, cruelty, and certainty.
+- Keep judgment and the ruined Earth explicit, but leave the fate of people
+  implicit. Do not describe people being killed, burned, or wiped out.
 - Do not name God. The imagery may draw on Biblical and apocalyptic tradition,
   but the angels act on their own authority.
 - Lithuanian story text uses four displayed lines for level-start stanzas and a

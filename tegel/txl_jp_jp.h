@@ -67,7 +67,7 @@
 
 TXL_MENU = "メニュー"; // Used in: main menu (clayton/menu_clay.h), gameplay/HUD (game.cpp)
 TXL_RENAME = "チート"; // Used in: main menu (clayton/menu_clay.h)
-TXL_GO_TO_SCHOOL = "学校へ行く"; // Used in: main menu (clayton/menu_clay.h)
+TXL_GO_TO_SCHOOL = "チュートリアル"; // Used in: main menu (clayton/menu_clay.h)
 TXL_LANGUAGE = "言語"; // Used in: language selector (clayton/language_clay.h), main menu (clayton/menu_clay.h)
 TXL_CAMPAIGN = "キャンペーン"; // Used in: campaign and results windows (clayton/win_stack.h), main menu (clayton/menu_clay.h)
 TXL_CAMPAIGN_TITLE = "キャンペーン"; // Used in: campaign and results windows (clayton/win_stack.h)
@@ -218,13 +218,13 @@ TXL_CREDITS_MIXAMO = "キャラクターアニメーション: Mixamo。"; // Us
 TXL_CREDITS_TECH = "SDL、OpenGL ES、Clay、GLM、\nJolt Physics、ymfm を使用。"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_TRACKER = "音楽と効果音はすべて、\nゲーム内蔵のトラッカーで制作しました。"; // Used in: campaign and results windows (clayton/win_stack.h)
 TXL_CREDITS_THANKS = "プレイ、テスト、そしてもう1フレーム\n投げ続けてくれた皆さんに感謝します。"; // Used in: campaign and results windows (clayton/win_stack.h)
-TXL_SCHOOL_TITLE_FMT = "レッスン %d. %s"; // Used in: school window (school/school_clay.h)
+TXL_SCHOOL_TITLE_FMT = "%d. %s"; // Used in: school window (school/school_clay.h)
 TXL_SCHOOL_PROGRESS_GOOD_SHOTS = "ナイスショット"; // Used in: school progress row (school/school_clay.h)
 TXL_SCHOOL_PROGRESS_LIGHT = "軽い球"; // Used in: school progress row (school/school_clay.h)
 TXL_SCHOOL_PROGRESS_HEAVY = "重い球"; // Used in: school progress row (school/school_clay.h)
 TXL_SCHOOL_PROGRESS_HIT_ALL = "3本すべてに当てる"; // Used in: school progress row (school/school_clay.h)
 TXL_SCHOOL_PROGRESS_REOILS = "再オイル"; // Used in: school progress row (school/school_clay.h)
-TXL_AIM_LESSON = "エイムレッスン"; // Used in: school window (school/school_clay.h)
+TXL_AIM_LESSON = "狙い"; // Used in: school window (school/school_clay.h)
 TXL_BALL_MASS = "ボールの質量"; // Used in: school window (school/school_clay.h)
 TXL_SPIN_BALL = "ボールに回転をかける"; // Used in: school window (school/school_clay.h)
 TXL_OIL_AND_SKID = "オイルとスキッド"; // Used in: school window (school/school_clay.h)
@@ -242,7 +242,7 @@ TXL_RARITY_RARE = "レア"; // Used in: shop window (clayton/shop_clay.h)
 TXL_RARITY_EPIC = "エピック"; // Used in: shop window (clayton/shop_clay.h)
 TXL_RARITY_LEGENDARY = "レジェンダリー"; // Used in: shop window (clayton/shop_clay.h)
 TXL_SPIN_TEST_FMT = "スピンテスト: %d/%d ターゲット (レベル %d/%d)"; // Used in: school window (school/school_clay.h)
-TXL_AIM_LESSON_POINTS_FMT = "エイムレッスン: %d/%d ポイント"; // Used in: school window (school/school_clay.h)
+TXL_AIM_LESSON_POINTS_FMT = "狙い: %d/%d ポイント"; // Used in: school window (school/school_clay.h)
 TXL_PULL_BALL_BACK = "ボールを一番後ろまで引いてください"; // Used in: school window (school/school_clay.h)
 TXL_LET_IT_GO_NOW = "今すぐ放してください"; // Used in: school window (school/school_clay.h)
 TXL_MOVE_RIGHT = "右に移動"; // Used in: school window (school/school_clay.h)
@@ -262,8 +262,8 @@ TXL_LEVEL4_TITLE = "レベル4 ガラスの氷"; // Used in: campaign and result
 TXL_LEVEL4_SUBTITLE = "氷 エゼキエルに勝利"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL5_TITLE = "レベル5 ネオン硝子"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
 TXL_LEVEL5_SUBTITLE = "郊外  エゼキエルに勝利"; // Used in: gameplay/HUD (game.cpp)
-TXL_LEVEL6_TITLE = "レベル6 ネオンの犬"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
-TXL_LEVEL6_SUBTITLE = "ネオン  犬に勝利"; // Used in: gameplay/HUD (game.cpp)
+TXL_LEVEL6_TITLE = "レベル6 ケルビムの領域"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
+TXL_LEVEL6_SUBTITLE = "ネオンの街  ケルビムに勝利"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL7_TITLE = "レベル7 力のピラミッド"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
 TXL_LEVEL7_SUBTITLE = "砂漠  犬に勝利"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL8_TITLE = "レベル8 木材ゾーン"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
@@ -273,9 +273,9 @@ TXL_LEVEL9_SUBTITLE = "クリスタル洞窟 くちばしに勝利"; // Used in:
 TXL_LEVEL10_TITLE = "レベル10 ガス工場の告白"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
 TXL_LEVEL10_SUBTITLE = "ガス工場 くちばしに勝利"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL11_TITLE = "レベル11 墓地"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
-TXL_LEVEL11_SUBTITLE = "灰色の砂漠 くちばしに勝利"; // Used in: gameplay/HUD (game.cpp)
+TXL_LEVEL11_SUBTITLE = "灰色の砂漠  セラフィムに勝利"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL12_TITLE = "レベル12 街の車輪"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
-TXL_LEVEL12_SUBTITLE = "廃墟の街  牛に勝利"; // Used in: gameplay/HUD (game.cpp)
+TXL_LEVEL12_SUBTITLE = "廃墟の街  座天使に勝利"; // Used in: gameplay/HUD (game.cpp)
 TXL_LEVEL13_TITLE = "レベル13 灰のパレード"; // Used in: campaign and results windows (clayton/win_stack.h), gameplay/HUD (game.cpp)
 TXL_LEVEL13_SUBTITLE = "灰の荒地  牛に勝利"; // Used in: gameplay/HUD (game.cpp)
 TXL_BALL_NAME_0 = "残り火ストライク"; // Used in: shop window (clayton/shop_clay.h)
@@ -315,7 +315,7 @@ TXL_BALL_NAME_33 = "ルーンボール"; // Used in: shop window (clayton/shop_c
 TXL_BALL_NAME_34 = "オラクルストライク"; // Used in: shop window (clayton/shop_clay.h)
 TXL_YOU = "あなた"; // Used in: campaign and results windows (clayton/win_stack.h), new-game window (clayton/new_game_clay.h), high-score window (hiscore/hiscore_clay.h), gameplay/HUD (game.cpp)
 TXL_BONUS_ROUND = "ボーナス"; // Used in: gameplay/HUD (game.cpp)
-TXL_TUTORIAL_FMT = "レッスン%d"; // Used in: gameplay/HUD (game.cpp)
+TXL_TUTORIAL_FMT = "チュートリアル %d"; // Used in: gameplay/HUD (game.cpp)
 TXL_COMPLETION_TIME_FMT = "クリア時間 %s"; // Used in: gameplay/HUD (game.cpp)
 TXL_AUDIO_BUFFER_INCREASED_FMT = "負荷対策で音声バッファを%dに変更"; // Used in: gameplay/HUD (game.cpp)
 TXL_SPIN_TO_HOOK = "回して曲げる"; // Used in: gameplay/HUD (game.cpp)
@@ -473,13 +473,13 @@ TXL_STORY_1 =
     "符文を学べ、時尽きる前に百点を。\n"
     "ストライクとスペアに、道を尋ねよ。\n"
     "一投ずつ数えよ、運に足をすくわれぬよう。\n"; // Context: Speaker: Ezekiel. Level 1's first-attempt introduction.
-TXL_STORY_2 = "まず修練を受けるか。\n"; // Context: Speaker: Ezekiel. Follow-up prompt offering training from the first Level 1 introduction.
+TXL_STORY_2 = "まずチュートリアルを始めるか。\n"; // Context: Speaker: Ezekiel. Follow-up prompt offering training from the first Level 1 introduction.
 TXL_STORY_10 =
     "百点には、今日は届かなかった。\n"
     "最初の門は、まだ固く閉ざされた。\n"
     "わが学び舎へ来るがよい。学びの中に\n"
     "別の鍵が、静かに待つやもしれぬ。\n"; // Ezekiel: Level 1 loss; school hints at another path beyond this gate.
-TXL_STORY_11 = "いま修練に入るか、天の試しに再び挑むか。\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
+TXL_STORY_11 = "いまチュートリアルを始めるか、天の試しに再び挑むか。\n"; // Context: Speaker: Ezekiel. Choice after the Level 1 failure message: train or replay.
 // Ezekiel: Level 1 win with school unfinished; direct meeting invitation, then the school-or-Level-2 choice.
 TXL_STORY_20 =
     "百点を得て、天の門は開いた。\n"
@@ -494,16 +494,16 @@ TXL_STORY_22 =
     "われはエゼキエル。まっすぐ会いに来るがよい。\n"
     "道はそなたのもの、門の先で待とう。\n";
 TXL_STORY_30 =
-    "まだ学校を出られない。\n"
-    "先にレッスンを終えよう。\n"; // Context: Speaker: Ezekiel. Attempt to leave mandatory training before completing it.
+    "まだチュートリアルを終えられない。\n"
+    "まず今の項目を終えよう。\n"; // Context: Speaker: Ezekiel. Attempt to leave mandatory training before completing it.
 TXL_STORY_31 =
     "本当に？\n"
-    "今のレッスン挑戦を中止し、選んだレッスンを始めます。\n"; // Context: Speaker: Ezekiel. Confirmation before replacing the current training attempt.
+    "今の挑戦を中止し、選んだ項目を始めます。\n"; // Context: Speaker: Ezekiel. Confirmation before replacing the current training attempt.
 TXL_STORY_32 =
-    "今のレッスンをやり直す？\n"
-    "このレッスンの挑戦はリセットされます。\n"; // Context: Speaker: Ezekiel. Confirmation before restarting the current training lesson.
+    "今の項目をやり直す？\n"
+    "今の挑戦はリセットされます。\n"; // Context: Speaker: Ezekiel. Confirmation before restarting the current training lesson.
 TXL_STORY_1000 =
-    "レッスン2：球の質量。\n"
+    "2. 球の質量。\n"
     "ここでは質量を学ぶ。\n"
     "球ごとに質量があり、感触と転がりが変わる。\n"
     "まず軽い球でピンに当てよう。\n"
@@ -514,46 +514,46 @@ TXL_STORY_1012 =
     "中間で投げても進行には入らない。\n"; // Context: Speaker: Ezekiel. Lesson 2 reminder to use a light or heavy ball.
 TXL_STORY_1013 = "いいね。次は重い端に切り替えてピンに当てよう。\n"; // Context: Speaker: Ezekiel. Lesson 2 prompt to use the heavy ball.
 TXL_STORY_1014 = "いいね。次は軽い端に切り替えてピンに当てよう。\n"; // Context: Speaker: Ezekiel. Lesson 2 prompt to use the light ball.
-TXL_STORY_1030 = "学校にはいつでも戻れる。\n"; // Context: Speaker: Ezekiel. General return-to-school message after a lesson.
+TXL_STORY_1030 = "チュートリアルにはいつでも戻れる。\n"; // Context: Speaker: Ezekiel. General return-to-school message after a lesson.
 TXL_STORY_1020 =
     "おめでとう。回転テスト合格。\n"
     "球ごとに回転への反応がある。\n"
     "噛みつきなどの値も反応の強さを変える。\n"; // Context: Speaker: Ezekiel. Lesson 3 completion: spin.
 TXL_STORY_1022 =
-    "レッスン3：球の回転。\n"
+    "3. 球の回転。\n"
     "投げた直後、画面上の動きで球に回転をかける。\n"
     "すると球は特定の方向へ曲がり始める。\n"
     "軽い標的ピンを全部倒せば合格（2レベル）。\n"; // Context: Speaker: Ezekiel. Lesson 3 introduction: ball spin.
 TXL_STORY_1052 =
-    "レッスン4：オイルと滑り。\n"
+    "4. オイルと滑り。\n"
     "このレーンは塗りたて。半分から三分の二ほどが最大オイルだ。\n"
-    "このレッスンではオイルがすぐ減るので、数投で感触が変わる。\n"
+    "ここではオイルがすぐ減るので、数投で感触が変わる。\n"
     "場ごとの滑りや、球のスキッド値も影響する。\n"; // Context: Speaker: Ezekiel. Lesson 4 introduction: oil and skid.
 TXL_STORY_1054 =
     "レーンに新しいオイルが必要だ。\n"
     "オイル画面を開き、塗り直してから投げよう。\n"; // Context: Speaker: Ezekiel. Lesson 4 prompt when the lane needs fresh oil.
 TXL_STORY_1060 = "よし！ オイルテスト合格。\n"; // Context: Speaker: Ezekiel. Lesson 4 completion.
 TXL_STORY_1032 =
-    "レッスン1：狙い。\n"
+    "1. 狙い。\n"
     "投げ方を学ぼう。\n"
     "球をしっかり後ろへ引き、中央に保って離す。\n"
     "どのピンでも当てれば1点だ。\n"; // Context: Speaker: Ezekiel. Lesson 1 introduction: aiming.
 TXL_STORY_1040 = "よし！ 狙いのテスト合格。\n"; // Context: Speaker: Ezekiel. Lesson 1 completion.
 TXL_STORY_1070 =
-    "レッスン5：ストライク線。\n"
+    "5. ストライク線。\n"
     "コインを追え。線は中央から外れ、ポケットへ戻る。\n"
     "目標はストライク。\n"
     "反対側を練習したい時はライン切替を押せる。\n"; // Context: Speaker: Ezekiel. Lesson 5 introduction: strike line.
 TXL_STORY_1072 =
     "見事！ ストライク。\n"
-    "学校を卒業した。\n"
+    "チュートリアルを終えた。\n"
     "いつでも戻っていい。\n"; // Context: Speaker: Ezekiel. Lesson 5 and school completion.
 TXL_STORY_1080 =
     "苦戦しているね。\n"
     "この球を試してみる？\n"; // Context: Speaker: Ezekiel. Suggested ball after the player struggles in training.
 TXL_STORY_1021 =
     "ジグザグのコインで回転をもっと練習できる。\n"
-    "レッスン3が解放された。\n"; // Context: Speaker: Ezekiel. Lesson 3 unlock notification after the zig-zag gold lesson.
+    "3. 球の回転が解放された。\n"; // Context: Speaker: Ezekiel. Lesson 3 unlock notification after the zig-zag gold lesson.
 TXL_STORY_40 =
     "われはエゼキエル、つまずきも立ち直りも見たり。\n"
     "天の眼差しの下に、符文は眠る。\n"
@@ -677,8 +677,8 @@ TXL_STORY_3106 =
     "裁きの前に、森もまた立ちはだかる。\n"
     "枝を切り開け、予言を成すために。\n"; // Context: Speaker: Cherubel. Level 7 completion, leading to the forest.
 TXL_STORY_3007 =
-    "木を伐れ、この世の緑を尽くせ。\n"
-    "命のあった地を、荒野に変えよ。\n"
+    "木を伐れ、森の姿を変えよ。\n"
+    "枝の影は消え、道の先が見えよう。\n"
     "されど木は残せ、転がる球を阻むため。\n"
     "セラフィムに挑むとき、その木が役立とう。\n"; // Context: Speaker: Cherubel. Level 8 (Forest) introduction.
 TXL_STORY_3107 =
@@ -688,7 +688,7 @@ TXL_STORY_3107 =
     "進め、地の底の闇に迎えられよ。\n"; // Context: Speaker: Cherubel. Level 8 completion, leading to Seraphel's mines.
 TXL_STORY_3008 =
     "ゴモラに疫病あり、このことは胸に秘めよ。\n"
-    "人は減りゆく、われはそれを清めと呼ぶ。\n"
+    "疫病は役目を果たし、われは救いと呼ぶ。\n"
     "これがわれの最後の務め、やがて別れん。\n"
     "町の定めは、その胸に刻まれている。\n"; // Context: Speaker: Seraphel. Before Level 11 (Grey Desert / Cemetery): Seraphel describes the plague at Gomorrah.
 TXL_STORY_3108 =
@@ -713,7 +713,7 @@ TXL_STORY_3010 =
     "彼らの罪は、天使の秤に載っている。\n"; // Context: Speaker: Seraphel. Before Level 10 (Gas Factory): Seraphel demands the return of stolen energy.
 TXL_STORY_3110 =
     "機関の返すべき力は、地の底へ戻りたり。\n"
-    "疫病の影は迫り、生ある者は減りゆこう。\n"
+    "もし悪がなお残るなら、地獄の火がそれを焼こう。\n"
     "町の壁を越え、墓地へと来たれ。\n"
     "裁きが人々に何をなすか、そこで見よ。\n"; // Context: Speaker: Seraphel. After winning Level 10, before Level 11 (Grey Desert / Cemetery).
 TXL_STORY_3011 =
@@ -735,13 +735,13 @@ TXL_STORY_3112 =
     "ついに成れり、大地は灰となった。\n"
     "最後の閃きとともに、古き世は消えた。\n"
     "悪は尽き、試しは終わり、罪もまた尽きた。\n"
-    "人は誰も残らぬゆえに、ただそなたを除いて。\n"; // Context: Speaker: Thrones. Level 13 completion and campaign ending.
+    "灰と静けさのみが残り、風さえ声をひそめる。\n"; // Context: Speaker: Thrones. Level 13 completion and campaign ending.
 TXL_STORY_32000 =
     "われはエゼキエル、いまこそ明かそう。\n"
     "生者と死者のあいだで、そなたは試しを越えた。\n"
     "悪を滅ぼす手を貸し、世界は静まり返った。\n"
     "すべてはそなたの望みどおり、次は何をなす。\n"; // Context: Speaker: Ezekiel. Post-campaign result dialog before random-game free play.
-TXL_STORY_OPTION_ENTER_TRAINING = "学校へ行く"; // Context: Choice button in Level 1 introductions/outros and the Level 2 recovery introduction: enter school.
+TXL_STORY_OPTION_ENTER_TRAINING = "チュートリアルへ"; // Context: Choice button in Level 1 introductions/outros and the Level 2 recovery introduction: enter school.
 TXL_STORY_OPTION_YES = "はい"; // Context: Confirmation button for switching school lessons; tutorial confirmation uses the separate YES_TUTORIAL key.
 TXL_STORY_OPTION_NO = "いいえ"; // Context: Cancel button for switching school lessons; tutorial refusal uses the separate NO_TUTORIAL key.
 TXL_STORY_OPTION_NOT_NOW = "今はやめる"; // Context: Choice after failing Level 1: decline training and try Level 1 again.
@@ -760,8 +760,8 @@ TXL_LOYALTY_TITLE = "毎日のログインボーナス";
 TXL_LOYALTY_STREAK_FMT = "%d日連続ログイン中！";
 TXL_LOYALTY_AWARD_FMT = "継続ボーナス：$%d";
 TXL_LOYALTY_ACCEPT = "受け取る";
-TXL_STORY_OPTION_YES_TAKE_ME_TO_THE_NEXT_LESSON = "はい、次のレッスンへ"; // Context: Legacy school choice to advance to the next lesson; not currently used by a story option.
-TXL_STORY_OPTION_NO_I_WANT_TO_LEAVE_SCHOOL = "いいえ、学校を出たい"; // Context: Legacy school choice to leave school; not currently used by a story option.
+TXL_STORY_OPTION_YES_TAKE_ME_TO_THE_NEXT_LESSON = "はい、次の項目へ"; // Context: Legacy school choice to advance to the next lesson; not currently used by a story option.
+TXL_STORY_OPTION_NO_I_WANT_TO_LEAVE_SCHOOL = "いいえ、チュートリアルを終える"; // Context: Legacy school choice to leave school; not currently used by a story option.
 TXL_STORY_OPTION_PRACTICE_MORE = "もっと練習する"; // Context: Legacy school choice to repeat practice; not currently used by a story option.
 TXL_STORY_OPTION_BACK_TO_GAME = "ゲームに戻る"; // Context: Legacy school choice to return to gameplay; not currently used by a story option.
 TXL_STORY_OPTION_YES_TUTORIAL = "はい"; // Context: Button following the first Level 1 introduction (story 2): accept the tutorial.

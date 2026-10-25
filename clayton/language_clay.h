@@ -2,6 +2,7 @@
 
 #include "clayton.h"
 #include "claytheme.h"
+#include "language_flag_clay.h"
 
 inline void buildLanguageWindowClay(Clayton *clayton)
 {
@@ -56,36 +57,36 @@ inline void buildLanguageWindowClay(Clayton *clayton)
                 }
             )
             {
-                Clay_ElementDeclaration enDecl = CLAY_THEME_BTN_HUD;
+                Clay_ElementDeclaration enDecl = LanguageFlagButtonStyle();
                 if (clayton->uiLanguage == TXL_LANG_EN_US)
                     enDecl.backgroundColor = CLAY_COLOR_BTN_ACTIVE;
                 CLAY(clayton->languageEnglishClick.clayId, enDecl)
                 {
-                    CLAY_TEXT(clayton->txl(TXL_LANGUAGE_ENGLISH), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    LanguageFlagButtonContents(clayton, 0, TXL_LANG_EN_US, TXL_LANGUAGE_ENGLISH, buttonFontCfg);
                 }
 
-                Clay_ElementDeclaration zhDecl = CLAY_THEME_BTN_HUD;
+                Clay_ElementDeclaration zhDecl = LanguageFlagButtonStyle();
                 if (clayton->uiLanguage == TXL_LANG_ZH_CN)
                     zhDecl.backgroundColor = CLAY_COLOR_BTN_ACTIVE;
                 CLAY(clayton->languageChineseClick.clayId, zhDecl)
                 {
-                    CLAY_TEXT(clayton->txl(TXL_LANGUAGE_CHINESE), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    LanguageFlagButtonContents(clayton, 1, TXL_LANG_ZH_CN, TXL_LANGUAGE_CHINESE, buttonFontCfg);
                 }
 
-                Clay_ElementDeclaration ltDecl = CLAY_THEME_BTN_HUD;
+                Clay_ElementDeclaration ltDecl = LanguageFlagButtonStyle();
                 if (clayton->uiLanguage == TXL_LANG_LT_LT)
                     ltDecl.backgroundColor = CLAY_COLOR_BTN_ACTIVE;
                 CLAY(clayton->languageLithuanianClick.clayId, ltDecl)
                 {
-                    CLAY_TEXT(clayton->txl(TXL_LANGUAGE_LITHUANIAN), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    LanguageFlagButtonContents(clayton, 2, TXL_LANG_LT_LT, TXL_LANGUAGE_LITHUANIAN, buttonFontCfg);
                 }
 
-                Clay_ElementDeclaration jpDecl = CLAY_THEME_BTN_HUD;
+                Clay_ElementDeclaration jpDecl = LanguageFlagButtonStyle();
                 if (clayton->uiLanguage == TXL_LANG_JP_JP)
                     jpDecl.backgroundColor = CLAY_COLOR_BTN_ACTIVE;
                 CLAY(clayton->languageJapaneseClick.clayId, jpDecl)
                 {
-                    CLAY_TEXT(clayton->txl(TXL_LANGUAGE_JAPANESE), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    LanguageFlagButtonContents(clayton, 3, TXL_LANG_JP_JP, TXL_LANGUAGE_JAPANESE, buttonFontCfg);
                 }
             }
         }

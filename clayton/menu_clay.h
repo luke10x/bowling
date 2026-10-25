@@ -2,6 +2,7 @@
 
 #include "clayton.h"
 #include "claytheme.h"
+#include "language_flag_clay.h"
 
 inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool, bool showTracker)
 {
@@ -77,9 +78,10 @@ inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool, bool show
                     }
                 }
 
-                CLAY(clayton->menuLanguageClick.clayId, CLAY_THEME_BTN_HUD)
+                Clay_ElementDeclaration languageButton = LanguageFlagButtonStyle();
+                CLAY(clayton->menuLanguageClick.clayId, languageButton)
                 {
-                    CLAY_TEXT(clayton->txl(TXL_LANGUAGE), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    LanguageFlagButtonContents(clayton, 4, clayton->uiLanguage, TXL_LANGUAGE, buttonFontCfg);
                 }
 
                 // CLAY(clayton->menuPracticeClick.clayId, CLAY_THEME_BTN_HUD)

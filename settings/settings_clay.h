@@ -97,6 +97,11 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
     Clay_TextElementConfig titleCfg = CLAY_THEME_TEXT_TITLE;
     Clay_TextElementConfig buttonCfg = CLAY_THEME_TEXT_BUTTON;
     Clay_TextElementConfig bodyCfg = CLAY_THEME_TEXT_BODY;
+    const Clay_Dimensions viewport = Clay_GetCurrentContext()->layoutDimensions;
+    const bool portrait = viewport.height > viewport.width;
+    Clay_ElementDeclaration window = CLAY_THEME_WINDOW_PANEL;
+    if (portrait)
+        window.layout.sizing.height = CLAY_SIZING_PERCENT(0.80f);
 
     CLAY(
         CLAY_ID("SettingsContainer"),
@@ -111,7 +116,7 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
         }
     )
     {
-        CLAY(CLAY_ID("SettingsWindow"), CLAY_THEME_WINDOW_PANEL)
+        CLAY(CLAY_ID("SettingsWindow"), window)
         {
             CLAY(
                 CLAY_ID("SettingsTitleRow"),
@@ -140,7 +145,7 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                 {
                     .layout =
                         {
-                            .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                            .sizing = {CLAY_SIZING_GROW(), portrait ? CLAY_SIZING_GROW() : CLAY_SIZING_FIT()},
                             .childGap = 12,
                             .layoutDirection = CLAY_TOP_TO_BOTTOM,
                         },
@@ -173,10 +178,12 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                         CLAY_TEXT(SettingsWebUpdatePublishedText(clayton, settings), CLAY_TEXT_CONFIG(bodyCfg));
                     }
                     CLAY(CLAY_ID("SettingsUpdateStatusSlot"),
-                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(64)}}})
+                         {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(28)}}})
                     {
-                        if (!checking && !applying && settings->webUpdateStatus != GameSettings::WEB_UPDATE_IDLE)
-                            CLAY_TEXT(SettingsWebUpdateStatusText(clayton, settings), CLAY_TEXT_CONFIG(bodyCfg));
+                        CLAY_TEXT(settings->webUpdateStatus == GameSettings::WEB_UPDATE_IDLE
+                                      ? clayton->txl(TXL_PWA_UPDATE_PROMPT)
+                                      : SettingsWebUpdateStatusText(clayton, settings),
+                                  CLAY_TEXT_CONFIG(bodyCfg));
                     }
                     Clay_ElementDeclaration updateButton = CLAY_THEME_BTN_PRIMARY;
                     updateButton.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)};
@@ -275,6 +282,11 @@ inline void buildSettingsWindowClay(Clayton *clayton, GameSettings *settings)
                         }
                     }
                 }
+
+                // Reserve the flexible breathing room here, between controls and resets.
+                CLAY(CLAY_ID("SettingsResetSectionGap"),
+                     {.layout = {.sizing = {CLAY_SIZING_GROW(),
+                                            portrait ? CLAY_SIZING_GROW(24) : CLAY_SIZING_FIXED(24)}}}) {}
 
                 Clay_ElementDeclaration resetProgressButton = CLAY_THEME_BTN_DANGER;
                 resetProgressButton.layout.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(56)};

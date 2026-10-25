@@ -19,6 +19,9 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
         .fontId = CLAY_FONT_NOTO,
         .fontSize = CLAY_FONT_SIZE_SM,
     };
+    // The map is 320 px tall plus 10 px of padding at each end. Keep the
+    // adjacent info/action column at that same height so its button aligns.
+    constexpr float kOilMapColumnHeight = 340.0f;
 
     const float REOIL_COST = oilStatus ? oilStatus->reoilCost : 10.0f;
     const bool isFree = REOIL_COST <= 0.001f;
@@ -137,7 +140,7 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                     {
                         .layout =
                             {
-                                .sizing = {CLAY_SIZING_FIXED(130), CLAY_SIZING_GROW()},
+                                .sizing = {CLAY_SIZING_FIXED(130), CLAY_SIZING_FIXED(kOilMapColumnHeight)},
                                 .padding = {10, 10, 10, 10},
                                 .childGap = 10,
                                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
@@ -168,21 +171,21 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                     {
                         .layout =
                             {
-                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_GROW()},
+                                .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(kOilMapColumnHeight)},
                                 .childGap = 12,
                                 .layoutDirection = CLAY_TOP_TO_BOTTOM,
                             },
                     }
                 )
                 {
-                    CLAY(CLAY_ID("OilStatusTrack"), CLAY_THEME_SECTION)
+                    Clay_ElementDeclaration trackSection = CLAY_THEME_SECTION;
+                    trackSection.layout.sizing.height = CLAY_SIZING_GROW();
+                    CLAY(CLAY_ID("OilStatusTrack"), trackSection)
                     {
                         const float houseT01 = oilStatus ? oilStatus->houseOilThickness : 0.0f;
                         const float curT01 = oilStatus ? oilStatus->currentOilThickness : 0.0f;
                         const float laneFriction = oilStatus ? oilStatus->laneFriction : 0.0f;
                         const float lanePushback = oilStatus ? oilStatus->lanePushbackStrength : 0.0f;
-                        const float carryPerM = oilStatus ? oilStatus->oilCarrydownPerBallTravelM : 0.0f;
-                        const float decayPerM = oilStatus ? oilStatus->oilThicknessDecayPerBallTravel : 0.0f;
 
                         // Interpret oil thickness 0..1 as 0..MAX_OIL_MM. House thickness scales max for this track.
                         const float MAX_OIL_MM = 3.0f;
@@ -262,12 +265,10 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                                 {
                                     labelRow(CLAY_ID("OilMetricMaxLabel"), clayton->txl(TXL_MAX_OIL_LEVEL));
                                     labelRow(CLAY_ID("OilMetricCurrentLabel"), clayton->txl(TXL_CURRENT_OIL_LEVEL));
-                                    labelRow(CLAY_ID("OilMetricCarrydownLabel"), clayton->txl(TXL_CARRYDOWN));
-                                    labelRow(CLAY_ID("OilMetricDecayLabel"), clayton->txl(TXL_OIL_DECAY));
                                 }
                                 CLAY(CLAY_ID("OilIndicatorLabels"), {.layout = {.sizing = {CLAY_SIZING_FIT(), CLAY_SIZING_FIT()}, .childGap = 4, .layoutDirection = CLAY_TOP_TO_BOTTOM}})
                                 {
-                                    indicatorLabelRow(CLAY_ID("OilBarLabel"), clayton->txl(TXL_OIL));
+                                    indicatorLabelRow(CLAY_ID("OilBarLabel"), clayton->txl(TXL_OIL_INDICATOR));
                                     indicatorLabelRow(CLAY_ID("SlipBarLabel"), clayton->txl(TXL_SLIPPERY));
                                     indicatorLabelRow(CLAY_ID("PushbackBarLabel"), clayton->txl(TXL_PUSHBACK));
                                 }
@@ -282,8 +283,6 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                                 {
                                     valueRow(CLAY_ID("OilMetricMaxValue"), ClayArena_FormatString(&clayton->clayArena, "%.1fmm", maxOilMm));
                                     valueRow(CLAY_ID("OilMetricCurrentValue"), ClayArena_FormatString(&clayton->clayArena, "%.1fmm", curOilMm));
-                                    valueRow(CLAY_ID("OilMetricCarrydownValue"), ClayArena_FormatString(&clayton->clayArena, "%.3fm/m", carryPerM));
-                                    valueRow(CLAY_ID("OilMetricDecayValue"), ClayArena_FormatString(&clayton->clayArena, "%.4f/m", decayPerM));
                                 }
                                 CLAY(CLAY_ID("OilIndicatorBars"), {.layout = {.sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()}, .childGap = 4, .layoutDirection = CLAY_TOP_TO_BOTTOM}})
                                 {
@@ -313,7 +312,7 @@ inline void buildOilStatusWindowClay(Clayton *clayton, float bank, const OilStat
                         {
                             .layout =
                                 {
-                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIT()},
+                                    .sizing = {CLAY_SIZING_GROW(), CLAY_SIZING_FIXED(60)},
                                     .padding = {0, 0, 0, 0},
                                     .childGap = 10,
                                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},

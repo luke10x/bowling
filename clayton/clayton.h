@@ -70,6 +70,7 @@ struct Clayton
     Gles3_ImageConfig chestRewardImage;
     Gles3_ImageConfig hudCoinImage;
     Gles3_ImageConfig hudDiamondImage;
+    Gles3_ImageConfig languageFlagImages[TXL_LANG_COUNT];
     Gles3_ImageConfig schoolSpinFingerImage;
     Gles3_ImageConfig hudRuneBoomImage;
     Gles3_ImageConfig hudRuneBoltImage;
@@ -387,6 +388,22 @@ struct Clayton
             .u1 = 0.866784863f,
             .v1 = 0.813214844f,
         };
+        // everything_tex.png: four 128x128 flags in the bottom-right strip.
+        // The half-pixel inset avoids sampling an adjacent flag at the border.
+        constexpr float atlasSize = 2048.0f;
+        auto flagRegion = [](float x) {
+            return Gles3_ImageConfig{
+                .textureToUse = 0,
+                .u0 = (x + 0.5f) / atlasSize,
+                .v0 = (1280.0f + 0.5f) / atlasSize,
+                .u1 = (x + 127.5f) / atlasSize,
+                .v1 = (1408.0f - 0.5f) / atlasSize,
+            };
+        };
+        languageFlagImages[TXL_LANG_EN_US] = flagRegion(1792.0f); // gb-flag
+        languageFlagImages[TXL_LANG_ZH_CN] = flagRegion(1664.0f); // cn-flag
+        languageFlagImages[TXL_LANG_LT_LT] = flagRegion(1536.0f); // lt-flag
+        languageFlagImages[TXL_LANG_JP_JP] = flagRegion(1920.0f); // jp-flag
         // Existing SVG finger shape in exportroot (Clay uses top-left UVs).
         this->schoolSpinFingerImage = Gles3_ImageConfig{
             .textureToUse = 0,

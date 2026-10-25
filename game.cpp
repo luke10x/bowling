@@ -19361,6 +19361,17 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
             usr->greetingsWindowRequested = true;
         }
     }
+    // A mobile PWA can return with a Web Audio context that reports running
+    // but delivers no SDL callbacks. Reopening the SDL device creates a fresh
+    // Web Audio output. The JS watchdog asks for this only after foregrounding
+    // and caps retries; keep ad playback's deliberate audio pause untouched.
+    if (!usr->adInterstitialInFlight && EM_ASM_INT({
+            return Module['xfmAudioSafety'].needsReopen() ? 1 : 0;
+        }))
+    {
+        usr->sound.suspendForBrowser();
+        usr->sound.resumeFromBrowser(usr->sound.getSongPlaybackPattern(usr->sound.currentSongIndex));
+    }
 #endif
 }
 

@@ -177,6 +177,16 @@ namespace BuiltinSfxFileNosEmptyLoop
 #include "builtin_sfx/nos_empty_loop.h"
 }
 
+namespace BuiltinSfxFileChargeRefill
+{
+#include "builtin_sfx/charge_refill.h"
+}
+
+namespace BuiltinSfxFileFootballKick
+{
+#include "builtin_sfx/football_kick.h"
+}
+
 struct BuiltinSfxDefinition
 {
     int sfxId;
@@ -227,6 +237,8 @@ static constexpr BuiltinSfxDefinition BUILTIN_SFX_REGISTRY[] = {
     {32, "chest_spin_out", "sounds/builtin_sfx/chest_spin_out.h", BuiltinSfxFileChestSpinOut::XFM_TRACKER_SONG_NAME, BuiltinSfxFileChestSpinOut::XFM_TRACKER_SONG_PATTERN, BuiltinSfxFileChestSpinOut::XFM_TRACKER_CUSTOM_INSTRUMENTS, BuiltinSfxFileChestSpinOut::XFM_TRACKER_TICK_RATE, BuiltinSfxFileChestSpinOut::XFM_TRACKER_SPEED, BuiltinSfxFileChestSpinOut::XFM_TRACKER_LFO_ENABLED != 0, BuiltinSfxFileChestSpinOut::XFM_TRACKER_LFO_FREQUENCY},
     {33, "skull_laugh",    "sounds/builtin_sfx/skull_laugh.h",    BuiltinSfxFileSkullLaugh::XFM_TRACKER_SONG_NAME,    BuiltinSfxFileSkullLaugh::XFM_TRACKER_SONG_PATTERN,    BuiltinSfxFileSkullLaugh::XFM_TRACKER_CUSTOM_INSTRUMENTS,    BuiltinSfxFileSkullLaugh::XFM_TRACKER_TICK_RATE,    BuiltinSfxFileSkullLaugh::XFM_TRACKER_SPEED,    BuiltinSfxFileSkullLaugh::XFM_TRACKER_LFO_ENABLED != 0,    BuiltinSfxFileSkullLaugh::XFM_TRACKER_LFO_FREQUENCY},
     {34, "nos_empty_loop", "sounds/builtin_sfx/nos_empty_loop.h", BuiltinSfxFileNosEmptyLoop::XFM_TRACKER_SONG_NAME, BuiltinSfxFileNosEmptyLoop::XFM_TRACKER_SONG_PATTERN, BuiltinSfxFileNosEmptyLoop::XFM_TRACKER_CUSTOM_INSTRUMENTS, BuiltinSfxFileNosEmptyLoop::XFM_TRACKER_TICK_RATE, BuiltinSfxFileNosEmptyLoop::XFM_TRACKER_SPEED, BuiltinSfxFileNosEmptyLoop::XFM_TRACKER_LFO_ENABLED != 0, BuiltinSfxFileNosEmptyLoop::XFM_TRACKER_LFO_FREQUENCY},
+    {35, "charge_refill", "sounds/builtin_sfx/charge_refill.h", BuiltinSfxFileChargeRefill::XFM_TRACKER_SONG_NAME, BuiltinSfxFileChargeRefill::XFM_TRACKER_SONG_PATTERN, BuiltinSfxFileChargeRefill::XFM_TRACKER_CUSTOM_INSTRUMENTS, BuiltinSfxFileChargeRefill::XFM_TRACKER_TICK_RATE, BuiltinSfxFileChargeRefill::XFM_TRACKER_SPEED, BuiltinSfxFileChargeRefill::XFM_TRACKER_LFO_ENABLED != 0, BuiltinSfxFileChargeRefill::XFM_TRACKER_LFO_FREQUENCY},
+    {36, "football_kick", "sounds/builtin_sfx/football_kick.h", BuiltinSfxFileFootballKick::XFM_TRACKER_SONG_NAME, BuiltinSfxFileFootballKick::XFM_TRACKER_SONG_PATTERN, BuiltinSfxFileFootballKick::XFM_TRACKER_CUSTOM_INSTRUMENTS, BuiltinSfxFileFootballKick::XFM_TRACKER_TICK_RATE, BuiltinSfxFileFootballKick::XFM_TRACKER_SPEED, BuiltinSfxFileFootballKick::XFM_TRACKER_LFO_ENABLED != 0, BuiltinSfxFileFootballKick::XFM_TRACKER_LFO_FREQUENCY},
 };
 
 static constexpr int BUILTIN_SFX_REGISTRY_COUNT =

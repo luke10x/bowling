@@ -3010,6 +3010,7 @@ static inline void CampaignNosLesson_OnDialogClosed(UserContext *usr)
         usr->campaignNosCoachRefillAmount =
             usr->electroBall.chargeCapacity - usr->electroBall.charge;
         usr->campaignNosCoachRefillAdded = 0.0f;
+        usr->sound.playSfxChargeRefill();
     }
     usr->campaignNosLessonBlinkActive = true;
 }
@@ -9877,6 +9878,7 @@ static inline void RuneFootball_Activate(UserContext *usr)
 {
     if (!usr)
         return;
+    usr->sound.playSfxFootballKick();
     usr->skullBallActive = false;
     usr->skullThrowStarted = false;
     usr->skullEnemyReversePending = false;
@@ -9924,8 +9926,15 @@ static inline void RuneNitro_Activate(UserContext *usr)
     usr->nitroRuneRefillAdded = 0.0f;
     usr->nitroRuneBlinkRemaining = NitroRuneTuning::BlinkSeconds;
     usr->electroBall.triggerPickupPulse(1.0f, 2.0f);
-    // A refill uses the same positive confirmation sound as re-oiling and buying a ball.
-    usr->sound.playSfxBuy();
+    usr->sound.playSfxChargeRefill();
+    // Refresh the lane gems and their surrounding coins for the newly charged bar.
+    // Flying pickup effects live outside CoinLane::initStars and keep finishing normally.
+    if (usr->gameMode != UserContext::GameMode::SCHOOL &&
+        usr->gameMode != UserContext::GameMode::MINIGAME)
+    {
+        usr->coinLane.initStars(getNextCoinPattern(), 7);
+        usr->clearedCoins = 0;
+    }
     UI_TriggerRuneOutcomeBanner(usr, 11);
 }
 

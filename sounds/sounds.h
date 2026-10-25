@@ -95,6 +95,8 @@ struct GameSoundSystem
 	        SFX_CHEST_SPIN_OUT,
 	        SFX_SKULL_LAUGH,
 	        SFX_NOS_EMPTY_LOOP,
+	        SFX_CHARGE_REFILL,
+	        SFX_FOOTBALL_KICK,
 	        SFX_COUNT,
 	        SFX_TRACKER_PREVIEW = 250
 	    };
@@ -421,6 +423,8 @@ struct GameSoundSystem
 	    void playSfxWin();
 	    void playSfxLose();
 	    void playSfxBuy();
+	    void playSfxChargeRefill();
+	    void playSfxFootballKick();
 	    void playSfxTypewriter();
 	    void playSfxGlassBreak();
 	    void playSfxGlassTinkle();

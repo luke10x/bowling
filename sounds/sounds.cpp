@@ -2503,6 +2503,8 @@ xfm_voice_id GameSoundSystem::playSfxNosEmptyLoop(){ return playSfx(SFX_NOS_EMPT
 void GameSoundSystem::playSfxWin()                { playSfx(SFX_WIN, 7); }
 void GameSoundSystem::playSfxLose()               { playSfx(SFX_LOSE, 7); }
 void GameSoundSystem::playSfxBuy()                { playSfx(SFX_BUY, 6); }
+void GameSoundSystem::playSfxChargeRefill()       { playSfx(SFX_CHARGE_REFILL, 6); }
+void GameSoundSystem::playSfxFootballKick()       { playSfx(SFX_FOOTBALL_KICK, 7); }
 void GameSoundSystem::playSfxTypewriter()         { playSfx(SFX_TYPEWRITER, 6); }
 void GameSoundSystem::playSfxGlassBreak()
 {

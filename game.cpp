@@ -13071,21 +13071,28 @@ static inline void BallShop_SyncVisibleCarousel(UserContext *usr)
 }
 
 static inline void BallShop_StartPayoutVisual(
-    UserContext *usr, int payout, glm::vec2 source)
+    UserContext *usr, int payout, glm::vec2 source, int screenHeight)
 {
     if (!usr || payout <= 0)
         return;
-    const glm::vec2 target = usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
-    const int coins = glm::clamp(payout / 8, 12, 24);
-    for (int i = 0; i < coins; ++i)
+    // Shop payouts land on the balance in the shop title, not the gameplay HUD.
+    // Clay's bounding boxes use a top-left origin; flying coins use bottom-left.
+    const Clay_BoundingBox bankBox =
+        Clay_GetElementData(CLAY_ID("ShopTitleBalancePad")).boundingBox;
+    const glm::vec2 target = bankBox.width > 0.0f && bankBox.height > 0.0f
+        ? glm::vec2(bankBox.x + bankBox.width * 0.5f,
+                    float(screenHeight) - bankBox.y - bankBox.height * 0.5f)
+        : usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
+    constexpr int kVisualCoins = 50; // Visual density never depends on the payout amount.
+    for (int i = 0; i < kVisualCoins; ++i)
     {
         const float a = 2.3999632f * (float)i;
-        const glm::vec2 offset(std::cos(a) * (8.0f + float(i % 4) * 3.0f),
-                               std::sin(a) * (8.0f + float(i % 4) * 3.0f));
+        const float r = 5.0f + float(i % 5) * 2.0f;
+        const glm::vec2 offset(std::cos(a) * r, std::sin(a) * r);
         (void)usr->coinLane.spawnFlyAnimation(
             source + offset, target, CollectableVisualKind::Coin,
-            false, 45.0f + float(i % 5) * 7.0f, float(i) * 0.038f,
-            (i % 4) == 0, float(i) * 0.37f, 0.68f, true);
+            false, 72.0f + float(i % 7) * 5.0f, float(i) * 0.012f,
+            false, float(i) * 0.31f, 0.72f, true);
     }
     usr->hudMoneyFrom = glm::max(0, (int)std::lround(usr->carousel.bank) - payout);
     usr->hudMoneyTo = (int)std::lround(usr->carousel.bank);
@@ -13108,14 +13115,30 @@ static inline void BallShop_TickPayoutVisual(
         shop.removingCardElapsed += glm::max(0.0f, dt);
         if (!shop.removingPayoutStarted)
         {
-            const Clay_BoundingBox cardBox =
-                Clay_GetElementData(CLAY_IDI("CarouselCard", shop.removingCardIndex)).boundingBox;
-            const glm::vec2 source = cardBox.width > 0.0f && cardBox.height > 0.0f
-                ? glm::vec2(cardBox.x + cardBox.width * 0.5f,
-                    float(screenHeight) - cardBox.y - cardBox.height * 0.5f)
-                : glm::vec2(float(screenWidth) * 0.5f, float(screenHeight) * 0.5f);
-            BallShop_StartPayoutVisual(usr, shop.removingPayout, source);
-            shop.removingPayoutStarted = true;
+            // The card itself is inset within the carousel slot. Use its
+            // center so coins emerge from the blinking face, not empty padding.
+            Clay_BoundingBox cardBox = shop.removingCardId == BALL_SHOP_REWARDED_CARD_ID
+                ? Clay_GetElementData(
+                    CLAY_IDI("GoldRewardCard", shop.removingCardIndex)).boundingBox
+                : Clay_GetElementData(
+                    CLAY_IDI("CatalogItem", shop.removingCardIndex)).boundingBox;
+            if (cardBox.width <= 0.0f || cardBox.height <= 0.0f)
+                cardBox = Clay_GetElementData(
+                    CLAY_IDI("CarouselCard", shop.removingCardIndex)).boundingBox;
+            const Clay_BoundingBox bankBox =
+                Clay_GetElementData(CLAY_ID("ShopTitleBalancePad")).boundingBox;
+            // The first frame after an ad may not have a shop layout yet.
+            // Wait for real card and balance bounds instead of flying from/to
+            // a screen-center fallback that does not match the visible UI.
+            if (cardBox.width > 0.0f && cardBox.height > 0.0f &&
+                bankBox.width > 0.0f && bankBox.height > 0.0f)
+            {
+                const glm::vec2 source(
+                    cardBox.x + cardBox.width * 0.5f,
+                    float(screenHeight) - cardBox.y - cardBox.height * 0.5f);
+                BallShop_StartPayoutVisual(usr, shop.removingPayout, source, screenHeight);
+                shop.removingPayoutStarted = true;
+            }
         }
     }
     if (usr->pendingHudPayout > 0)
@@ -13123,7 +13146,8 @@ static inline void BallShop_TickPayoutVisual(
         const int payout = usr->pendingHudPayout;
         usr->pendingHudPayout = 0;
         BallShop_StartPayoutVisual(usr, payout,
-            glm::vec2(float(screenWidth) * 0.5f, float(screenHeight) * 0.5f));
+            glm::vec2(float(screenWidth) * 0.5f, float(screenHeight) * 0.5f),
+            screenHeight);
     }
     usr->hudMoneyBlinkTime = glm::max(0.0f, usr->hudMoneyBlinkTime - dt);
     if (usr->hudMoneySpinning)
@@ -31411,6 +31435,9 @@ AssetMesh *gemCollectableMeshForHUD = gGemMeshReady ? &gGemMesh : &usr->starMesh
 if (!Chest_IsCinematicActive(usr))
 {
     glUseProgram(usr->mainShader.id);
+    // Clay can leave the carousel scissor active. The shop payout crosses the
+    // card and title and must cover the complete screen in this final pass.
+    glDisable(GL_SCISSOR_TEST);
     glDisable(GL_DEPTH_TEST);
     glDepthMask(GL_FALSE);
     glEnable(GL_BLEND);

@@ -7449,7 +7449,11 @@ static inline void UI_DismissTransientOverlaysForDialog(UserContext *usr)
         return;
     // Closing/dimming an overlay may cancel its HUD fly effects, but deployed
     // coins and gems belong to the lane and must survive the modal.
-    (void)usr->coinLane.clearFlyAnimations();
+    // Shop and loyalty payouts happen inside modal windows. Their foreground
+    // coins must survive until the corresponding balance count finishes.
+    (void)usr->coinLane.clearFlyAnimations(
+        (usr->shouldShowShop && usr->ballShop.removingCardActive) ||
+        usr->windowStack.loyaltyPayoutActive);
     usr->resultPendingStrikeSpareCoinCount = 0;
     usr->resultPendingStrikeSpareCoinDelay = 0.0f;
     usr->resultPendingStrikeSpareCoinSourceValid = false;
@@ -9473,10 +9477,18 @@ static inline bool BallInventory_HasReplacementAfterLosingSelectedBall(const Use
 
 static inline bool Rune_IsEnabledForCurrentPhase(const UserContext *usr, int runeIndex)
 {
-    if (!usr || usr->boomBallGone)
+    if (!usr)
         return false;
 
     const RuneKind kind = (RuneKind)runeIndex;
+    // This rune fills the player's meter, independent of the ball's phase or
+    // whether the campaign has introduced the NOS control yet. Owning the rune
+    // is enough; the 80% threshold and an active refill are its only limits.
+    if (kind == RuneKind::Nitro)
+        return !usr->nitroRuneRefillActive &&
+            NitroRune_CanRefill(usr->electroBall.charge, usr->electroBall.chargeCapacity);
+    if (usr->boomBallGone)
+        return false;
     switch (kind)
     {
     case RuneKind::Boom:
@@ -9509,14 +9521,6 @@ static inline bool Rune_IsEnabledForCurrentPhase(const UserContext *usr, int run
             usr->phase == UserContext::Phase::AIM ||
             usr->phase == UserContext::Phase::SWING ||
             usr->phase == UserContext::Phase::THROW;
-    case RuneKind::Nitro:
-        return Campaign_HasUnlockedNosTool(usr) &&
-            !usr->nitroRuneRefillActive &&
-            NitroRune_CanRefill(usr->electroBall.charge, usr->electroBall.chargeCapacity) &&
-            (usr->phase == UserContext::Phase::IDLE ||
-             usr->phase == UserContext::Phase::AIM ||
-             usr->phase == UserContext::Phase::SWING ||
-             usr->phase == UserContext::Phase::THROW);
     default:
         return false;
     }
@@ -12004,6 +12008,37 @@ static inline void Loyalty_Save(UserContext *usr)
     usr->storage.setChar(Storage::LOYALTY, saved, std::strlen(saved));
 }
 
+static inline void Loyalty_StartPayoutCoins(UserContext *usr, int screenHeight)
+{
+    if (!usr)
+        return;
+    // The click comes from the already rendered loyalty window, so these
+    // bounds describe the button the player just accepted and the HUD bank.
+    const Clay_BoundingBox button =
+        Clay_GetElementData(usr->clayton.loyaltyActionClick.clayId).boundingBox;
+    const Clay_BoundingBox bank = Clay_GetElementData(CLAY_ID("PlaceOfMoney")).boundingBox;
+    if (button.width <= 0.0f || button.height <= 0.0f ||
+        bank.width <= 0.0f || bank.height <= 0.0f)
+        return;
+    const glm::vec2 source(button.x + button.width * 0.5f,
+                           float(screenHeight) - button.y - button.height * 0.5f);
+    const glm::vec2 target(bank.x + bank.width * 0.5f,
+                           float(screenHeight) - bank.y - bank.height * 0.5f);
+    constexpr int kVisualCoins = 10;
+    constexpr float kStreamSpanSeconds = 0.588f;
+    for (int i = 0; i < kVisualCoins; ++i)
+    {
+        const float a = 2.3999632f * float(i);
+        const float r = 5.0f + float(i % 5) * 2.0f;
+        const glm::vec2 offset(std::cos(a) * r, std::sin(a) * r);
+        (void)usr->coinLane.spawnFlyAnimation(
+            source + offset, target, CollectableVisualKind::Coin,
+            false, 72.0f + float(i % 7) * 5.0f,
+            kStreamSpanSeconds * float(i) / float(kVisualCoins - 1),
+            false, float(i) * 0.31f, 0.72f, true);
+    }
+}
+
 static inline void Loyalty_Activate(UserContext *usr)
 {
     if (!usr) return;
@@ -13083,7 +13118,8 @@ static inline void BallShop_StartPayoutVisual(
         ? glm::vec2(bankBox.x + bankBox.width * 0.5f,
                     float(screenHeight) - bankBox.y - bankBox.height * 0.5f)
         : usr->placeOfMoney + glm::vec2(30.0f, 30.0f);
-    constexpr int kVisualCoins = 50; // Visual density never depends on the payout amount.
+    constexpr int kVisualCoins = 10; // Visual density never depends on the payout amount.
+    constexpr float kStreamSpanSeconds = 0.588f;
     for (int i = 0; i < kVisualCoins; ++i)
     {
         const float a = 2.3999632f * (float)i;
@@ -13091,7 +13127,8 @@ static inline void BallShop_StartPayoutVisual(
         const glm::vec2 offset(std::cos(a) * r, std::sin(a) * r);
         (void)usr->coinLane.spawnFlyAnimation(
             source + offset, target, CollectableVisualKind::Coin,
-            false, 72.0f + float(i % 7) * 5.0f, float(i) * 0.012f,
+            false, 72.0f + float(i % 7) * 5.0f,
+            kStreamSpanSeconds * float(i) / float(kVisualCoins - 1),
             false, float(i) * 0.31f, 0.72f, true);
     }
     usr->hudMoneyFrom = glm::max(0, (int)std::lround(usr->carousel.bank) - payout);
@@ -21417,6 +21454,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->hudMoneyBlinkTime = 0.0f;
                         usr->hudMoneySpinning = true;
                         usr->windowStack.loyaltyPayoutActive = true;
+                        Loyalty_StartPayoutCoins(usr, ctx->screenHeight);
                     }
                     else if (usr->loyalty.claimedDay == today &&
                              !usr->windowStack.loyaltyPayoutActive)

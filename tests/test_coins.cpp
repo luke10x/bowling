@@ -78,3 +78,21 @@ TEST_CASE("Shop payout coins stay in the HUD overlay without changing the bank")
     CHECK(lane.updateFlyAnimations(1.0f) == 0);
     CHECK_FALSE(lane.hasActiveHudOverlayFly());
 }
+
+TEST_CASE("Modal cleanup preserves a shop payout stream")
+{
+    CoinLane lane {};
+    REQUIRE(lane.spawnFlyAnimation(
+        {200.0f, 100.0f}, {40.0f, 800.0f}, CollectableVisualKind::Coin,
+        false, 75.0f, 0.0f, false, 0.0f, 1.0f, true));
+    REQUIRE(lane.spawnFlyAnimation(
+        {210.0f, 100.0f}, {40.0f, 800.0f}, CollectableVisualKind::Coin,
+        false, 75.0f));
+
+    CHECK(lane.clearFlyAnimations(true) == 1);
+    CHECK(lane.hasActiveHudOverlayFly());
+    CHECK(lane.getActiveFlyCount() == 1);
+    CHECK(lane.updateFlyAnimations(0.2f) == 0);
+    CHECK(lane.getActiveFlyCount() == 1);
+    CHECK(lane.clearFlyAnimations() == 1);
+}

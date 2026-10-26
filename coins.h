@@ -572,11 +572,12 @@ struct CoinLane {
     // === Reset/Respawn ===
     // Modal UI may dismiss transient HUD rewards, but must never remove a
     // deployed lane pickup.  Keep that narrower operation explicit.
-    [[nodiscard]] int clearFlyAnimations() noexcept {
+    [[nodiscard]] int clearFlyAnimations(bool preserveHudOverlay = false) noexcept {
         int cancelled = 0;
         for (auto& anim : flyAnimations) {
-            if (anim.active)
-                ++cancelled;
+            if (!anim.active || (preserveHudOverlay && anim.forceHudOverlay))
+                continue;
+            ++cancelled;
             anim.active = false;
         }
         return cancelled;

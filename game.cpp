@@ -16391,6 +16391,10 @@ static inline void Tracker_ApplyLoopRangeToSound(UserContext *usr)
             if (!pattern || !pattern[0])
                 return;
 
+            usr->sound.musicLoopStartRow = loopStart;
+            usr->sound.musicLoopEndRow = loopEnd;
+            usr->sound.musicLoopResetStateOnWrap = usr->tracker.loopEnabled;
+
             const int tickRate = std::max(1, usr->tracker.songTickRate);
             const int ticksPerRow = std::max(1, usr->tracker.songSpeed);
             const int startRow = usr->tracker.loopEnabled ?
@@ -16411,7 +16415,7 @@ static inline void Tracker_ApplyLoopRangeToSound(UserContext *usr)
             // xfm_song_play restores the full-song loop range, so apply the
             // tracker selection only after a restart.
             xfm_song_set_loop_range(usr->sound.musicModule, loopStart, loopEnd);
-            xfm_song_set_loop_reset_state(usr->sound.musicModule, true);
+            xfm_song_set_loop_reset_state(usr->sound.musicModule, usr->tracker.loopEnabled);
             SDL_UnlockAudioDevice(usr->sound.audioDev);
         }
         else
@@ -18901,6 +18905,9 @@ static inline void Tracker_ApplyPatternToSound(UserContext *usr)
         &loopEndRow
     );
     usr->trackerSelectionPlaybackOverrideActive = selectionOverrideActive;
+    usr->sound.musicLoopStartRow = loopStartRow;
+    usr->sound.musicLoopEndRow = loopEndRow;
+    usr->sound.musicLoopResetStateOnWrap = usr->tracker.loopEnabled;
     int tickRate = std::max(1, usr->tracker.songTickRate);
     int ticksPerRow = std::max(1, usr->tracker.songSpeed);
     int resumeRow = usr->sound.musicModule->active_song.current_row;
@@ -19334,6 +19341,28 @@ static inline bool Tracker_HandleFurnaceKeyboardEvent(UserContext *usr, const SD
     return true;
 }
 
+static inline void Sound_ResumeFromBrowser(UserContext *usr)
+{
+    if (!usr)
+        return;
+
+    const bool trackerActive =
+        usr->gameMode == UserContext::GameMode::TRACKER && usr->tracker.active;
+    const char *pattern = usr->sound.getSongPlaybackPattern(usr->sound.currentSongIndex);
+    if (trackerActive)
+        pattern = Tracker_SelectLivePlaybackPattern(usr, nullptr, nullptr, nullptr);
+
+    usr->sound.resumeFromBrowser(pattern);
+    if (trackerActive && usr->sound.audioDev && usr->sound.musicModule)
+    {
+        // Reopening a device reapplies the sound system's saved loop range;
+        // rebuilding a module also loses transient REP parts and selections.
+        // Restore the live tracker arrangement in either case.
+        usr->tracker.playbackArrangementDirty = true;
+        Tracker_ApplyPatternToSound(usr);
+    }
+}
+
 static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
 {
     if (!usr)
@@ -19409,7 +19438,7 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
     else if (audioState == 2)
     {
         if (usr->sound.audioStoppedBecauseWindowLeave || usr->sound.browserAudioSuspended || !usr->sound.audioDev)
-            usr->sound.resumeFromBrowser(usr->sound.getSongPlaybackPattern(usr->sound.currentSongIndex));
+            Sound_ResumeFromBrowser(usr);
     }
     if (appRefocused && usr->appFocusLost)
     {
@@ -19431,7 +19460,7 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
         }))
     {
         usr->sound.suspendForBrowser();
-        usr->sound.resumeFromBrowser(usr->sound.getSongPlaybackPattern(usr->sound.currentSongIndex));
+        Sound_ResumeFromBrowser(usr);
     }
 #endif
 }
@@ -20615,9 +20644,9 @@ void vtx::loop(vtx::VertexContext *ctx)
         }
     };
     Tracker_Tick(&usr->tracker, deltaTime);
+    Tracker_ApplyLoopRangeToSound(usr);
     Tracker_ApplySeekRequestToSound(usr);
     Tracker_SyncCursorFromSound(usr);
-    Tracker_ApplyLoopRangeToSound(usr);
     Tracker_ApplyPatternToSound(usr);
     Tracker_ApplyPatchEditsToSound(usr);
     Tracker_ApplyRealtimeLfoToSound(usr);
@@ -21220,7 +21249,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->appFocusLost = false;
                     Loyalty_Activate(usr);
                     if (usr->sound.audioStoppedBecauseWindowLeave || usr->sound.browserAudioSuspended || !usr->sound.audioDev)
-                        usr->sound.resumeFromBrowser(usr->sound.getSongPlaybackPattern(usr->sound.currentSongIndex));
+                        Sound_ResumeFromBrowser(usr);
                     if (usr->appInactiveOverlayActive &&
                         !Tracker_IsSongFilePickerFocusMuted(usr) &&
                         usr->saveGreetingMuteFrames <= 0 && usr->loadGreetingMuteFrames <= 0)
@@ -21432,7 +21461,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                     usr->appFocusLost = false;
                     usr->appInactiveOverlayActive = false;
                     if (usr->sound.audioStoppedBecauseWindowLeave || usr->sound.browserAudioSuspended || !usr->sound.audioDev)
-                        usr->sound.resumeFromBrowser(usr->sound.getSongPlaybackPattern(usr->sound.currentSongIndex));
+                        Sound_ResumeFromBrowser(usr);
                     usr->storage.setChar(Storage::GREETINGS_SEEN, "1", 1);
                 }
                 if (usr->windowStack.loyaltyAcceptRequested)

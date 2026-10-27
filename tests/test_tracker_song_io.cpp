@@ -727,6 +727,27 @@ static void Test_MixSongFrames(xfm_module *module, int frames)
     }
 }
 
+static int Test_MixSongChannelPeak(xfm_module *module, int channel, int frames)
+{
+    REQUIRE(module != nullptr);
+    REQUIRE(channel >= 0);
+    REQUIRE(channel < 6);
+    int16_t mixed[128 * 2] = {};
+    int16_t scope[128 * 2] = {};
+    int peak = 0;
+    while (frames > 0)
+    {
+        const int chunk = std::min(frames, 128);
+        module->oscilloscope_channel_buffers[channel] = scope;
+        xfm_mix_song(module, mixed, chunk);
+        module->oscilloscope_channel_buffers[channel] = nullptr;
+        for (int i = 0; i < chunk * 2; ++i)
+            peak = std::max(peak, std::abs((int)scope[i]));
+        frames -= chunk;
+    }
+    return peak;
+}
+
 static void Test_MixSfxFrames(xfm_module *module, int frames)
 {
     REQUIRE(module != nullptr);
@@ -3073,6 +3094,98 @@ TEST_CASE("Drizzle Lane Part 1 retriggers survive a green loop wrap")
     CHECK(module->chip->key_on_count[1] == 11);
 
     xfm_module_destroy(module);
+}
+
+TEST_CASE("Pigeon Roll first selected note is audible on the first pass, wrap, seek, and song restart")
+{
+    Tracker tracker {};
+    setTrackerSongState(&tracker, 6);
+    const std::string playbackPattern = Tracker_BuildFlatPatternText(&tracker);
+    for (bool patchedChip : {false, true})
+    {
+        INFO("patched YMFM: ", patchedChip);
+        xfm_set_patched_ymfm(patchedChip);
+        xfm_module *module = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+        REQUIRE(module != nullptr);
+        soundApplySongInstrumentBankToMusicModule(
+            module, playbackPattern.c_str(), BUILTIN_SONG_REGISTRY[5].instruments);
+        REQUIRE(module->patch_present[0x04]);
+        REQUIRE(xfm_song_declare(module, 1, playbackPattern.c_str(), 64, 6) == 1);
+
+        xfm_song_play(module, 1, true);
+        xfm_song_set_loop_range(module, 8, 11);
+        xfm_song_set_loop_reset_state(module, true);
+        REQUIRE(module->active_song.current_row == 8);
+        const int selectedFirstRowPeak = Test_MixSongChannelPeak(
+            module, 5, module->song_patterns[1].samples_per_row);
+        CHECK(selectedFirstRowPeak > 100);
+        CHECK(module->chip->key_on_count[5] >= 1);
+        const int firstPassKeys = module->chip->key_on_count[5];
+        int wrappedFirstRowPeak = 0;
+        for (int i = 0; i < 4; ++i)
+            wrappedFirstRowPeak = Test_MixSongChannelPeak(module, 5, module->song_patterns[1].samples_per_row);
+        CHECK(module->chip->key_on_count[5] > firstPassKeys);
+        CHECK(wrappedFirstRowPeak > 100);
+
+        xfm_song_jump_to_row(module, 8);
+        const int seekPeak = Test_MixSongChannelPeak(module, 5, module->song_patterns[1].samples_per_row);
+        CHECK(seekPeak > 100);
+
+        xfm_song_play(module, 1, true);
+        const int restartedSongFirstRowPeak = Test_MixSongChannelPeak(
+            module, 5, module->song_patterns[1].samples_per_row);
+        CHECK(restartedSongFirstRowPeak > 100);
+
+        xfm_module_destroy(module);
+    }
+    xfm_set_patched_ymfm(false);
+}
+
+TEST_CASE("Pigeon Roll green loop starts at row 08 from stopped or active playback")
+{
+    Tracker tracker {};
+    setTrackerSongState(&tracker, 6);
+    const std::string playbackPattern = Tracker_BuildFlatPatternText(&tracker);
+    GameSoundSystem sound {};
+    sound.musicModule = xfm_module_create(44100, 256, XFM_CHIP_YM3438);
+    REQUIRE(sound.musicModule != nullptr);
+    sound.audioDev = 1;
+    sound.currentSongIndex = 6;
+    soundApplySongInstrumentBankToMusicModule(
+        sound.musicModule, playbackPattern.c_str(), BUILTIN_SONG_REGISTRY[5].instruments);
+    REQUIRE(xfm_song_declare(sound.musicModule, 6, playbackPattern.c_str(), 64, 6) == 6);
+    xfm_song_play(sound.musicModule, 6, true);
+    sound.stopMusic();
+    sound.setMusicLoopRange(8, 11, true);
+    sound.startMusicAtRow(8);
+
+    CHECK(sound.musicModule->active_song.current_row == 8);
+    CHECK(sound.musicModule->active_song.loop_start_row == 8);
+    CHECK(sound.musicModule->active_song.loop_end_row == 11);
+    CHECK(sound.musicModule->active_song.loop_reset_state);
+    Test_MixSongFrames(sound.musicModule, sound.musicModule->song_patterns[6].samples_per_row);
+    CHECK(sound.musicModule->chip->key_on_count[5] >= 1);
+    const int firstPassKeys = sound.musicModule->chip->key_on_count[5];
+    Test_MixSongFrames(sound.musicModule, sound.musicModule->song_patterns[6].samples_per_row * 4);
+    CHECK(sound.musicModule->chip->key_on_count[5] > firstPassKeys);
+
+    sound.clearMusicLoopRange();
+    xfm_song_jump_to_row(sound.musicModule, 9);
+    Tracker_SetLoopRange(&tracker, 8, 11);
+    Tracker_SeekToPlaySelectionStart(&tracker);
+    REQUIRE(tracker.musicSeekRequested);
+    CHECK(tracker.musicSeekRow == 8);
+    CHECK(tracker.musicSeekTick == 0);
+    sound.setMusicLoopRange(8, 11, true);
+    CHECK(sound.musicModule->active_song.current_row == 9);
+    sound.startMusicAtRow(Tracker_PlaybackRowForSongRow(&tracker, tracker.musicSeekRow));
+    CHECK(sound.musicModule->active_song.current_row == 8);
+    const int keysBeforeSeekRow = sound.musicModule->chip->key_on_count[5];
+    Test_MixSongFrames(sound.musicModule, sound.musicModule->song_patterns[6].samples_per_row);
+    CHECK(sound.musicModule->chip->key_on_count[5] > keysBeforeSeekRow);
+
+    xfm_module_destroy(sound.musicModule);
+    sound.musicModule = nullptr;
 }
 
 TEST_CASE("Note cut effect keys off on the requested row tick")

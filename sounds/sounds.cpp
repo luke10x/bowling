@@ -1414,6 +1414,7 @@ void GameSoundSystem::playCurrentMusic(bool restart)
             musicModule->active_song.active = true;
         if (musicLoopEndRow >= 0)
             xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
+        xfm_song_set_loop_reset_state(musicModule, musicLoopResetStateOnWrap);
         SDL_UnlockAudioDevice(audioDev);
     }
 }
@@ -1429,9 +1430,10 @@ void GameSoundSystem::startMusicAtRow(int row)
     SDL_LockAudioDevice(audioDev);
     if (musicModule->active_song.song_id != currentSongIndex)
         xfm_song_play(musicModule, currentSongIndex, true);
+    musicModule->active_song.active = true;
     if (musicLoopEndRow >= 0)
         xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
-    musicModule->active_song.active = true;
+    xfm_song_set_loop_reset_state(musicModule, musicLoopResetStateOnWrap);
     xfm_song_jump_to_row(musicModule, row);
     SDL_UnlockAudioDevice(audioDev);
 }
@@ -1506,6 +1508,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
             xfm_song_play(musicModule, currentSongIndex, true);
             if (musicLoopEndRow >= 0)
                 xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
+            xfm_song_set_loop_reset_state(musicModule, musicLoopResetStateOnWrap);
             SDL_UnlockAudioDevice(audioDev);
         }
         return true;
@@ -1600,6 +1603,7 @@ bool GameSoundSystem::initSoundSystem(const char* songPattern)
     xfm_song_declare(musicModule, currentSongIndex, effectiveSongPattern, songTickRate, songTicksPerStep);
     musicLoopStartRow = 0;
     musicLoopEndRow = xfm_song_get_total_rows(musicModule, currentSongIndex) - 1;
+    musicLoopResetStateOnWrap = false;
 
     // --------------------------------------------------------------------
     // Declare SFX (patterns now use instrument 00)
@@ -1934,6 +1938,7 @@ void GameSoundSystem::nextSongForLevelTransition()
     xfm_song_play(musicModule, currentSongIndex, true);
     musicLoopStartRow = 0;
     musicLoopEndRow = xfm_song_get_total_rows(musicModule, currentSongIndex) - 1;
+    musicLoopResetStateOnWrap = false;
     if (musicLoopEndRow >= 0)
         xfm_song_set_loop_range(musicModule, musicLoopStartRow, musicLoopEndRow);
     trackerNeedsFullPatchSync = true;
@@ -1960,6 +1965,7 @@ void GameSoundSystem::setMusicLoopRange(int startRow, int endRow, bool resetStat
 {
     musicLoopStartRow = std::max(0, std::min(startRow, endRow));
     musicLoopEndRow = std::max(startRow, endRow);
+    musicLoopResetStateOnWrap = resetStateOnWrap;
     if (audioDisabled || !musicModule) return;
 
     SDL_LockAudioDevice(audioDev);
@@ -1972,6 +1978,7 @@ void GameSoundSystem::clearMusicLoopRange()
 {
     musicLoopStartRow = 0;
     musicLoopEndRow = -1;
+    musicLoopResetStateOnWrap = false;
     if (audioDisabled || !musicModule) return;
 
     int rows = xfm_song_get_total_rows(musicModule, currentSongIndex);

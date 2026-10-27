@@ -8372,6 +8372,7 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
                 setTrackerCursorState(self, cursorRow, 0, self->ticksPerRow);
         }
         self->loopSelecting = false;
+        Tracker_SeekToPlaySelectionStart(self);
         Tracker_SnapToGrid(self);
         return true;
     }
@@ -8383,6 +8384,7 @@ inline bool Tracker_HandleEvent(Tracker *self, Clayton *clayton, const SDL_Event
         int row = Tracker_RowAtViewportY(self, localY);
         Tracker_MoveLoopRangeToGrabbedRow(self, row);
         self->loopMoving = false;
+        Tracker_SeekToPlaySelectionStart(self);
         Tracker_SnapToGrid(self);
         return true;
     }

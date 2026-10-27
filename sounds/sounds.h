@@ -220,6 +220,7 @@ struct GameSoundSystem
     int userSongLfoFrequency = 0;
     int musicLoopStartRow = 0;
     int musicLoopEndRow = -1;
+    bool musicLoopResetStateOnWrap = false;
     int fadingMusicFramesRemaining = 0;
     int fadingMusicFramesTotal = 0;
 	    xfm_voice_id trackerPreviewVoice = FM_VOICE_INVALID;

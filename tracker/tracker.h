@@ -5381,6 +5381,13 @@ inline bool Tracker_HasPlaySelection(const Tracker *self)
         self->loopEnd < self->rowCount;
 }
 
+inline void Tracker_SeekToPlaySelectionStart(Tracker *self)
+{
+    if (!Tracker_HasPlaySelection(self)) return;
+    setTrackerCursorState(self, self->loopStart, 0, self->ticksPerRow);
+    Tracker_RequestMusicSeekToCursor(self);
+}
+
 inline bool Tracker_HasEditSelection(const Tracker *self)
 {
     return self && self->editSelectionEnabled && self->editSelectionValid &&

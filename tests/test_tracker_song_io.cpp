@@ -4374,6 +4374,82 @@ TEST_CASE("Part color directive round trips with part syntax and saved song file
     CHECK(reloaded.parts[1].color == 0u);
 }
 
+TEST_CASE("Part scale override survives save and load and follows song scale by default")
+{
+    const std::string pattern =
+        "2\nPART Verse\nPART_SCALE 2 6\n"
+        "C-4007F|.......|.......|.......|.......|.......\n"
+        "PART Chorus\n"
+        "D-4007F|.......|.......|.......|.......|.......\n";
+    TrackerSongLoadResult loaded = TrackerSongIO_ParseFile(
+        "PART_SCALE.h", TrackerSongIO_BuildFileText("Part Scale", pattern, ""));
+    REQUIRE(loaded.ok);
+    Tracker tracker {};
+    setTrackerPatternState(&tracker, TRACKER_USER_SONG_SLOT, loaded.pattern.c_str(), "Part Scale");
+    REQUIRE(tracker.partCount == 2);
+    CHECK(tracker.parts[0].scaleRoot == 2);
+    CHECK(tracker.parts[0].scaleMode == TRACKER_SONG_SCALE_NATURAL_MINOR);
+    CHECK(tracker.parts[1].scaleMode == -1);
+    tracker.songScaleRoot = 0;
+    tracker.songScaleMode = TRACKER_SONG_SCALE_MAJOR;
+    CHECK_FALSE(Tracker_NoteInEffectiveScaleAtRow(&tracker, 0, 11));
+    CHECK(Tracker_NoteInEffectiveScaleAtRow(&tracker, 1, 11));
+
+    CHECK_FALSE(Tracker_SongScaleIndicatorOverridden(&tracker));
+    tracker.playing = true;
+    tracker.playRow = 0;
+    CHECK(Tracker_SongScaleIndicatorOverridden(&tracker));
+    tracker.playRow = 1;
+    CHECK_FALSE(Tracker_SongScaleIndicatorOverridden(&tracker));
+    tracker.playing = false;
+    Tracker_SetLoopRange(&tracker, 0, 0);
+    CHECK(Tracker_SongScaleIndicatorOverridden(&tracker));
+    Tracker_SetLoopRange(&tracker, 1, 1);
+    CHECK_FALSE(Tracker_SongScaleIndicatorOverridden(&tracker));
+
+    tracker.editRow = 0;
+    tracker.editorOpen = true;
+    CHECK(Tracker_ScaleContextRow(&tracker) == 0);
+    CHECK_FALSE(Tracker_NoteInScaleContext(&tracker, 11));
+    tracker.editRow = 1;
+    CHECK(Tracker_ScaleContextRow(&tracker) == 1);
+    CHECK(Tracker_NoteInScaleContext(&tracker, 11));
+    tracker.playing = true;
+    tracker.playRow = 0;
+    CHECK(Tracker_ScaleContextRow(&tracker) == 1); // The selected cell wins while its editor is open.
+    tracker.playing = false;
+    tracker.editorOpen = false;
+
+    const std::string saved = Tracker_BuildPartPatternText(&tracker);
+    CHECK(saved.find("PART Verse\nPART_SCALE 2 6\n") != std::string::npos);
+    CHECK(Tracker_BuildFlatPatternText(&tracker).find("PART_SCALE") == std::string::npos);
+    const std::string savedFile = TrackerSongIO_BuildFileText(
+        "Part Scale", saved, "", tracker.songTickRate, tracker.songSpeed,
+        tracker.songRowsPerBeat, tracker.songScaleRoot, tracker.songScaleMode);
+    TrackerSongLoadResult savedLoaded = TrackerSongIO_ParseFile("PART_SCALE.h", savedFile);
+    REQUIRE(savedLoaded.ok);
+    CHECK(savedLoaded.pattern == saved);
+    Tracker reloaded {};
+    setTrackerPatternState(&reloaded, TRACKER_USER_SONG_SLOT, savedLoaded.pattern.c_str(), "Part Scale");
+    Tracker_SetSongMetadata(&reloaded, savedLoaded);
+    REQUIRE(reloaded.partCount == 2);
+    CHECK(reloaded.parts[0].scaleMode == TRACKER_SONG_SCALE_NATURAL_MINOR);
+    CHECK(reloaded.parts[0].scaleRoot == 2);
+    CHECK(reloaded.parts[1].scaleMode == -1);
+    CHECK(reloaded.songScaleMode == TRACKER_SONG_SCALE_MAJOR);
+    CHECK(Tracker_NextPartScaleMode(-1, 1) == TRACKER_SONG_SCALE_CHROMATIC);
+    CHECK(Tracker_NextPartScaleMode(TRACKER_SONG_SCALE_CHROMATIC, -1) == -1);
+
+    CHECK(Tracker_ClonePartAfter(&reloaded, 0));
+    REQUIRE(reloaded.partCount == 3);
+    CHECK(reloaded.parts[1].scaleRoot == 2);
+    CHECK(reloaded.parts[1].scaleMode == TRACKER_SONG_SCALE_NATURAL_MINOR);
+
+    Tracker_SetPartScale(&reloaded, 0, 0, -1);
+    CHECK(reloaded.parts[0].scaleMode == -1);
+    CHECK(Tracker_NoteInEffectiveScaleAtRow(&reloaded, 0, 11));
+}
+
 TEST_CASE("Collapsed part directive is accepted in saved song files")
 {
     const std::string pattern =

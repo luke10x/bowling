@@ -1192,6 +1192,33 @@ inline bool TrackerSongIO_ParsePartColorDirectiveLine(const char *begin, const c
     return true;
 }
 
+inline bool TrackerSongIO_ParsePartScaleDirectiveLine(const char *begin, const char *end, int *outRoot = nullptr, int *outMode = nullptr)
+{
+    static constexpr const char *directive = "PART_SCALE ";
+    static constexpr int directiveLen = 11;
+    if (end - begin < directiveLen + 3 || std::strncmp(begin, directive, directiveLen) != 0)
+        return false;
+    const char *p = begin + directiveLen;
+    if (p >= end || *p < '0' || *p > '9') return false;
+    int root = 0;
+    while (p < end && *p >= '0' && *p <= '9')
+    {
+        root = root * 10 + (*p++ - '0');
+        if (root > 11) return false;
+    }
+    if (p >= end || *p++ != ' ' || p >= end || *p < '0' || *p > '9') return false;
+    int mode = 0;
+    while (p < end && *p >= '0' && *p <= '9')
+    {
+        mode = mode * 10 + (*p++ - '0');
+        if (mode > 15) return false;
+    }
+    if (p != end || root > 11 || mode > 15) return false;
+    if (outRoot) *outRoot = root;
+    if (outMode) *outMode = mode;
+    return true;
+}
+
 inline int TrackerSongIO_CountChannels(const char *begin, const char *end)
 {
     if (begin >= end) return 0;
@@ -1262,6 +1289,16 @@ inline std::vector<std::string> TrackerSongIO_ValidatePattern(const std::string 
         else if (TrackerSongIO_ParsePartColorDirectiveLine(lineStart, lineEnd))
         {
             // UI-only part color; this does not consume a tracker row.
+        }
+        else if (TrackerSongIO_ParsePartScaleDirectiveLine(lineStart, lineEnd))
+        {
+            // UI-only part scale; this does not consume a tracker row.
+        }
+        else if (lineEnd - lineStart >= 11 && std::strncmp(lineStart, "PART_SCALE ", 11) == 0)
+        {
+            char buf[112];
+            std::snprintf(buf, sizeof(buf), "line %d: invalid PART_SCALE root or mode", lineNumber);
+            messages.emplace_back(buf);
         }
         else
         {

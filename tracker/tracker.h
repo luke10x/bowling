@@ -196,6 +196,14 @@ inline const char *Tracker_SongScaleModeName(int mode)
     return TRACKER_SONG_SCALE_DEFS[Tracker_ClampSongScaleMode(mode)].name;
 }
 
+inline int Tracker_NextPartScaleMode(int mode, int direction)
+{
+    const int count = TRACKER_SONG_SCALE_MODE_COUNT + 1;
+    int value = mode < 0 ? 0 : Tracker_ClampSongScaleMode(mode) + 1;
+    value = (value + direction + count) % count;
+    return value - 1;
+}
+
 inline int Tracker_ClampSongScaleRoot(int root)
 {
     return ((root % 12) + 12) % 12;
@@ -268,6 +276,8 @@ struct TrackerPart
     bool enabled = true;
     bool repeat = false;
     uint32_t color = 0; // 0 means use the default part-header background.
+    int scaleMode = -1; // -1 follows the song scale.
+    int scaleRoot = 0;
     char name[TRACKER_PART_NAME_CAPACITY] = "PART 1";
     int32_t nameLen = 6;
 };
@@ -869,6 +879,10 @@ struct Tracker
     Clayton_Click partEditorRowsMinusButton;
     Clayton_Click partEditorRowsPlusButton;
     Clayton_Click partEditorRowsValueButton;
+    Clayton_Click partEditorScaleRootPrevButton;
+    Clayton_Click partEditorScaleRootNextButton;
+    Clayton_Click partEditorScalePrevButton;
+    Clayton_Click partEditorScaleNextButton;
     Clayton_Click partEditorCloneButton;
     Clayton_Click partEditorDeleteButton;
     Clayton_Click songNameButton;
@@ -3526,6 +3540,17 @@ inline void Tracker_SetPartColor(Tracker *self, int partIndex, uint32_t rgb)
     Tracker_FlashPart(self, partIndex, TRACKER_CHANGE_FLASH_EDIT);
 }
 
+inline void Tracker_SetPartScale(Tracker *self, int partIndex, int root, int mode)
+{
+    if (!self || partIndex < 0 || partIndex >= self->partCount) return;
+    TrackerPart &part = self->parts[partIndex];
+    part.scaleMode = mode < 0 ? -1 : Tracker_ClampSongScaleMode(mode);
+    part.scaleRoot = Tracker_ClampSongScaleRoot(root);
+    self->patternDirty = true;
+    self->copyOnWriteRequested = true;
+    Tracker_FlashPart(self, partIndex, TRACKER_CHANGE_FLASH_EDIT);
+}
+
 inline void Tracker_ResetSinglePart(Tracker *self, const char *name = "PART 1")
 {
     if (!self) return;
@@ -3535,6 +3560,8 @@ inline void Tracker_ResetSinglePart(Tracker *self, const char *name = "PART 1")
     self->parts[0].collapsed = false;
     self->parts[0].enabled = true;
     self->parts[0].repeat = false;
+    self->parts[0].scaleMode = -1;
+    self->parts[0].scaleRoot = 0;
     Tracker_SetPartName(&self->parts[0], name);
     for (int i = 1; i < TRACKER_MAX_PARTS; i++)
         self->parts[i] = {};
@@ -3585,6 +3612,57 @@ inline int Tracker_PartIndexForRow(const Tracker *self, int row)
             return i;
     }
     return self->partCount - 1;
+}
+
+inline bool Tracker_PartHasScaleOverride(const Tracker *self, int partIndex)
+{
+    return self && partIndex >= 0 && partIndex < self->partCount && self->parts[partIndex].scaleMode >= 0;
+}
+
+inline void Tracker_EffectiveScaleAtRow(const Tracker *self, int row, int *root, int *mode)
+{
+    if (!self) return;
+    const int partIndex = Tracker_PartIndexForRow(self, row);
+    const bool overridden = Tracker_PartHasScaleOverride(self, partIndex);
+    if (root) *root = overridden ? Tracker_ClampSongScaleRoot(self->parts[partIndex].scaleRoot) : self->songScaleRoot;
+    if (mode) *mode = overridden ? Tracker_ClampSongScaleMode(self->parts[partIndex].scaleMode) : self->songScaleMode;
+}
+
+inline bool Tracker_NoteInEffectiveScaleAtRow(const Tracker *self, int row, int note)
+{
+    int root = 0;
+    int mode = TRACKER_SONG_SCALE_CHROMATIC;
+    Tracker_EffectiveScaleAtRow(self, row, &root, &mode);
+    return Tracker_SongScaleIncludesNote(mode, root, note);
+}
+
+inline int Tracker_ScaleContextRow(const Tracker *self)
+{
+    if (!self) return 0;
+    if (self->editorOpen) return self->editRow;
+    if (self->playing) return self->playRow;
+    if (self->loopEnabled && self->loopStart >= 0 && self->loopEnd >= self->loopStart)
+        return self->loopStart;
+    return self->editRow;
+}
+
+inline bool Tracker_NoteInScaleContext(const Tracker *self, int note)
+{
+    return Tracker_NoteInEffectiveScaleAtRow(self, Tracker_ScaleContextRow(self), note);
+}
+
+inline bool Tracker_SongScaleIndicatorOverridden(const Tracker *self)
+{
+    if (!self) return false;
+    if (self->playing && Tracker_PartHasScaleOverride(self, Tracker_PartIndexForRow(self, self->playRow)))
+        return true;
+    if (self->loopEnabled && self->loopStart >= 0 && self->loopEnd >= self->loopStart && self->loopEnd < self->rowCount)
+        for (int i = 0; i < self->partCount; ++i)
+            if (Tracker_PartHasScaleOverride(self, i) && self->parts[i].rowCount > 0 &&
+                self->parts[i].startRow <= self->loopEnd &&
+                self->parts[i].startRow + self->parts[i].rowCount - 1 >= self->loopStart)
+                return true;
+    return false;
 }
 
 inline int Tracker_PartEndRow(const Tracker *self, int partIndex)
@@ -4345,6 +4423,8 @@ inline bool Tracker_ClonePartAfter(Tracker *self, int partIndex)
     }
 
     self->parts[clonePart].enabled = source.enabled;
+    self->parts[clonePart].scaleMode = source.scaleMode;
+    self->parts[clonePart].scaleRoot = source.scaleRoot;
     self->parts[clonePart].collapsed = false;
     char name[TRACKER_PART_NAME_CAPACITY];
     std::snprintf(name, sizeof(name), "%s COPY", source.name[0] ? source.name : "PART");
@@ -4691,6 +4771,12 @@ inline std::string Tracker_BuildPartPatternText(const Tracker *tracker)
             std::snprintf(colorLine, sizeof(colorLine), "PART_COLOR %06X\n", (unsigned int)part.color);
             out += colorLine;
         }
+        if (part.scaleMode >= 0)
+        {
+            std::snprintf(line, sizeof(line), "PART_SCALE %d %d\n",
+                Tracker_ClampSongScaleRoot(part.scaleRoot), Tracker_ClampSongScaleMode(part.scaleMode));
+            out += line;
+        }
         if (Tracker_PartCollapseIconShowsCollapsed(tracker, partIndex))
             out += "COLLAPSED\n";
         for (int local = 0; local < part.rowCount; local++)
@@ -4822,6 +4908,20 @@ inline void setTrackerPatternState(Tracker *self, int songIndex, const char *pat
         {
             if (currentPart >= 0 && currentPart < self->partCount)
                 self->parts[currentPart].color = partColor;
+            p = lineEnd;
+            while (*p == '\r') p++;
+            if (*p == '\n') p++;
+            continue;
+        }
+        int partScaleRoot = 0;
+        int partScaleMode = 0;
+        if (TrackerSongIO_ParsePartScaleDirectiveLine(lineStart, lineEnd, &partScaleRoot, &partScaleMode))
+        {
+            if (currentPart >= 0 && currentPart < self->partCount)
+            {
+                self->parts[currentPart].scaleRoot = partScaleRoot;
+                self->parts[currentPart].scaleMode = partScaleMode;
+            }
             p = lineEnd;
             while (*p == '\r') p++;
             if (*p == '\n') p++;
@@ -5102,6 +5202,10 @@ inline void Tracker_Init(Tracker *self)
     initClaytonClick(&self->partEditorRowsMinusButton, "TrackerPartEditorRowsMinus");
     initClaytonClick(&self->partEditorRowsPlusButton, "TrackerPartEditorRowsPlus");
     initClaytonClick(&self->partEditorRowsValueButton, "TrackerPartEditorRowsValueButton");
+    initClaytonClick(&self->partEditorScaleRootPrevButton, "TrackerPartEditorScaleRootPrev");
+    initClaytonClick(&self->partEditorScaleRootNextButton, "TrackerPartEditorScaleRootNext");
+    initClaytonClick(&self->partEditorScalePrevButton, "TrackerPartEditorScalePrev");
+    initClaytonClick(&self->partEditorScaleNextButton, "TrackerPartEditorScaleNext");
     initClaytonClick(&self->partEditorCloneButton, "TrackerPartEditorClone");
     initClaytonClick(&self->partEditorDeleteButton, "TrackerPartEditorDelete");
     initClaytonClick(&self->songNameButton, "TrackerSongNameButton");

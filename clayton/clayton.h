@@ -71,6 +71,12 @@ struct Clayton
     Gles3_ImageConfig hudCoinImage;
     Gles3_ImageConfig hudDiamondImage;
     Gles3_ImageConfig languageFlagImages[TXL_LANG_COUNT];
+    Gles3_ImageConfig menuCampaignImage;
+    Gles3_ImageConfig menuSchoolImage;
+    Gles3_ImageConfig menuCheatsImage;
+    Gles3_ImageConfig menuSettingsImage;
+    Gles3_ImageConfig menuCreditsImage;
+    Gles3_ImageConfig menuTrackerImage;
     Gles3_ImageConfig schoolSpinFingerImage;
     Gles3_ImageConfig hudRuneBoomImage;
     Gles3_ImageConfig hudRuneBoltImage;
@@ -404,6 +410,41 @@ struct Clayton
         languageFlagImages[TXL_LANG_ZH_CN] = flagRegion(1664.0f); // cn-flag
         languageFlagImages[TXL_LANG_LT_LT] = flagRegion(1536.0f); // lt-flag
         languageFlagImages[TXL_LANG_JP_JP] = flagRegion(1920.0f); // jp-flag
+        // Menu icons occupy the next 128x128 atlas strip below the flags.
+        auto menuIconRegion = [](float x) {
+            return Gles3_ImageConfig{
+                .textureToUse = 0,
+                .u0 = (x + 0.5f) / atlasSize,
+                .v0 = (1408.0f + 0.5f) / atlasSize,
+                .u1 = (x + 127.5f) / atlasSize,
+                .v1 = (1536.0f - 0.5f) / atlasSize,
+            };
+        };
+        // campaign-icon is the star orb above the lower icon strip.
+        menuCampaignImage = Gles3_ImageConfig{
+            .textureToUse = 0,
+            .u0 = (1536.0f + 0.5f) / atlasSize,
+            .v0 = (1152.0f + 0.5f) / atlasSize,
+            .u1 = (1664.0f - 0.5f) / atlasSize,
+            .v1 = (1280.0f - 0.5f) / atlasSize,
+        };
+        menuSchoolImage = menuIconRegion(1664.0f);
+        menuSettingsImage = menuIconRegion(1792.0f); // SVG label: setting-icon
+        menuCheatsImage = menuIconRegion(1920.0f);
+        menuCreditsImage = Gles3_ImageConfig{
+            .textureToUse = 0,
+            .u0 = (1536.0f + 0.5f) / atlasSize,
+            .v0 = (1024.0f + 0.5f) / atlasSize,
+            .u1 = (1664.0f - 0.5f) / atlasSize,
+            .v1 = (1152.0f - 0.5f) / atlasSize,
+        };
+        menuTrackerImage = Gles3_ImageConfig{ // tracker-icon
+            .textureToUse = 0,
+            .u0 = (1664.0f + 0.5f) / atlasSize,
+            .v0 = (1024.0f + 0.5f) / atlasSize,
+            .u1 = (1792.0f - 0.5f) / atlasSize,
+            .v1 = (1152.0f - 0.5f) / atlasSize,
+        };
         // Existing SVG finger shape in exportroot (Clay uses top-left UVs).
         this->schoolSpinFingerImage = Gles3_ImageConfig{
             .textureToUse = 0,

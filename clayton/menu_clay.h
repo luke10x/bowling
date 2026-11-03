@@ -4,6 +4,32 @@
 #include "claytheme.h"
 #include "language_flag_clay.h"
 
+inline void MenuIconButtonContents(Clayton *clayton, int slot, Gles3_ImageConfig *icon,
+                                   TxlKey label, Clay_TextElementConfig textConfig)
+{
+    // Match the flag button: equal side cells keep every translated label centered.
+    constexpr float kSideCellWidth = 46.0f;
+    constexpr float kIconSize = 34.0f;
+    CLAY(CLAY_IDI("MenuIconLeft", slot),
+         {.layout = {.sizing = {CLAY_SIZING_FIXED(kSideCellWidth), CLAY_SIZING_GROW()},
+                     .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER}}})
+    {
+        CLAY(CLAY_IDI("MenuIconImage", slot),
+             {.layout = {.sizing = {CLAY_SIZING_FIXED(kIconSize), CLAY_SIZING_FIXED(kIconSize)}},
+              .image = {.imageData = icon},
+              .cornerRadius = {CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM},
+              .border = {.color = {160, 170, 200, 160}, .width = CLAY_BORDER_ALL(1)}}) {}
+    }
+    CLAY(CLAY_IDI("MenuIconLabel", slot),
+         {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW()},
+                     .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}}})
+    {
+        CLAY_TEXT(clayton->txl(label), CLAY_TEXT_CONFIG(textConfig));
+    }
+    CLAY(CLAY_IDI("MenuIconRight", slot),
+         {.layout = {.sizing = {CLAY_SIZING_FIXED(kSideCellWidth), CLAY_SIZING_GROW()}}}) {}
+}
+
 inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool, bool showTracker)
 {
     if (!clayton)
@@ -65,16 +91,17 @@ inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool, bool show
                 }
             )
             {
-                CLAY(clayton->menuCampaignClick.clayId, CLAY_THEME_BTN_HUD)
+                Clay_ElementDeclaration iconButton = LanguageFlagButtonStyle();
+                CLAY(clayton->menuCampaignClick.clayId, iconButton)
                 {
-                    CLAY_TEXT(clayton->txl(TXL_CAMPAIGN), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    MenuIconButtonContents(clayton, 0, &clayton->menuCampaignImage, TXL_CAMPAIGN, buttonFontCfg);
                 }
 
                 if (showGoToSchool)
                 {
-                    CLAY(clayton->menuSchoolClick.clayId, CLAY_THEME_BTN_HUD)
+                    CLAY(clayton->menuSchoolClick.clayId, iconButton)
                     {
-                        CLAY_TEXT(clayton->txl(TXL_GO_TO_SCHOOL), CLAY_TEXT_CONFIG(buttonFontCfg));
+                        MenuIconButtonContents(clayton, 1, &clayton->menuSchoolImage, TXL_GO_TO_SCHOOL, buttonFontCfg);
                     }
                 }
 
@@ -102,22 +129,22 @@ inline void buildMenuWindowClay(Clayton *clayton, bool showGoToSchool, bool show
                 //     CLAY_TEXT(clayton->txl(TXL_DEVICE_SHARE), CLAY_TEXT_CONFIG(buttonFontCfg));
                 // }
 
-                CLAY(clayton->menuSettingsClick.clayId, CLAY_THEME_BTN_HUD)
+                CLAY(clayton->menuSettingsClick.clayId, iconButton)
                 {
-                    CLAY_TEXT(clayton->txl(TXL_GAME_SETTINGS), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    MenuIconButtonContents(clayton, 2, &clayton->menuSettingsImage, TXL_GAME_SETTINGS, buttonFontCfg);
                 }
 
                 if (showTracker)
                 {
-                    CLAY(clayton->menuTrackerClick.clayId, CLAY_THEME_BTN_HUD)
+                    CLAY(clayton->menuTrackerClick.clayId, iconButton)
                     {
-                        CLAY_TEXT(clayton->txl(TXL_TRACKER), CLAY_TEXT_CONFIG(buttonFontCfg));
+                        MenuIconButtonContents(clayton, 4, &clayton->menuTrackerImage, TXL_TRACKER, buttonFontCfg);
                     }
                 }
 
-                CLAY(clayton->menuCreditsClick.clayId, CLAY_THEME_BTN_HUD)
+                CLAY(clayton->menuCreditsClick.clayId, iconButton)
                 {
-                    CLAY_TEXT(clayton->txl(TXL_CREDITS), CLAY_TEXT_CONFIG(buttonFontCfg));
+                    MenuIconButtonContents(clayton, 3, &clayton->menuCreditsImage, TXL_CREDITS, buttonFontCfg);
                 }
 
                 if (clayton->secretMenuUnlock.unlocked)

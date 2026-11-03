@@ -29,7 +29,8 @@ inline void LanguageFlagButtonContents(
         CLAY(CLAY_IDI("LanguageFlagImage", slot),
              {.layout = {.sizing = {CLAY_SIZING_FIXED(kFlagSize), CLAY_SIZING_FIXED(kFlagSize)}},
               .image = {.imageData = &clayton->languageFlagImages[language]},
-              .cornerRadius = {CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM}}) {}
+              .cornerRadius = {CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM, CLAY_RADIUS_SM},
+              .border = {.color = {160, 170, 200, 160}, .width = CLAY_BORDER_ALL(1)}}) {}
     }
     CLAY(CLAY_IDI("LanguageFlagLabel", slot),
          {.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW()},

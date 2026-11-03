@@ -4395,17 +4395,40 @@ TEST_CASE("Part scale override survives save and load and follows song scale by 
     CHECK_FALSE(Tracker_NoteInEffectiveScaleAtRow(&tracker, 0, 11));
     CHECK(Tracker_NoteInEffectiveScaleAtRow(&tracker, 1, 11));
 
+    int indicatorRoot = -1;
+    int indicatorMode = -1;
+    tracker.editRow = 0;
+    Tracker_IndicatorScale(&tracker, &indicatorRoot, &indicatorMode);
+    CHECK(indicatorRoot == 2);
+    CHECK(indicatorMode == TRACKER_SONG_SCALE_NATURAL_MINOR);
+    tracker.editRow = 1;
+    Tracker_IndicatorScale(&tracker, &indicatorRoot, &indicatorMode);
+    CHECK(indicatorRoot == 0);
+    CHECK(indicatorMode == TRACKER_SONG_SCALE_MAJOR);
+
     CHECK_FALSE(Tracker_SongScaleIndicatorOverridden(&tracker));
     tracker.playing = true;
     tracker.playRow = 0;
     CHECK(Tracker_SongScaleIndicatorOverridden(&tracker));
+    Tracker_IndicatorScale(&tracker, &indicatorRoot, &indicatorMode);
+    CHECK(indicatorRoot == 2);
+    CHECK(indicatorMode == TRACKER_SONG_SCALE_NATURAL_MINOR);
     tracker.playRow = 1;
     CHECK_FALSE(Tracker_SongScaleIndicatorOverridden(&tracker));
+    Tracker_IndicatorScale(&tracker, &indicatorRoot, &indicatorMode);
+    CHECK(indicatorRoot == 0);
+    CHECK(indicatorMode == TRACKER_SONG_SCALE_MAJOR);
     tracker.playing = false;
     Tracker_SetLoopRange(&tracker, 0, 0);
     CHECK(Tracker_SongScaleIndicatorOverridden(&tracker));
+    Tracker_IndicatorScale(&tracker, &indicatorRoot, &indicatorMode);
+    CHECK(indicatorRoot == 2);
+    CHECK(indicatorMode == TRACKER_SONG_SCALE_NATURAL_MINOR);
     Tracker_SetLoopRange(&tracker, 1, 1);
     CHECK_FALSE(Tracker_SongScaleIndicatorOverridden(&tracker));
+    Tracker_IndicatorScale(&tracker, &indicatorRoot, &indicatorMode);
+    CHECK(indicatorRoot == 0);
+    CHECK(indicatorMode == TRACKER_SONG_SCALE_MAJOR);
 
     tracker.editRow = 0;
     tracker.editorOpen = true;

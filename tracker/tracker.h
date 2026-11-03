@@ -3651,6 +3651,11 @@ inline bool Tracker_NoteInScaleContext(const Tracker *self, int note)
     return Tracker_NoteInEffectiveScaleAtRow(self, Tracker_ScaleContextRow(self), note);
 }
 
+inline void Tracker_IndicatorScale(const Tracker *self, int *root, int *mode)
+{
+    Tracker_EffectiveScaleAtRow(self, Tracker_ScaleContextRow(self), root, mode);
+}
+
 inline bool Tracker_SongScaleIndicatorOverridden(const Tracker *self)
 {
     if (!self) return false;

@@ -17,10 +17,11 @@ file('../../ads_config.h').eachLine { line ->
 }
 
 android {
-    namespace "org.libsdl.app"
-    compileSdkVersion 34
+    namespace "dev.luke10x.angelballs"
+    ndkVersion "27.0.12077973"
+    compileSdkVersion 36
     defaultConfig {
-        applicationId "com.bigjump"
+        applicationId "dev.luke10x.angelballs"
 
         // Local builds use Google's sample ads; release overrides these below.
         resValue 'string', 'admob_app_id', adsConfig.ADS_TEST_ANDROID_APP_ID
@@ -28,7 +29,7 @@ android {
         resValue 'string', 'admob_rewarded_unit', adsConfig.ADS_TEST_ANDROID_REWARDED_ID
 
         minSdkVersion 21
-        targetSdkVersion 34
+        targetSdkVersion 36
         versionCode 1
         versionName "1.0"
         // 👇 This makes sure libc++_shared.so is packaged into the APK

@@ -8,7 +8,7 @@ ADB_CMD = "$(ADB)" $(if $(SERIAL),-s "$(SERIAL)")
 # Use Gradle's local dependency cache by default, including on flights.
 # Override with GRADLE_ARGS= when intentionally allowing network access.
 GRADLE_ARGS ?= --offline
-PACKAGE := com.bigjump
+PACKAGE := dev.luke10x.angelballs
 ACTIVITY := org.libsdl.app.TrackerActivity
 DEBUG_APK := $(ANDROID_PROJECT)/app/build/outputs/apk/debug/app-debug.apk
 BENCHMARK_APK := $(ANDROID_PROJECT)/app/build/outputs/apk/benchmark/app-benchmark.apk

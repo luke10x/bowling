@@ -1,5 +1,7 @@
 package org.libsdl.app;
 
+import dev.luke10x.angelballs.R;
+
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;

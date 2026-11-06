@@ -74,6 +74,13 @@ target_include_directories(main PRIVATE
 add_subdirectory(${THIRDPARTY}/SDL SDL_build)
 add_subdirectory(${jolt_SOURCE_DIR}/Build jolt_build)
 
+# NDK r27 needs explicit 16 KB ELF LOAD alignment for each shared library.
+foreach(native_target main SDL2)
+    target_link_options(${native_target} PRIVATE
+        "-Wl,-z,max-page-size=16384"
+        "-Wl,-z,common-page-size=16384")
+endforeach()
+
 # Link libraries
 target_link_libraries(main
     Jolt

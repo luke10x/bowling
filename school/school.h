@@ -40,6 +40,8 @@ struct SchoolMassTuning
 struct SchoolSpinTuning
 {
     static constexpr float BITE_BONUS = 0.05f;
+    static constexpr float PRESET_SPIN = 0.72f;
+    static constexpr float PRESET_FRICTION = 0.59f;
     static constexpr int LEVELS = 2;
     static constexpr int COINS_PER_LEVEL = 3;
     static constexpr int TOTAL_REQUIRED = LEVELS * COINS_PER_LEVEL; // 9
@@ -340,13 +342,13 @@ inline void School_ApplyLesson3SpinPreset(
     );
 
     // Stronger spin.
-    *rt.angularFactor = 0.72f;
+    *rt.angularFactor = SchoolSpinTuning::PRESET_SPIN;
 
     // Low skid, higher bite-derived friction feel.
     *rt.ballSkid = 0.0f;
     *rt.ballSkidStartScale = 0.55f;
     // Almost max "bite" for this lesson so the ball reacts strongly when you reverse spin.
-    *rt.ballBaseFriction = 0.59f;
+    *rt.ballBaseFriction = SchoolSpinTuning::PRESET_FRICTION;
     *rt.laneOilThickness = 0.25f;
 
     // Restitution mass scaling.

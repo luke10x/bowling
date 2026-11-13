@@ -243,6 +243,7 @@ static inline void Game_ShowMoneyReward(SDL_AudioDeviceID audioDevice)
 #include "campaign_enemy_ai.h"
 #include "campaign_enemy_mana_capacity.h"
 #include "campaign_endgame_buf.h"
+#include "loser_buf.h"
 #include "campaign_enemy_block_timing.h"
 #include "bolt_logic.h"
 #include "decal.h"
@@ -911,6 +912,7 @@ static inline void PhysicsResetForMode(UserContext *usr, bool reviveAll);
 static inline void RuneGuardPins_Clear(UserContext *usr);
 static inline void RuneGuardPins_Tick(UserContext *usr, float dt);
 void BallStats_OnBallChange(const CatalogItem *ball, UserContext *usr);
+static inline void BallStats_RefreshBuffedPower(UserContext *usr, const CatalogItem &ball);
 static inline const CatalogItem *Ball_FindById(int id);
 static inline void Campaign_StartPostgameFreeplayRun(UserContext *usr, bool advanceMusic = true);
 static inline void BallRollingSfx_Stop(UserContext *usr);
@@ -1104,6 +1106,9 @@ struct UserContext
     uint32_t campaignEndgameConfettiSeed = 0x9e3779b9u;
     int campaignLevelAttempts[kCampaignLevelCount] = {};
     int campaignLevelLosses[kCampaignLevelCount] = {};
+    int playerThrowsWithoutMark = 0;
+    float loserBuf = 0.0f;
+    float spinLoserBuf = 0.0f;
     int campaignLevelWins[kCampaignLevelCount] = {};
     float campaignLevelFirstWinTimes[kCampaignLevelCount] = {};
     bool campaignLevelUnlocked[kCampaignLevelCount] = {true};
@@ -16011,6 +16016,10 @@ static void School_Exit(UserContext *usr)
         }
     }
 
+    // Strike-lesson throws form their own assistance streak.
+    usr->playerThrowsWithoutMark = 0;
+    usr->loserBuf = 0.0f;
+    usr->spinLoserBuf = 0.0f;
     // Restore the ball selection and its catalog-driven mass/stats after leaving school.
     if (usr->school.ballIdBeforeSchool >= 0)
         BallStats_OnBallChange(&g_ballCatalog[usr->school.ballIdBeforeSchool], usr);
@@ -16092,6 +16101,13 @@ static void School_ConfirmedSwitchLesson(UserContext *usr, int desiredLesson, fl
     rt.ballRestitution = &usr->ballRestitution;
 
     School_SelectLesson(&usr->school, svc, rt, desiredLesson, /*playStory=*/true);
+    usr->spinLoserBuf = 0.0f;
+    if (desiredLesson == 5 || prevLesson == 5)
+    {
+        usr->playerThrowsWithoutMark = 0;
+        usr->loserBuf = 0.0f;
+        BallStats_RefreshBuffedPower(usr, usr->myBall);
+    }
     usr->sound.nextSongForLevelTransition();
     ResetAllElectroBalls(usr);
     School_ApplyPinModeForSelectedLesson(usr);
@@ -19465,6 +19481,37 @@ static inline void Sound_HandleBrowserLifecycle(UserContext *usr)
 #endif
 }
 
+static inline void BallStats_RefreshBuffedPower(UserContext *usr, const CatalogItem &ball)
+{
+    const float launch = ball.launchBuff * LoserBuf_LaunchMultiplier(usr->loserBuf);
+    const float hit = ball.hitBuff * LoserBuf_HitMultiplier(usr->loserBuf);
+    usr->launchBuffEffective = glm::clamp(launch * usr->lightnessBuff, 0.0f, 1.0f);
+    usr->smashingPower = remapClamped(
+        (launch + hit) * 0.5f,
+        BallPhysicsMapping::CATALOG_BUFF_MIN,
+        BallPhysicsMapping::CATALOG_BUFF_MAX,
+        BallPhysicsMapping::PHYSICS_SMASH_MIN,
+        BallPhysicsMapping::PHYSICS_SMASH_MAX
+    );
+    usr->armImpulseAtThrow = remapClamped(
+        usr->launchBuffEffective,
+        BallPhysicsMapping::CATALOG_BUFF_MIN,
+        BallPhysicsMapping::CATALOG_BUFF_MAX,
+        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
+        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
+    );
+}
+
+static inline void LoserBuf_RecordPlayerThrow(UserContext *usr, bool earnedMark, bool strikeLesson)
+{
+    if (earnedMark)
+        usr->playerThrowsWithoutMark = 0;
+    else if (usr->playerThrowsWithoutMark < 1000)
+        ++usr->playerThrowsWithoutMark;
+    usr->loserBuf = LoserBuf_ValueForMisses(usr->playerThrowsWithoutMark, strikeLesson);
+    BallStats_RefreshBuffedPower(usr, usr->myBall);
+}
+
 void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
 {
     // Mass: linear remap
@@ -19479,7 +19526,7 @@ void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
 
     // Mass-derived launch modifier (lighter balls get more buff, heavier balls less).
     usr->lightnessBuff = BallStats_LightnessBuff(usr->desiredMass);
-    usr->launchBuffEffective = glm::clamp(ball.launchBuff * usr->lightnessBuff, 0.0f, 1.0f);
+    BallStats_RefreshBuffedPower(usr, ball);
 
     // Spin factor: logarithmic for strong low-end effect and a smooth cap near the ceiling.
     usr->angularFactor = remapLogarithmic(
@@ -19493,26 +19540,7 @@ void BallStats_ApplyCatalog(UserContext *usr, const CatalogItem &ball)
         BallStats_SpinResponsivenessMultiplier(ball.spin) *
         BallPhysicsMapping::SPIN_MULTIPLIER;
 
-    // Smashing power: map from hitBuff/launchBuff average
-    float buffAvg = (ball.launchBuff + ball.hitBuff) * 0.5f;
-    usr->smashingPower = remapClamped(
-        buffAvg,
-        BallPhysicsMapping::CATALOG_BUFF_MIN,
-        BallPhysicsMapping::CATALOG_BUFF_MAX,
-        BallPhysicsMapping::PHYSICS_SMASH_MIN,
-        BallPhysicsMapping::PHYSICS_SMASH_MAX
-    );
-
-    // Arm impulse at throw: map from launchBuff
-    usr->armImpulseAtThrow = remapClamped(
-        usr->launchBuffEffective,
-        BallPhysicsMapping::CATALOG_BUFF_MIN,
-        BallPhysicsMapping::CATALOG_BUFF_MAX,
-        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
-        BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
-    );
-
-    // Release timing is derived at runtime from rope length + launchBuff.
+    // Release timing is derived at runtime from rope length + launchBuffEffective.
 
     // Precompute friction curve params from 'bite' and 'skid'
     usr->ballSkid = glm::clamp(ball.skid, 0.0f, 1.0f);
@@ -19732,16 +19760,22 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 
 			            // Base spin from input (yaw angular velocity).
 			            // Positive angVel (CCW input) => positive spin => hooks toward +X (lane-left in our view).
-			            float sideDrive = angVel * (usr->myBall.spin * usr->myBall.spin) * 0.125f;
+			            const bool spinLesson = usr->gameMode == UserContext::GameMode::SCHOOL &&
+			                usr->school.selectedLesson == 3;
+			            const float effectiveSpin = spinLesson
+			                ? SpinLoserBuf_EffectiveStat(usr->myBall.spin, usr->spinLoserBuf)
+			                : usr->myBall.spin;
+			            const float effectiveBite = spinLesson
+			                ? SpinLoserBuf_EffectiveStat(usr->myBall.bite, usr->spinLoserBuf)
+			                : usr->myBall.bite;
+			            float sideDrive = angVel * (effectiveSpin * effectiveSpin) * 0.125f;
 
 		            // Bite controls how readily counter-spin reverses existing lateral drift.
 		            glm::vec3 v = usr->phy.get_ball_swing_movement();
 		            float vx = std::isfinite(v.x) ? v.x : 0.0f;
-		            const float lessonBite =
-		                usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3
-		                    ? SchoolSpinTuning::BITE_BONUS : 0.0f;
+		            const float lessonBite = spinLesson ? SchoolSpinTuning::BITE_BONUS : 0.0f;
 		            sideDrive = BiteReversal::SideDrive(
-		                sideDrive, vx, glm::clamp(usr->myBall.bite + lessonBite, 0.0f, 1.0f));
+		                sideDrive, vx, glm::clamp(effectiveBite + lessonBite, 0.0f, 1.0f));
 
 		            if (!std::isfinite(sideDrive))
 		            {
@@ -22925,6 +22959,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
 	                    usr->school.lessonDone[1] = true;
 	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 3, /*playStory=*/true);
+                        usr->spinLoserBuf = 0.0f;
                         usr->sound.nextSongForLevelTransition();
 	                    ResetAllElectroBalls(usr);
 	                    School_ApplyPinModeForSelectedLesson(usr);
@@ -22935,6 +22970,7 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 4);
                         usr->school.lessonDone[2] = true;
                         School_SelectLesson(&usr->school, schoolSvc, schoolRt, 4, /*playStory=*/true);
+                        usr->spinLoserBuf = 0.0f;
                         usr->sound.nextSongForLevelTransition();
                         ResetAllElectroBalls(usr);
                         School_ApplyPinModeForSelectedLesson(usr);
@@ -22945,6 +22981,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 	                    usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 3);
 	                    usr->school.lessonDone[2] = true;
 	                    School_SelectLesson(&usr->school, schoolSvc, schoolRt, 3, /*playStory=*/false);
+                        usr->spinLoserBuf = 0.0f;
                         usr->sound.nextSongForLevelTransition();
 	                    ResetAllElectroBalls(usr);
 	                    School_ApplyPinModeForSelectedLesson(usr);
@@ -22981,6 +23018,10 @@ void vtx::loop(vtx::VertexContext *ctx)
                         usr->school.unlockedLessons = glm::max(usr->school.unlockedLessons, 5);
                         usr->school.lessonDone[3] = true;
                         School_SelectLesson(&usr->school, schoolSvc, schoolRt, 5, /*playStory=*/true);
+                        usr->spinLoserBuf = 0.0f;
+                        usr->playerThrowsWithoutMark = 0;
+                        usr->loserBuf = 0.0f;
+                        BallStats_RefreshBuffedPower(usr, usr->myBall);
                         usr->sound.nextSongForLevelTransition();
                         ResetAllElectroBalls(usr);
                         School_ApplyPinModeForSelectedLesson(usr);
@@ -23101,14 +23142,7 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->desiredMass = m;
             usr->phy.set_ball_mass(usr->desiredMass);
             usr->lightnessBuff = BallStats_LightnessBuff(usr->desiredMass);
-            usr->launchBuffEffective = glm::clamp(usr->myBall.launchBuff * usr->lightnessBuff, 0.0f, 1.0f);
-            usr->armImpulseAtThrow = remapClamped(
-                usr->launchBuffEffective,
-                BallPhysicsMapping::CATALOG_BUFF_MIN,
-                BallPhysicsMapping::CATALOG_BUFF_MAX,
-                BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MIN,
-                BallPhysicsMapping::PHYSICS_ARM_IMPULSE_MAX
-            );
+            BallStats_RefreshBuffedPower(usr, usr->myBall);
             usr->ballRestitution = glm::clamp(
                 glm::clamp(usr->myBall.restitution, 0.0f, 1.0f) * BallStats_RestitutionMassScale(usr->desiredMass),
                 0.0f,
@@ -24792,7 +24826,17 @@ swing_checks_done:
 
 		                    // Count rolls inside school lessons.
 		                    if (usr->gameMode == UserContext::GameMode::SCHOOL)
-		                        usr->school.lessonRolls += 1;
+	                    {
+	                        usr->school.lessonRolls += 1;
+	                        if (usr->school.selectedLesson == 3)
+	                        {
+	                            usr->spinLoserBuf = SpinLoserBuf_ValueForRolls(usr->school.lessonRolls);
+	                            // The lesson preset already starts close to the physics caps.
+	                            // Move its spin and bite the remaining distance to those caps.
+	                            usr->angularFactor = glm::mix(SchoolSpinTuning::PRESET_SPIN, BallPhysicsMapping::PHYSICS_SPIN_MAX, usr->spinLoserBuf);
+	                            usr->ballBaseFriction = glm::mix(SchoolSpinTuning::PRESET_FRICTION, BallFrictionTuning::BALL_FRICTION_MAX, usr->spinLoserBuf);
+	                        }
+	                    }
 
 		                    // Count visible strike/spare marks, not just frame flags: the 10th frame can
 		                    // contain multiple awardable marks (e.g. X X X, X 7 /, or 9 / X).
@@ -24803,6 +24847,16 @@ swing_checks_done:
 	                                usr->gameMode == UserContext::GameMode::SOLO)
                                 {
                                     frameCompleted = addRoll(activeSb, knockedThisRoll);
+                                    if (activeSb == &usr->board && !MiniGame_IsActive(usr))
+                                    {
+                                        const BowlingAwardableMarks marks = Bowling_CountAwardableMarks(activeSb);
+                                        LoserBuf_RecordPlayerThrow(
+                                            usr,
+                                            marks.strikes > preAwardMarks.strikes ||
+                                                marks.spares > preAwardMarks.spares,
+                                            false
+                                        );
+                                    }
                                     if (activeSb == &usr->board && !usr->campaignRunStarted &&
                                         CampaignRecord_HasStartedRoll(usr->board.frames[0].roll1 == -1 ? 0 : 1))
                                     {
@@ -24820,6 +24874,8 @@ swing_checks_done:
 			                    {
 		                        // School: practice resets the rack every throw, and lessons unlock by doing.
 		                        frameCompleted = true;
+		                        if (usr->school.selectedLesson == 5)
+		                            LoserBuf_RecordPlayerThrow(usr, knockedThisRoll >= 10, true);
 		                        if (usr->school.selectedLesson == 2)
 		                        {
                                     // Lesson 2 "Mass test": hit pins with a LIGHT ball and with a HEAVY ball.

@@ -32,6 +32,11 @@ namespace BuiltinSongFilePigeonRoll
 #include "builtin_songs/pigeon_roll.h"
 }
 
+namespace BuiltinSongFileSpareCall
+{
+#include "builtin_songs/spare_call.h"
+}
+
 // Legacy aliases kept so the rest of the codebase can migrate gradually while
 // built-in songs now come from the user-facing DSL source files directly.
 static constexpr const char *SONG_01_NAME = BuiltinSongFileGutterGroove::XFM_TRACKER_SONG_NAME;
@@ -135,6 +140,7 @@ static constexpr BuiltinSongDefinition BUILTIN_SONG_REGISTRY[] = {
     BUILTIN_SONG_ENTRY("PIN_CRUSHER", "sounds/builtin_songs/pin_crusher.h", BuiltinSongFilePinCrusher),
     BUILTIN_SONG_ENTRY("DRIZZLE_LANE", "sounds/builtin_songs/drizzle_lane.h", BuiltinSongFileDrizzleLane),
     BUILTIN_SONG_ENTRY("PIGEON_ROLL", "sounds/builtin_songs/pigeon_roll.h", BuiltinSongFilePigeonRoll),
+    BUILTIN_SONG_ENTRY("SPARE_CALL", "sounds/builtin_songs/spare_call.h", BuiltinSongFileSpareCall),
 };
 
 #undef BUILTIN_SONG_ENTRY

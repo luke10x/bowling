@@ -175,3 +175,10 @@ TEST_CASE("Modal pause begin triggers only on first window-open edge")
     CHECK(UiModalPauseShouldBegin(true, 2) == false);
     CHECK(UiModalPauseShouldBegin(true, 0) == false);
 }
+
+TEST_CASE("Opening a modal cancels an unthrown aim only")
+{
+    CHECK(UiModalPauseShouldResetUnthrownAim(true, true));
+    CHECK_FALSE(UiModalPauseShouldResetUnthrownAim(true, false));
+    CHECK_FALSE(UiModalPauseShouldResetUnthrownAim(false, true));
+}

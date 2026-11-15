@@ -2,7 +2,7 @@
 #include <xfm_song_dsl.h>
 
 // XFM tracker song file. This is valid C++ and can be pasted into built-in songs.
-XFM_SONG_BEGIN(R"xfmname(Spare call)xfmname")
+XFM_SONG_BEGIN(R"xfmname(Spare Call)xfmname")
 XFM_TICK_RATE(64)
 XFM_SPEED(6)
 XFM_ROWS_PER_BEAT(4)

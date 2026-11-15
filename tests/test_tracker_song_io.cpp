@@ -1311,20 +1311,41 @@ TEST_CASE("Built-in song DSL exposes metadata and pattern constants")
     CHECK(std::string(SONG_01_NAME) == BUILTIN_SONG_REGISTRY[0].displayName);
     CHECK(std::string(SONG_02_NAME) == BUILTIN_SONG_REGISTRY[1].displayName);
     CHECK(std::string(BUILTIN_SONG_REGISTRY[0].codeStem) == "GUTTER_GROOVE");
+    CHECK(std::string(BUILTIN_SONG_REGISTRY[0].displayName) == "Gutter Groove");
     CHECK(std::string(BUILTIN_SONG_REGISTRY[1].sourcePath) == "sounds/builtin_songs/alley_cat.h");
+    CHECK(std::string(BUILTIN_SONG_REGISTRY[1].displayName) == "Alley Cat");
     CHECK(SONG_01_TICK_RATE == 60);
     CHECK(SONG_02_SPEED == BUILTIN_SONG_REGISTRY[1].speed);
     CHECK(SONG_03_ROWS_PER_BEAT == 4);
+    CHECK(std::string(BUILTIN_SONG_REGISTRY[2].displayName) == "Pensative Ball");
     CHECK(SONG_04_LFO_ENABLED == BUILTIN_SONG_REGISTRY[3].lfoEnabled);
+    CHECK(std::string(BUILTIN_SONG_REGISTRY[3].displayName) == "Pin Crusher");
     CHECK(SONG_05_LFO_ENABLED == 1);
     CHECK(Tracker_SongName(5) == std::string(BUILTIN_SONG_REGISTRY[4].displayName));
+    CHECK(std::string(BUILTIN_SONG_REGISTRY[4].displayName) == "Drizzle Lane");
     REQUIRE(BUILTIN_SONG_REGISTRY_COUNT >= 6);
     CHECK(std::string(BUILTIN_SONG_REGISTRY[5].codeStem) == "PIGEON_ROLL");
-    CHECK(std::string(BUILTIN_SONG_REGISTRY[5].displayName) == "PIGEON ROLL");
-    CHECK(Tracker_SongName(6) == "PIGEON ROLL");
+    CHECK(std::string(BUILTIN_SONG_REGISTRY[5].displayName) == "Pigeon Roll");
+    CHECK(Tracker_SongName(6) == "Pigeon Roll");
     CHECK(Tracker_ParseLeadingRowCount(BUILTIN_SONG_REGISTRY[5].pattern) == 1344);
     CHECK(Tracker_DefaultSongSpeed(2) == SONG_02_SPEED);
     CHECK(Tracker_ParseLeadingRowCount(Tracker_SongPattern(1)) > 0);
+}
+
+TEST_CASE("Built-in song display names use title case and spaces")
+{
+    const char *expectedNames[] = {
+        "Gutter Groove",
+        "Alley Cat",
+        "Pensative Ball",
+        "Pin Crusher",
+        "Drizzle Lane",
+        "Pigeon Roll",
+        "Spare Call",
+    };
+    REQUIRE(BUILTIN_SONG_REGISTRY_COUNT == (int)(sizeof(expectedNames) / sizeof(expectedNames[0])));
+    for (int i = 0; i < BUILTIN_SONG_REGISTRY_COUNT; ++i)
+        CHECK(std::string(BUILTIN_SONG_REGISTRY[i].displayName) == expectedNames[i]);
 }
 
 TEST_CASE("User songs accept up to 2048 rows")

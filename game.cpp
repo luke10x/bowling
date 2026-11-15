@@ -7773,8 +7773,17 @@ static inline void UI_OnModalPauseBegin(UserContext *usr)
 {
     if (!usr)
         return;
-    // Modal pause is allowed to release transient input capture only.
-    // Do not reset phase, reposition the ball, or cancel a throw here.
+
+    // Opening a window while the player is still preparing a shot abandons that
+    // attempt. The next press starts a clean aim from the idle ball position.
+    const bool unthrownAimActive =
+        usr->phase == UserContext::Phase::AIM ||
+        usr->phase == UserContext::Phase::SWING;
+    if (UiModalPauseShouldResetUnthrownAim(/*modalJustOpened=*/true, unthrownAimActive))
+    {
+        UI_ResetToIdleAndAbsolute(usr, 0.0f, "MODAL_CANCEL_UNTHROWN_AIM");
+    }
+
     NosSfx_Stop(usr);
     NosEmptySfx_Stop(usr);
     BallRollingSfx_BeginPause(usr);

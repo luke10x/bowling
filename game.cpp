@@ -17018,6 +17018,11 @@ static inline bool Tracker_DefaultPlaylistSelectsBuiltin(int index)
     return BuiltinSong_ByZeroBasedIndex(index) != nullptr;
 }
 
+// The first playlist format did not record how many built-in songs existed
+// when it was saved. Six songs predate Spare Call, so legacy selections get
+// Spare Call enabled during their one-time migration.
+static constexpr int TRACKER_LEGACY_PLAYLIST_BUILTIN_COUNT = 6;
+
 static inline int Tracker_CountMusicPlaylistSelection(const Tracker *tracker)
 {
     if (!tracker)
@@ -17042,6 +17047,15 @@ static inline void Tracker_SetDefaultMusicPlaylistSelection(Tracker *tracker)
         tracker->songPlaylistMySongSelected[i] = false;
     if (Tracker_CountMusicPlaylistSelection(tracker) <= 0 && TRACKER_BUILTIN_SONG_COUNT > 0)
         tracker->songPlaylistBuiltinSelected[0] = true;
+}
+
+static inline void Tracker_SelectBuiltinsAddedSincePlaylistSave(Tracker *tracker, int savedBuiltinCount)
+{
+    if (!tracker)
+        return;
+    const int firstNewBuiltin = glm::clamp(savedBuiltinCount, 0, TRACKER_BUILTIN_SONG_COUNT);
+    for (int i = firstNewBuiltin; i < TRACKER_BUILTIN_SONG_COUNT; ++i)
+        tracker->songPlaylistBuiltinSelected[i] = Tracker_DefaultPlaylistSelectsBuiltin(i);
 }
 
 static inline int Tracker_BuiltinIndexForCodeStem(const char *stem)
@@ -17083,10 +17097,12 @@ static inline void Tracker_LoadMusicPlaylistSelection(UserContext *usr)
     if (usr->storage.getCharKey(Tracker_MusicPlaylistStorageKey(), text) <= 0)
     {
         Tracker_SetDefaultMusicPlaylistSelection(tracker);
+        (void)Tracker_WriteMusicPlaylistSelection(usr);
         return;
     }
 
     int selected = 0;
+    int savedBuiltinCount = -1;
     size_t start = 0;
     while (start <= text.size() && selected < TRACKER_MAX_SONG_COUNT)
     {
@@ -17097,7 +17113,11 @@ static inline void Tracker_LoadMusicPlaylistSelection(UserContext *usr)
         std::string line = text.substr(start, end - start);
         while (!line.empty() && (line.back() == '\r' || line.back() == '\n'))
             line.pop_back();
-        if (line.size() > 2 && line[1] == ':')
+        if (line.rfind("V:", 0) == 0)
+        {
+            savedBuiltinCount = std::max(0, std::atoi(line.c_str() + 2));
+        }
+        else if (line.size() > 2 && line[1] == ':')
         {
             if (line[0] == 'B')
             {
@@ -17122,8 +17142,14 @@ static inline void Tracker_LoadMusicPlaylistSelection(UserContext *usr)
         if (!hadNewline)
             break;
     }
+    if (savedBuiltinCount < 0)
+        savedBuiltinCount = TRACKER_LEGACY_PLAYLIST_BUILTIN_COUNT;
+    Tracker_SelectBuiltinsAddedSincePlaylistSave(tracker, savedBuiltinCount);
     if (Tracker_CountMusicPlaylistSelection(tracker) <= 0)
         Tracker_SetDefaultMusicPlaylistSelection(tracker);
+    // Persist the built-in count even when no checkbox changed. This lets the
+    // next update distinguish a newly added song from an older opt-out.
+    (void)Tracker_WriteMusicPlaylistSelection(usr);
 }
 
 static inline bool Tracker_WriteMusicPlaylistSelection(UserContext *usr)
@@ -17131,6 +17157,9 @@ static inline bool Tracker_WriteMusicPlaylistSelection(UserContext *usr)
     if (!usr)
         return false;
     std::string text;
+    text += "V:";
+    text += std::to_string(TRACKER_BUILTIN_SONG_COUNT);
+    text.push_back('\n');
     int selected = 0;
     for (int i = 0; i < TRACKER_BUILTIN_SONG_COUNT && selected < TRACKER_MAX_SONG_COUNT; ++i)
     {

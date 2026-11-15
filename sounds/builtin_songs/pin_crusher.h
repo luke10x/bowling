@@ -2,7 +2,7 @@
 #include <xfm_song_dsl.h>
 
 // XFM tracker song file. This is valid C++ and can be pasted into built-in songs.
-XFM_SONG_BEGIN(R"xfmname(Pin Crusher)xfmname")
+XFM_SONG_BEGIN(R"xfmname(PIN_CRUSHER)xfmname")
 XFM_TICK_RATE(60)
 XFM_SPEED(6)
 XFM_ROWS_PER_BEAT(4)

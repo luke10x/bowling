@@ -132,7 +132,7 @@ TEST_CASE("Intro levels guarantee the newly introduced card in the opening hand"
     }
 }
 
-TEST_CASE("Non-glass cards are limited to one use per throw")
+TEST_CASE("Any block card can be used after the previous block is gone")
 {
     CampaignBlockCardDeckState deck = {};
     deck.hand[0].type = CAMPAIGN_BLOCK_CARD_WOOD;
@@ -141,13 +141,9 @@ TEST_CASE("Non-glass cards are limited to one use per throw")
 
     CHECK(CampaignBlockCards_CanUseSlot(deck, 0, false));
     CHECK(CampaignBlockCards_ConsumeSlot(deck, 0));
-    CHECK(deck.nonGlassSpentThisThrow);
-    CHECK(!CampaignBlockCards_CanUseSlot(deck, 1, false));
-    CHECK(CampaignBlockCards_CanUseSlot(deck, 2, false));
-
-    CampaignBlockCards_ResetThrow(deck);
-    CHECK(!deck.nonGlassSpentThisThrow);
+    CHECK(!CampaignBlockCards_CanUseSlot(deck, 1, true));
     CHECK(CampaignBlockCards_CanUseSlot(deck, 1, false));
+    CHECK(CampaignBlockCards_CanUseSlot(deck, 2, false));
 }
 
 TEST_CASE("Multiple glass cards can be used in the same throw after the previous glass is gone")

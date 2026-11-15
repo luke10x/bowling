@@ -37,7 +37,6 @@ struct CampaignBlockCardDeckState
     std::array<int, kCampaignBlockCardQueueSize> queue = {};
     int queueCursor = kCampaignBlockCardQueueSize;
     int currentFrameNumber = 0;
-    bool nonGlassSpentThisThrow = false;
 };
 
 struct CampaignBlockEnemyCardChoiceContext
@@ -225,7 +224,7 @@ inline void CampaignBlockCards_Clear(CampaignBlockCardDeckState &deck)
 
 inline void CampaignBlockCards_ResetThrow(CampaignBlockCardDeckState &deck)
 {
-    deck.nonGlassSpentThisThrow = false;
+    (void)deck;
 }
 
 inline void CampaignBlockCards_DealFrameHand(
@@ -238,7 +237,6 @@ inline void CampaignBlockCards_DealFrameHand(
 )
 {
     deck.currentFrameNumber = frameNumber;
-    deck.nonGlassSpentThisThrow = false;
     for (int i = 0; i < kCampaignBlockCardHandSize; ++i)
     {
         deck.hand[i].type = CampaignBlockCards_DrawNext(deck, enabledMask, rngState, profile);
@@ -272,8 +270,6 @@ inline bool CampaignBlockCards_CanUseSlot(
     const CampaignBlockCardSlot &slot = deck.hand[slotIndex];
     if (slot.type == CAMPAIGN_BLOCK_CARD_NONE || slot.consumed || hasActiveBlock)
         return false;
-    if (slot.type != CAMPAIGN_BLOCK_CARD_GLASS && deck.nonGlassSpentThisThrow)
-        return false;
     return true;
 }
 
@@ -285,8 +281,6 @@ inline bool CampaignBlockCards_ConsumeSlot(CampaignBlockCardDeckState &deck, int
     if (slot.type == CAMPAIGN_BLOCK_CARD_NONE || slot.consumed)
         return false;
     slot.consumed = true;
-    if (slot.type != CAMPAIGN_BLOCK_CARD_GLASS)
-        deck.nonGlassSpentThisThrow = true;
     return true;
 }
 

@@ -60,6 +60,18 @@ TEST_CASE("Ball shop stock generation excludes owned balls and can become empty"
     CHECK(BallShop_GenerateStockForBucket(allOwnedMask, -1, 7ull, stock, BALL_SHOP_STOCK_SIZE) == 0);
 }
 
+TEST_CASE("Ball catalog records remain in stable ID order")
+{
+    for (int index = 0; index < (int)g_ballCatalogCount; ++index)
+        CHECK(g_ballCatalog[index].id == index);
+
+    CHECK(strcmp(g_ballCatalog[kBallStarDust].name, "Star Dust") == 0);
+    CHECK(strcmp(g_ballCatalog[kBallXenonBite].name, "Xenon Bite") == 0);
+    CHECK(strcmp(g_ballCatalog[kBallWorldTree].name, "World Tree") == 0);
+    CHECK(strcmp(g_ballCatalog[kBallLeviathan].name, "Leviathan") == 0);
+    CHECK(strcmp(g_ballCatalog[kBallOracleStrike].name, "Oracle Strike") == 0);
+}
+
 TEST_CASE("Ball shop reshuffle guarantees starter ball when it was lost")
 {
     CatalogItem stock[BALL_SHOP_STOCK_SIZE] = {};

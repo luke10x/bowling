@@ -39,6 +39,7 @@ struct Physics
     void set_manual_ball_position(const glm::vec3 &pos, const glm::quat &rot, float dt);
 
     void set_ball_hanging(const glm::vec3 pivotPoint, const glm::vec3 initialBallPos);
+    void set_ball_position_and_velocity(const glm::vec3 &position, const glm::vec3 &velocity);
 
     void change_pivot_point(glm::vec3 newPivot);
 

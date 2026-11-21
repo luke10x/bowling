@@ -19,6 +19,7 @@ namespace vtx
         int screenWidth, screenHeight;
         float pixelRatio;
         float iosSafeAreaTop;
+        float androidSafeAreaTop;
         void *usrptr;
     } VertexContext;
 

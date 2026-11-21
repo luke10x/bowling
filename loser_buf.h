@@ -9,7 +9,7 @@ struct LoserBufTuning
     static constexpr int STRIKE_LESSON_START_THROW = 3;
     static constexpr int SPIN_LESSON_START_THROW = 5;
     static constexpr float HIT_MULTIPLIER_AT_MAX = 2.0f;
-    static constexpr float LAUNCH_MULTIPLIER_AT_MAX = 1.5f;
+    static constexpr float LAUNCH_MULTIPLIER_AT_MAX = 2.0f;
     static constexpr float VALUES[] = {
         0.10f, 0.10f, 0.20f, 0.30f, 0.40f, 0.45f, 0.50f,
         0.55f, 0.60f, 0.65f, 0.67f, 0.70f, 0.72f, 0.74f,

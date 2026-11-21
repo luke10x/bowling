@@ -8,8 +8,13 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.provider.OpenableColumns;
 import android.util.Log;
+import android.view.DisplayCutout;
+import android.view.View;
+import android.view.WindowInsets;
+import android.view.WindowManager;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -51,11 +56,27 @@ public class TrackerActivity extends SDLActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (Build.VERSION.SDK_INT >= 28) {
+            WindowManager.LayoutParams attributes = getWindow().getAttributes();
+            attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            getWindow().setAttributes(attributes);
+        }
         MobileAds.initialize(this, status -> runOnUiThread(() -> {
             adsInitialized = true;
             loadLossAd();
             loadMoneyRewardAd();
         }));
+    }
+
+    // Returned in physical pixels; native layout converts it to density-independent points.
+    public int getDisplayCutoutSafeInsetTop() {
+        if (Build.VERSION.SDK_INT < 28) return 0;
+        View decor = getWindow().getDecorView();
+        WindowInsets insets = decor.getRootWindowInsets();
+        if (insets == null) return 0;
+        DisplayCutout cutout = insets.getDisplayCutout();
+        return cutout == null ? 0 : cutout.getSafeInsetTop();
     }
 
     @Override

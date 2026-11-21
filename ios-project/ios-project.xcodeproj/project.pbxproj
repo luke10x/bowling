@@ -13603,6 +13603,8 @@
 				);
 				"HEADER_SEARCH_PATHS[arch=*]" = "";
 				INFOPLIST_FILE = "ios-project/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Angel Ball";
+				INFOPLIST_KEY_CFBundleName = "Angel Ball";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIRequiredDeviceCapabilities = "arm64 opengles-3";
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
@@ -13616,8 +13618,8 @@
 				);
 				MARKETING_VERSION = 1.0;
 				NEW_SETTING = "";
-				PRODUCT_BUNDLE_IDENTIFIER = "dev.luke10x.bowling.ios-project";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = "dev.luke10x.angelball";
+				PRODUCT_NAME = "Angel Ball";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				"SYSTEM_HEADER_SEARCH_PATHS[arch=*]" = (
@@ -13652,6 +13654,8 @@
 					"$(PROJECT_DIR)/../build/_deps/clay-src",
 				);
 				INFOPLIST_FILE = "ios-project/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "Angel Ball";
+				INFOPLIST_KEY_CFBundleName = "Angel Ball";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UIRequiredDeviceCapabilities = "arm64 opengles-3";
 				INFOPLIST_KEY_UIRequiresFullScreen = YES;
@@ -13665,8 +13669,8 @@
 				);
 				MARKETING_VERSION = 1.0;
 				NEW_SETTING = "";
-				PRODUCT_BUNDLE_IDENTIFIER = "dev.luke10x.bowling.ios-project";
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_BUNDLE_IDENTIFIER = "dev.luke10x.angelball";
+				PRODUCT_NAME = "Angel Ball";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";

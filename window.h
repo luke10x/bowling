@@ -2,11 +2,16 @@
 
 #include "framework/boot.h"
 
+#include <cmath>
+
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
 #endif
 
 #if defined(__ANDROID__) || defined(ANDROID)
+#include <jni.h>
+#include <SDL_system.h>
+
 // SDL reports Android window and touch coordinates in physical pixels. Keep UI
 // layout in density-independent points, like iOS, while rendering at full resolution.
 inline bool Android_UpdateLayoutMetrics(vtx::VertexContext *ctx)
@@ -27,21 +32,50 @@ inline bool Android_UpdateLayoutMetrics(vtx::VertexContext *ctx)
             densityDpi = 160.0f;
         return densityDpi / 160.0f;
     }();
+
+    float safeAreaTop = 0.0f;
+    JNIEnv *env = static_cast<JNIEnv *>(SDL_AndroidGetJNIEnv());
+    jobject activity = static_cast<jobject>(SDL_AndroidGetActivity());
+    if (env && activity)
+    {
+        jclass activityClass = env->GetObjectClass(activity);
+        if (activityClass)
+        {
+            static jmethodID getCutoutInsetTop = nullptr;
+            if (!getCutoutInsetTop)
+                getCutoutInsetTop = env->GetMethodID(activityClass, "getDisplayCutoutSafeInsetTop", "()I");
+            if (getCutoutInsetTop)
+            {
+                const jint insetPixels = env->CallIntMethod(activity, getCutoutInsetTop);
+                if (env->ExceptionCheck())
+                    env->ExceptionClear();
+                else if (insetPixels > 0)
+                    safeAreaTop = static_cast<float>(insetPixels) / densityScale;
+            }
+            else if (env->ExceptionCheck())
+            {
+                env->ExceptionClear();
+            }
+            env->DeleteLocalRef(activityClass);
+        }
+    }
+
     const int layoutW = windowW / densityScale >= 1.0f
         ? static_cast<int>(windowW / densityScale + 0.5f) : 1;
     const int layoutH = windowH / densityScale >= 1.0f
         ? static_cast<int>(windowH / densityScale + 0.5f) : 1;
     const float framebufferScale = static_cast<float>(drawableW) / layoutW;
     const bool changed = ctx->screenWidth != layoutW || ctx->screenHeight != layoutH ||
-        ctx->pixelRatio != framebufferScale;
+        ctx->pixelRatio != framebufferScale || std::abs(ctx->androidSafeAreaTop - safeAreaTop) >= 0.5f;
 
     ctx->screenWidth = layoutW;
     ctx->screenHeight = layoutH;
     ctx->pixelRatio = framebufferScale;
+    ctx->androidSafeAreaTop = safeAreaTop;
     glViewport(0, 0, drawableW, drawableH);
     if (changed)
-        SDL_Log("Android display: %dx%d pixels, %dx%d layout points, density %.2f, framebuffer scale %.2f",
-                drawableW, drawableH, layoutW, layoutH, densityScale, framebufferScale);
+        SDL_Log("Android display: %dx%d pixels, %dx%d layout points, density %.2f, framebuffer scale %.2f, cutout top %.1f",
+                drawableW, drawableH, layoutW, layoutH, densityScale, framebufferScale, safeAreaTop);
     return changed;
 }
 #endif

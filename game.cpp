@@ -1798,6 +1798,10 @@ struct UserContext
 	bool orbitHasPrev = false;
 	glm::vec3 prevBallPosForRelease = glm::vec3(0.0f);
 	bool hasPrevBallPosForRelease = false;
+	glm::vec3 swingCrossingReleasePos = glm::vec3(0.0f);
+	glm::vec3 swingCrossingReleaseVel = glm::vec3(0.0f);
+	float swingCrossingReleaseAge = 1.0f;
+	bool hasSwingCrossingRelease = false;
 	glm::quat prevBallRotForRelease = glm::quat(1.0f, 0, 0, 0);
 	bool hasPrevBallRotForRelease = false;
 	glm::quat aimPickupBallRot = glm::quat(1.0f, 0, 0, 0);
@@ -1990,25 +1994,23 @@ static inline void Celebration_BurstConfettiInView(UserContext *usr)
     Celebration_BurstConfetti(usr, usr->cameraEye + forward * 3.5f + glm::vec3(0.0f, 0.5f, 0.0f));
 }
 
-// All gameplay physics step intervals live here, in milliseconds. The second
-// column is used when a frame falls below the FPS threshold. Equal columns
-// mean that phase does not currently reduce its step rate on slow devices.
+// All gameplay physics step intervals live here, in milliseconds. Render FPS
+// never changes these simulation intervals.
 struct PhysicsStepSchedule
 {
-    static constexpr float LowFpsThreshold = 28.0f;
     static constexpr float NearPinDeckZ = -1.0f;
 
     enum Row { Other, Idle, Aim, Swing, ThrowApproach, ThrowNearDeck, Result, CountMastersPinCrash, Count };
-    struct Interval { float normalMs; float lowFpsMs; };
+    struct Interval { float milliseconds; };
     inline static constexpr std::array<Interval, Count> Milliseconds = {{
-        {500.0f, 500.0f}, // Other: FINAL_RESULT, MENU
-        { 20.0f,  20.0f}, // IDLE: keep restocked pins supported
-        { 50.0f,  80.0f}, // AIM
-        {  5.0f,  10.0f}, // SWING
-        { 15.0f,  15.0f}, // THROW approach: ball is farther from the active pin deck
-        {  5.0f,   5.0f}, // THROW near pin deck: preserve ball/pin contacts even at low FPS
-        {  5.0f,   5.0f}, // RESULT
-        {  5.0f,   5.0f}  // Count Masters PIN_CRASH, overrides phase
+        {500.0f}, // Other: FINAL_RESULT, MENU
+        { 20.0f}, // IDLE: keep restocked pins supported
+        { 50.0f}, // AIM
+        {  5.0f}, // SWING
+        { 15.0f}, // THROW approach: ball is farther from the active pin deck
+        {  5.0f}, // THROW near pin deck: preserve ball/pin contacts
+        {  5.0f}, // RESULT
+        {  5.0f}  // Count Masters PIN_CRASH, overrides phase
     }};
 
     static constexpr bool nearPinDeck(float ballZ, float pinFrontZ,
@@ -2017,8 +2019,8 @@ struct PhysicsStepSchedule
         return (pinFrontZ - ballZ) * forwardDirection < distanceM;
     }
 
-    static constexpr float interval(UserContext::Phase phase, bool lowFps,
-                                    bool ballNearPinDeck, bool countMastersPinCrash)
+    static constexpr float interval(UserContext::Phase phase, bool ballNearPinDeck,
+                                    bool countMastersPinCrash)
     {
         Row row = Other;
         switch (phase)
@@ -2034,7 +2036,7 @@ struct PhysicsStepSchedule
         case UserContext::Phase::MENU: break;
         }
         if (countMastersPinCrash) row = CountMastersPinCrash;
-        return (lowFps ? Milliseconds[row].lowFpsMs : Milliseconds[row].normalMs) * 0.001f;
+        return Milliseconds[row].milliseconds * 0.001f;
     }
 };
 
@@ -2561,6 +2563,12 @@ static inline bool Campaign_HasRunesTool(const UserContext *usr)
         !usr->campaignPostgameFreeplayActive || usr->campaignRunPostgameRunesEnabled;
 }
 
+static inline bool IsSchoolStrikeLesson(const UserContext *usr)
+{
+    return usr && usr->gameMode == UserContext::GameMode::SCHOOL &&
+           usr->school.selectedLesson == 5;
+}
+
 static inline bool Campaign_IsBlockVariantAvailable(const UserContext *usr, int variantIndex)
 {
     if (!usr)
@@ -2825,6 +2833,7 @@ static inline int Campaign_OpponentAutoBlockVariant(const UserContext *usr)
 static inline bool ShouldShowNosToolbar(const UserContext *usr)
 {
     return usr->phase == UserContext::Phase::THROW &&
+           !IsSchoolStrikeLesson(usr) &&
            !(usr->gameMode == UserContext::GameMode::BOT && IsEnemyTurn(usr)) &&
            Campaign_HasUnlockedNosTool(usr);
 }
@@ -10756,6 +10765,12 @@ static inline void RuneFreeze_Tick(UserContext *usr, float dt)
     const uint16_t directHits = usr->phy.consume_direct_ball_pin_hit_mask();
     if (directHits != 0u)
     {
+        // Apply the player's loser assistance to the actual ball-to-pin impact.
+        // The launch buff is applied when the ball is released; this completes
+        // the separate hit buff on the direct contacts recorded by physics.
+        if (!IsEnemyTurn(usr) && usr->loserBuf > 0.0f)
+            usr->phy.boost_ball_pin_smash(directHits, LoserBuf_HitMultiplier(usr->loserBuf));
+
         if (usr->freezeBallActive && !IsEnemyTurn(usr))
         {
             const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
@@ -15873,6 +15888,8 @@ struct BallSwingTuning
     // How much of the pendulum/orbital angular velocity becomes initial spin at release.
     static constexpr float RELEASE_ORBIT_SPIN_SCALE = 0.20f;
     static constexpr float RELEASE_ORBIT_SPIN_MAX = 20.0f; // rad/s
+    // Recreate the average half-frame delay of a 30 FPS release capture.
+    static constexpr float RELEASE_CAPTURE_REFERENCE_FPS = 30.0f;
 
     // Soft cap for swipe-derived angular velocity (prevents crazy spins on low FPS / fast swipes).
     static constexpr float INPUT_ANGVEL_SOFTCAP = 4.0f;
@@ -19807,6 +19824,8 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 			                ? SpinLoserBuf_EffectiveStat(usr->myBall.bite, usr->spinLoserBuf)
 			                : usr->myBall.bite;
 			            float sideDrive = angVel * (effectiveSpin * effectiveSpin) * 0.125f;
+			            if (spinLesson)
+			                sideDrive *= SchoolSpinTuning::SIDE_DRIVE_MULTIPLIER;
 
 		            // Bite controls how readily counter-spin reverses existing lateral drift.
 		            glm::vec3 v = usr->phy.get_ball_swing_movement();
@@ -19825,7 +19844,10 @@ void BallStats_EveryFrame(UserContext *usr, glm::mat4 ballModel)
 		                }
 		                sideDrive = 0.0f;
 		            }
-		            usr->phy.apply_angular_velocity_on_ball(sideDrive);
+		            // This adds an angular-velocity impulse once per rendered frame. Scale it
+			            // against 60 Hz so hook response stays stable at different frame rates.
+			            const float referenceFrameScale = glm::clamp(usr->gameplayDeltaTimeLoan, 0.0f, 0.1f) * 60.0f;
+			            usr->phy.apply_angular_velocity_on_ball(sideDrive * referenceFrameScale);
 		
 		            float spinContributionToSmash = sideDrive * usr->myBall.hitBuff;
 		            if (!std::isfinite(spinContributionToSmash))
@@ -20686,7 +20708,6 @@ void vtx::loop(vtx::VertexContext *ctx)
     const float safeDeltaTime = std::isfinite(deltaTime) ? glm::clamp(deltaTime, 0.0f, 0.100f) : (1.0f / 60.0f);
     RuneNitro_Tick(usr, safeDeltaTime);
     CampaignNosLesson_TickRefill(usr, safeDeltaTime);
-    const bool lowFpsAimSwingFrame = safeDeltaTime > 1.0f / PhysicsStepSchedule::LowFpsThreshold;
     auto vec3Finite = [](const glm::vec3 &v) -> bool {
         return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
     };
@@ -20965,7 +20986,40 @@ void vtx::loop(vtx::VertexContext *ctx)
 
     float ropeLength = 1.0f;
 
-    glm::vec2 spinMove = glm::vec2(0.0f);
+    float spinAngleDeltaThisFrame = 0.0f;
+    bool spinInputThisFrame = false;
+    auto accumulateSpinMotion = [&](const glm::vec2 &motion)
+    {
+        const float speed = glm::length(motion);
+        if (speed <= 0.5f)
+            return;
+
+        const glm::vec2 dir = motion / speed;
+        const float cross = usr->prevDir.x * dir.y - usr->prevDir.y * dir.x;
+        const float dot = usr->prevDir.x * dir.x + usr->prevDir.y * dir.y;
+        float angleDelta = -atan2f(cross, dot);
+        angleDelta *= glm::clamp(speed * 0.05f, 0.0f, 1.0f);
+
+        if (usr->gameMode == UserContext::GameMode::SCHOOL && usr->school.selectedLesson == 3)
+            SchoolSpinFinger_OnInput(usr, angleDelta);
+
+        const float fullTurn = glm::two_pi<float>();
+        usr->totalAngle += angleDelta;
+        if (usr->totalAngle >= fullTurn)
+        {
+            usr->totalAngle -= fullTurn;
+            usr->circles++;
+        }
+        else if (usr->totalAngle <= -fullTurn)
+        {
+            usr->totalAngle += fullTurn;
+            usr->circles--;
+        }
+
+        usr->prevDir = dir;
+        spinAngleDeltaThisFrame += angleDelta;
+        spinInputThisFrame = true;
+    };
     bool requestThrowEvent = false;
     SDL_Event e;
     usr->touchRelDx = 0;
@@ -21016,6 +21070,9 @@ void vtx::loop(vtx::VertexContext *ctx)
     }
 
     UserContext::PhaseTrans phaseTrans = UserContext::PhaseTrans::TRANS_NONE;
+    bool releaseFromSwingCrossing = false;
+    glm::vec3 swingCrossingReleasePosThisFrame(0.0f);
+    glm::vec3 swingCrossingReleaseVelThisFrame(0.0f);
     Clay_Vector2 scrollDelta = {};
     while (SDL_PollEvent(&e))
     {
@@ -22730,9 +22787,6 @@ void vtx::loop(vtx::VertexContext *ctx)
                 float y = pixelRatio * static_cast<float>(e.motion.y) / ctx->screenHeight;
 
                 // I want to use this as well
-                float x_rel = pixelRatio * static_cast<float>(e.motion.xrel) / ctx->screenWidth;
-                float y_rel = pixelRatio * static_cast<float>(e.motion.yrel) / ctx->screenHeight;
-
                 if (e.motion.which == SDL_TOUCH_MOUSEID)
                 {
                     auto applyTouchAimMargin = [](float &inOut01)
@@ -22747,8 +22801,12 @@ void vtx::loop(vtx::VertexContext *ctx)
                 }
                 usr->aimFlatPos.x = x;
                 usr->aimFlatPos.y = y;
-                spinMove.x = x_rel;
-                spinMove.y = y_rel;
+                // Process every sample as it leaves SDL's queue. This preserves the
+                // gesture path even when multiple samples arrive between frames.
+                accumulateSpinMotion(glm::vec2(
+                    static_cast<float>(e.motion.xrel),
+                    static_cast<float>(e.motion.yrel)
+                ));
             }
         }
     }
@@ -23156,7 +23214,10 @@ void vtx::loop(vtx::VertexContext *ctx)
     const float gameplayDeltaTime = gameplayPausedByUi ? 0.0f : deltaTime;
     const float gameplaySafeDeltaTime =
         std::isfinite(gameplayDeltaTime) ? glm::clamp(gameplayDeltaTime, 0.0f, 0.100f) : 0.0f;
-    const float gameplayAimSwingStepDt = glm::min(gameplaySafeDeltaTime, 1.0f / 30.0f);
+    // Simulate the full elapsed gameplay time; the spring integration below
+    // subdivides it so low render FPS does not slow the ball or destabilize it.
+    const float gameplayAimSwingStepDt =
+        std::isfinite(gameplayDeltaTime) ? glm::max(0.0f, gameplayDeltaTime) : 0.0f;
     usr->gameplayDeltaTimeLoan = gameplayDeltaTime;
     usr->rawTime += chestRewardPausesGameplay ? 0.0f : deltaTime;
     usr->gameplayTime += gameplayDeltaTime;
@@ -23270,107 +23331,46 @@ void vtx::loop(vtx::VertexContext *ctx)
             usr->pivotPoint = Scene_PivotPoint(usr->scene);
             usr->phy.change_pivot_point(usr->pivotPoint);
         }
-        // usr->sectors = usr->circle.moveCircle(spinMove, deltaTime);
-        if (usr->phase == UserContext::Phase::THROW)
+        // Spin motion is accumulated while processing SDL input events above.
+        if (usr->phase == UserContext::Phase::THROW && !spinInputThisFrame)
         {
+            // Keep the relative-state fallback for mouse/platforms that do not
+            // deliver per-event deltas through the SDL event queue.
+            int dx = usr->touchRelDx;
+            int dy = usr->touchRelDy;
+            if (dx == 0 && dy == 0)
+                SDL_GetRelativeMouseState(&dx, &dy);
+            if (dx != 0 || dy != 0)
+                accumulateSpinMotion(glm::vec2(static_cast<float>(dx), static_cast<float>(dy)));
+        }
 
-            /* update spin */ {
-                // Prefer per-event deltas (spinMove) because they work for both:
-                // - touch-injected mouse motion (xrel/yrel provided by our injector)
-                // - relative mouse mode on desktop
-                //
-                // Why not rely on SDL_GetRelativeMouseState():
-                // - On touch-first builds we keep relative mouse mode OFF, so SDL's relative
-                //   accumulator often stays at 0 even though we are receiving motion events.
-                // - After toggling relative mode (e.g. when showing/hiding windows), SDL may flush
-                //   pending motion, causing a "no spin" frame right after returning.
-                int dx = (int)spinMove.x;
-                int dy = (int)spinMove.y;
-                if (dx == 0 && dy == 0)
-                {
-                    dx = usr->touchRelDx;
-                    dy = usr->touchRelDy;
-                }
-                if (dx == 0 && dy == 0)
-                {
-                    SDL_GetRelativeMouseState(&dx, &dy);
-                }
+        if (usr->phase == UserContext::Phase::THROW && spinInputThisFrame)
+        {
+            // Divide the total captured gesture by actual elapsed gameplay time,
+            // not a frame-capped timestep, to keep angular speed stable at 15/60 FPS.
+            usr->angularVelocity = spinAngleDeltaThisFrame / glm::max(gameplaySafeDeltaTime, 1e-4f);
+            constexpr float smoothingSpeed = 10.0f;
+            const float factor = 1.0f - expf(-gameplaySafeDeltaTime * smoothingSpeed);
+            usr->smoothedAngularVelocity +=
+                (usr->angularVelocity - usr->smoothedAngularVelocity) * factor;
 
-                glm::vec2 v(dx, dy);
-
-                float speed = glm::length(v);
-                float minSpeed = 0.5f;
-
-                if (speed > minSpeed)
-                {
-
-                    glm::vec2 dir = v / speed;
-
-                    float cross = usr->prevDir.x * dir.y - usr->prevDir.y * dir.x;
-                    float dot = usr->prevDir.x * dir.x + usr->prevDir.y * dir.y;
-
-	                    // Joystick spin input direction swap: invert the perceived CW/CCW.
-	                    // (Physics spin/hook directions are correct; this only changes control mapping.)
-	                    float angleDelta = -atan2f(cross, dot);
-
-                    float speedScale = 0.05f;
-                    float weight = glm::clamp(speed * speedScale, 0.0f, 1.0f);
-                    angleDelta *= weight;
-
-                    if (usr->gameMode == UserContext::GameMode::SCHOOL &&
-                        usr->school.selectedLesson == 3)
-                        SchoolSpinFinger_OnInput(usr, angleDelta);
-
-                    usr->totalAngle += angleDelta;
-	                    usr->angularVelocity = angleDelta / glm::max(gameplayAimSwingStepDt, 1e-4f);
-
-                    const float FULL_TURN = glm::two_pi<float>();
-
-                    if (usr->totalAngle >= FULL_TURN)
-                    {
-                        usr->totalAngle -= FULL_TURN;
-                        usr->circles++;
-                    }
-                    else if (usr->totalAngle <= -FULL_TURN)
-                    {
-                        usr->totalAngle += FULL_TURN;
-                        usr->circles--;
-                    }
-
-                    usr->prevDir = dir;
-
-	                    // Smoothing
-	                    float smoothingSpeed = 10.0f; // higher = snappier, lower = smoother
-
-	                    float safeDt = gameplaySafeDeltaTime;
-	                    float factor = glm::clamp(safeDt * smoothingSpeed, 0.0f, 1.0f);
-
-	                    usr->smoothedAngularVelocity +=
-
-	                        (usr->angularVelocity - usr->smoothedAngularVelocity) * factor;
-
-                    // Feed in to legacy shit
-                    float absoluteAngle = usr->circles * FULL_TURN + usr->totalAngle;
-                    float wrapped = fmodf(absoluteAngle, glm::two_pi<float>());
-                    float sectorSize = glm::two_pi<float>() / Circle::SECTOR_COUNT;
-                    int sector = int(wrapped / sectorSize);
-                    if (sector > 0)
-                    {
-                        sector = sector + 1;
-                    }
-
-                    usr->circle.updateSector(-sector);
-                }
-            }
+            const float fullTurn = glm::two_pi<float>();
+            const float absoluteAngle = usr->circles * fullTurn + usr->totalAngle;
+            const float wrapped = fmodf(absoluteAngle, fullTurn);
+            const float sectorSize = fullTurn / Circle::SECTOR_COUNT;
+            int sector = int(wrapped / sectorSize);
+            if (sector > 0)
+                sector++;
+            usr->circle.updateSector(-sector);
         }
 
         if (usr->phase == UserContext::Phase::AIM)
         {
-            usr->enjoy.moveJoystickTo(usr->aimFlatPos, gameplaySafeDeltaTime);
+            usr->enjoy.moveJoystickTo(usr->aimFlatPos, gameplayAimSwingStepDt);
         }
         if (usr->phase == UserContext::Phase::SWING)
         {
-            usr->enjoy.moveJoystickTo(usr->aimFlatPos, gameplaySafeDeltaTime);
+            usr->enjoy.moveJoystickTo(usr->aimFlatPos, gameplayAimSwingStepDt);
         }
     }
 
@@ -23831,7 +23831,7 @@ void vtx::loop(vtx::VertexContext *ctx)
     // Check for some more if any phases need to transition
     if (usr->phase == UserContext::Phase::AIM)
     {
-        bool aimingLongEnough = usr->aimingTime > (lowFpsAimSwingFrame ? 0.45f : 0.6f);
+        bool aimingLongEnough = usr->aimingTime > 0.6f;
         bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, gameplaySafeDeltaTime);
         if (wantsPhysics && aimingLongEnough && movePivot == 0)
         {
@@ -23849,8 +23849,8 @@ void vtx::loop(vtx::VertexContext *ctx)
 		        float releasePlaneZ = usr->pivotPoint.z + usr->scene.releaseOffsetZ;
 		        bool muchFwd = ballPos.z > releasePlaneZ + 0.9f;
 		        bool muchUpFront = muchUp + muchFwd;
-	        bool physicsLongEnough = usr->swingingTime > (lowFpsAimSwingFrame ? 0.30f : 0.4f);
-	        bool physicsWayTooLong = usr->swingingTime > (lowFpsAimSwingFrame ? 1.8f : 1.4f);
+            bool physicsLongEnough = usr->swingingTime > 0.4f;
+            bool physicsWayTooLong = usr->swingingTime > 1.4f;
         bool wantsPhysics = usr->trans.wantsPhysics(usr->enjoy.ndc, gameplaySafeDeltaTime);
         bool userTriesToThrow = requestThrowEvent || usr->bufferedRequestThrow;
 
@@ -23865,12 +23865,68 @@ void vtx::loop(vtx::VertexContext *ctx)
 	            usr->hasPrevBallPosForRelease = true;
 	            usr->swingPreviousFramePoint = usr->carriedBall;
 
+            if (usr->hasSwingCrossingRelease)
+                usr->swingCrossingReleaseAge += gameplayAimSwingStepDt;
+            const float z0 = prev.z;
+            const float z1 = usr->carriedBall.z;
+            if (z0 <= releasePlaneZ && z1 > releasePlaneZ &&
+                z1 - z0 > 1.0e-5f && gameplayAimSwingStepDt > 1.0e-5f)
+            {
+                const float crossingT = glm::clamp(
+                    (releasePlaneZ - z0) / (z1 - z0), 0.0f, 1.0f);
+                const glm::vec3 crossingPos = glm::mix(prev, usr->carriedBall, crossingT);
+                glm::vec3 crossingVelocity =
+                    (usr->carriedBall - prev) / gameplayAimSwingStepDt;
+                const glm::vec3 rope = crossingPos - usr->pivotPoint;
+                const float ropeLength = glm::length(rope);
+                if (ropeLength > 1.0e-5f)
+                {
+                    glm::vec3 predictedPos = crossingPos;
+                    const float captureDelay = 0.5f / BallSwingTuning::RELEASE_CAPTURE_REFERENCE_FPS;
+                    constexpr int kCapturePredictionSubsteps = 2;
+                    const float predictionStep = captureDelay / kCapturePredictionSubsteps;
+                    const glm::vec3 gravity(0.0f, -9.81f, 0.0f);
+                    for (int step = 0; step < kCapturePredictionSubsteps; ++step)
+                    {
+                        const glm::vec3 radius = predictedPos - usr->pivotPoint;
+                        const glm::vec3 ropeDirection = glm::normalize(radius);
+                        crossingVelocity -=
+                            glm::dot(crossingVelocity, ropeDirection) * ropeDirection;
+                        const float speedSq = glm::length2(crossingVelocity);
+                        const glm::vec3 tangentGravity =
+                            gravity - glm::dot(gravity, ropeDirection) * ropeDirection;
+                        const glm::vec3 acceleration =
+                            tangentGravity - (speedSq / ropeLength) * ropeDirection;
+                        crossingVelocity += acceleration * predictionStep;
+                        predictedPos += crossingVelocity * predictionStep;
+
+                        glm::vec3 predictedRadius = predictedPos - usr->pivotPoint;
+                        const float predictedRadiusLength = glm::length(predictedRadius);
+                        if (predictedRadiusLength > 1.0e-5f)
+                        {
+                            predictedRadius /= predictedRadiusLength;
+                            predictedPos = usr->pivotPoint + predictedRadius * ropeLength;
+                            crossingVelocity -= glm::dot(crossingVelocity, predictedRadius) * predictedRadius;
+                        }
+                    }
+                }
+                if (crossingVelocity.z > 0.05f)
+                {
+                    usr->swingCrossingReleasePos = crossingPos;
+                    usr->swingCrossingReleaseVel = crossingVelocity;
+                    usr->swingCrossingReleaseAge = 0.0f;
+                    usr->hasSwingCrossingRelease = true;
+                }
+            }
+            if (usr->swingCrossingReleaseAge > 0.25f)
+                usr->hasSwingCrossingRelease = false;
+
             float moved = glm::length(usr->carriedBall - prev);
             float speed = (gameplayAimSwingStepDt > 1e-6f) ? (moved / gameplayAimSwingStepDt) : 0.0f;
-            const float kStallSpeed = lowFpsAimSwingFrame ? 0.02f : 0.03f; // m/s
+            const float kStallSpeed = 0.03f; // m/s
             if (speed < kStallSpeed)
             {
-                usr->swingStallTime += gameplaySafeDeltaTime;
+                usr->swingStallTime += gameplayAimSwingStepDt;
             }
             else
             {
@@ -23879,7 +23935,7 @@ void vtx::loop(vtx::VertexContext *ctx)
 
             // Forgiveness: if swing stalls for long enough, cancel without counting a throw.
             // User request: stall > 1s => return to AIM (not IDLE).
-            if (usr->swingingTime > 0.50f && usr->swingStallTime > (lowFpsAimSwingFrame ? 1.35f : 1.0f))
+            if (usr->swingingTime > 0.50f && usr->swingStallTime > 1.0f)
             {
 
                 usr->bufferedRequestThrow = false;
@@ -23968,6 +24024,19 @@ swing_checks_done:
 			        }
 
 			        bool safeToRelease = ballPos.z > releasePlaneZ;
+			        if (usr->phase == UserContext::Phase::SWING)
+			        {
+		            // Restore the exact sampled crossing when a delayed render frame
+		            // observes the pendulum after it has already started climbing.
+		            safeToRelease = usr->hasSwingCrossingRelease &&
+		                usr->swingCrossingReleaseAge <= 0.25f;
+		            if (safeToRelease)
+		            {
+		                releaseFromSwingCrossing = true;
+		                swingCrossingReleasePosThisFrame = usr->swingCrossingReleasePos;
+		                swingCrossingReleaseVelThisFrame = usr->swingCrossingReleaseVel;
+		            }
+			        }
 		        if (!safeToRelease)
 		        {
 	            if (!usr->bufferedRequestThrow)
@@ -24060,6 +24129,8 @@ swing_checks_done:
                 usr->highestPoint = -10.0f;
                 usr->swingPreviousFramePoint = usr->carriedBall;
                 usr->swingStallTime = 0.0f;
+                usr->hasSwingCrossingRelease = false;
+                usr->swingCrossingReleaseAge = 1.0f;
             }
 		            if (phaseTrans == UserContext::PhaseTrans::TRANS_AIM_TO_THROW)
 		            {
@@ -24189,6 +24260,15 @@ swing_checks_done:
 		                usr->oilWearTotalM = 0.0f;
 		
 		                usr->phy.set_ball_free();
+		                if (releaseFromSwingCrossing)
+		                {
+		                    usr->carriedBall = swingCrossingReleasePosThisFrame;
+		                    usr->phy.set_ball_position_and_velocity(
+		                        swingCrossingReleasePosThisFrame,
+		                        swingCrossingReleaseVelThisFrame
+		                    );
+		                    usr->hasSwingCrossingRelease = false;
+		                }
 
 	                // Ball is already dynamic in SWING; inject a bit of initial spin on release.
 	                glm::vec3 w = usr->releaseOrbitAngularVel * BallSwingTuning::RELEASE_ORBIT_SPIN_SCALE;
@@ -24338,7 +24418,7 @@ swing_checks_done:
 	            usr->prevBallRotForRelease = ballRot;
 	            usr->hasPrevBallRotForRelease = true;
 
-	            usr->aimingTime += gameplaySafeDeltaTime;
+	            usr->aimingTime += gameplayAimSwingStepDt;
 
 	            float pullX = usr->enjoy.ndc.x;
 	            float pullZ = usr->enjoy.ndc.y;
@@ -24380,78 +24460,38 @@ swing_checks_done:
             );
 
             /* Hand moving carried ball */ {
-                // F = m * a  →  a = F / m
-                glm::vec3 handPos = usr->desiredBall;
-                glm::vec3 velXZ = glm::vec3(usr->carriedVel.x, 0.0f, usr->carriedVel.z);
-
-                float speedXZ = glm::length(velXZ);
-                if (speedXZ > 0.0001f)
-                {
-                    glm::vec3 dirXZ = velXZ / speedXZ;
-
-                    // How much we trust momentum vs hand
-                    // --- Tunable parameters ---
-                    const float momentumGainPerSpeed =
-                        0.3f; // how quickly momentum influence grows with speed
-                    const float minMomentumInfluence = 0.0f; // minimum influence (usually 0)
-                    const float maxMomentumInfluence =
-                        0.9f; // maximum influence (how stubborn it can get)
-                    // --- Compute influence ---
-                    float rawMomentumInfluence = speedXZ * momentumGainPerSpeed;
-                    float alignStrength = glm::clamp(
-                        rawMomentumInfluence, minMomentumInfluence, maxMomentumInfluence
-                    );
-
-                    // Project desired offset onto movement direction
-                    glm::vec3 toHand = handPos - usr->carriedBall;
-
-                    float forwardAmount = glm::dot(toHand, dirXZ);
-                    glm::vec3 forwardComponent = forwardAmount * dirXZ;
-
-                    // Blend: more speed → more forward bias
-                    glm::vec3 biasedOffset = glm::mix(toHand, forwardComponent, alignStrength);
-
-                    handPos = usr->carriedBall + biasedOffset;
-                }
-
-                // Tunable parameters
-                const float stiffness = 80.0f; // spring strength
-                const float damping = 12.0f;   // velocity damping
+                // Integrate the whole elapsed time in stable substeps. At 10 FPS,
+                // this advances the same 100 ms of spring physics as six 60 FPS frames.
+                constexpr float kAimSwingMaxSubstep = 1.0f / 120.0f;
+                float remaining = gameplayAimSwingStepDt;
+                const float safeMass = glm::max(0.10f, usr->myBall.mass);
+                const float stiffness = 80.0f;
+                const float damping = 12.0f;
                 const glm::vec3 gravity(0.0f, -9.81f, 0.0f);
 
-                // --- SPRING FORCE (Hooke’s law style) ---
-                glm::vec3 displacement = handPos - usr->carriedBall;
-                glm::vec3 springForce = stiffness * displacement;
+                while (remaining > 1.0e-6f)
+                {
+                    const float step = glm::min(remaining, kAimSwingMaxSubstep);
+                    glm::vec3 handPos = usr->desiredBall;
+                    const glm::vec3 velXZ(usr->carriedVel.x, 0.0f, usr->carriedVel.z);
+                    const float speedXZ = glm::length(velXZ);
+                    if (speedXZ > 0.0001f)
+                    {
+                        const glm::vec3 dirXZ = velXZ / speedXZ;
+                        const float alignStrength = glm::clamp(speedXZ * 0.3f, 0.0f, 0.9f);
+                        const glm::vec3 toHand = handPos - usr->carriedBall;
+                        const glm::vec3 forwardComponent = glm::dot(toHand, dirXZ) * dirXZ;
+                        handPos = usr->carriedBall + glm::mix(toHand, forwardComponent, alignStrength);
+                    }
 
-                // /* not too sure if it add musch stisfactory value 9abe on moment when ball goes
-                // back on cancelled throw)*/{
-                //     // --- SPEED-BASED XZ STEERING RESISTANCE ---
-                //     glm::vec3 velXZ = glm::vec3(usr->carriedVel.x, 0.0f, usr->carriedVel.z);
-                //     float speedXZ = glm::length(velXZ);
-
-                //     float steerFactor = 1.0f / (1.0f + speedXZ * 0.125f);
-
-                //     // Only weaken steering on XZ plane
-                //     springForce.x *= steerFactor;
-                //     springForce.z *= steerFactor;
-                // }
-
-                // --- DAMPING FORCE ---
-                glm::vec3 dampingForce = -damping * usr->carriedVel;
-
-                // --- GRAVITY FORCE ---
-                glm::vec3 gravityForce = usr->myBall.mass * gravity;
-
-                // --- TOTAL FORCE ---
-                glm::vec3 totalForce = springForce + dampingForce + gravityForce;
-
-                // --- ACCELERATION ---
-                glm::vec3 acceleration = totalForce / usr->myBall.mass;
-
-                // --- INTEGRATION ---
-                usr->carriedVel += acceleration * gameplayAimSwingStepDt;
-                usr->carriedBall += usr->carriedVel * gameplayAimSwingStepDt;
-                // }
+                    const glm::vec3 springForce = stiffness * (handPos - usr->carriedBall);
+                    const glm::vec3 dampingForce = -damping * usr->carriedVel;
+                    const glm::vec3 acceleration =
+                        (springForce + dampingForce + safeMass * gravity) / safeMass;
+                    usr->carriedVel += acceleration * step;
+                    usr->carriedBall += usr->carriedVel * step;
+                    remaining -= step;
+                }
             } /* hand moving carried ball end */
 
             stabilizeAimSwingBall(usr->carriedBall, usr->carriedVel, usr->desiredBall);
@@ -24474,7 +24514,7 @@ swing_checks_done:
 	        if (usr->phase == UserContext::Phase::SWING)
 	        {
                 bool swingSafetyResetToAim = false;
-	            usr->swingingTime += gameplaySafeDeltaTime;
+	            usr->swingingTime += gameplayAimSwingStepDt;
 
             //  std::cerr << "SPIN2 " << spin << std::endl
             // usr->phy.apply_angular_velocity_on_ball(spin);
@@ -24526,7 +24566,7 @@ swing_checks_done:
 		                if (usr->hasPrevBallRotForRelease)
 		                {
 		                    glm::quat deltaRot = ballRot * glm::inverse(usr->prevBallRotForRelease);
-			                            usr->releaseSpinFromRot = angularVelocityFromDelta(deltaRot, gameplayAimSwingStepDt);
+	                            usr->releaseSpinFromRot = angularVelocityFromDelta(deltaRot, gameplayAimSwingStepDt);
 		                }
 		                usr->prevBallRotForRelease = ballRot;
 		                usr->hasPrevBallRotForRelease = true;
@@ -25800,7 +25840,7 @@ swing_checks_done:
         ballModel[3].z, pinFrontZ, enemyPinDeck ? -1.0f : 1.0f,
         nearPinDeckDistanceM);
     const float physicsInterval = PhysicsStepSchedule::interval(
-        usr->phase, lowFpsAimSwingFrame, ballNearPinDeck,
+        usr->phase, ballNearPinDeck,
         MiniGame_IsCountMasters(usr) && usr->countMasters.phase == CountMastersPhase::PIN_CRASH);
     RuneGuardPins_Tick(usr, (float)gameplayDeltaTime);
     RuneFootball_RefreshRestitutionForLaneZ(usr);
@@ -25808,27 +25848,38 @@ swing_checks_done:
         usr->phy.physics_step(gameplayDeltaTime, physicsInterval);
     usr->frameProfileGraph.mark(FrameProfileGraph::Physics);
         Enemy_TickInFlightAimAssist(usr, gameplayDeltaTime);
-        const bool playerNosArmed = ShouldShowNosToolbar(usr) && usr->nosHeld;
+        const bool autoStrikeNos = IsSchoolStrikeLesson(usr) &&
+                                   usr->phase == UserContext::Phase::THROW;
+        const bool playerNosArmed = autoStrikeNos ||
+                                    (ShouldShowNosToolbar(usr) && usr->nosHeld);
         const bool playerNosCanBoost = playerNosArmed && usr->phy.is_ball_physics_active();
         if (playerNosCanBoost)
         {
             glm::vec3 vel = usr->phy.get_ball_swing_movement();
             const float speed = glm::length(vel);
-            if (speed >= NosTuning::MIN_SPEED_FOR_BOOST && usr->electroBall.getCharge01() > 0.0f)
+            if (usr->electroBall.getCharge01() > 0.0f)
             {
-                const glm::vec3 dir = vel / speed;
-                const float nosEffectiveness = NosBoostEffectiveness(usr);
-                vel += dir * (NosTuning::BOOST_ACCEL_MPS2 * nosEffectiveness * gameplayDeltaTime);
-                usr->phy.set_ball_swing_movement(vel);
-                usr->playerNosBoostedThisFrame = true;
-                usr->playerNosUsageActiveThisFrame = true;
-
-                usr->nosChargeDrainAccumulator += gameplayDeltaTime;
-                while (usr->nosChargeDrainAccumulator >= NosTuning::CHARGE_DRAIN_INTERVAL_S &&
-                       usr->electroBall.getCharge01() > 0.0f)
+                const bool movingFastEnough = speed >= (autoStrikeNos ? 0.001f : NosTuning::MIN_SPEED_FOR_BOOST);
+                if (movingFastEnough)
                 {
-                    usr->electroBall.consumeCharge(NosChargeDrainStepEffective(usr), /*highlight=*/true);
-                    usr->nosChargeDrainAccumulator -= NosTuning::CHARGE_DRAIN_INTERVAL_S;
+                    const glm::vec3 dir = vel / speed;
+                    const float nosEffectiveness = NosBoostEffectiveness(usr);
+                    vel += dir * (NosTuning::BOOST_ACCEL_MPS2 * nosEffectiveness * gameplayDeltaTime);
+                    usr->phy.set_ball_swing_movement(vel);
+                    usr->playerNosBoostedThisFrame = true;
+                }
+                // The strike lesson runs NOS automatically for the whole roll,
+                // including its initial slow frames. Collected gems replenish it.
+                if (autoStrikeNos || movingFastEnough)
+                {
+                    usr->playerNosUsageActiveThisFrame = true;
+                    usr->nosChargeDrainAccumulator += gameplayDeltaTime;
+                    while (usr->nosChargeDrainAccumulator >= NosTuning::CHARGE_DRAIN_INTERVAL_S &&
+                           usr->electroBall.getCharge01() > 0.0f)
+                    {
+                        usr->electroBall.consumeCharge(NosChargeDrainStepEffective(usr), /*highlight=*/true);
+                        usr->nosChargeDrainAccumulator -= NosTuning::CHARGE_DRAIN_INTERVAL_S;
+                    }
                 }
             }
         }
@@ -25875,7 +25926,7 @@ swing_checks_done:
         }
 
         const bool playerNosEmptyHeld =
-            playerNosArmed && usr->electroBall.getCharge01() <= 0.001f;
+            !autoStrikeNos && playerNosArmed && usr->electroBall.getCharge01() <= 0.001f;
         NosEmptySfx_Tick(usr, playerNosEmptyHeld, gameplayDeltaTime);
         UI_SetHeldHudToast(
             usr,
@@ -28257,6 +28308,48 @@ END_LINE:
                                       spinPickupRadiusScale);
         }
 
+        // The spin lesson uses visible coin targets with physics pins disabled.
+        // Move the nearest target toward the ball on close passes; never alter
+        // the ball velocity, so this magnetism cannot affect launch speed.
+        if (usr->gameMode == UserContext::GameMode::SCHOOL &&
+            usr->school.selectedLesson == 3 && !IsEnemyTurn(usr) &&
+            usr->phy.is_ball_physics_active() && gameplayDeltaTime > 0.0f)
+        {
+            const glm::vec3 ballPos = glm::vec3(usr->phy.physics_get_ball_matrix()[3]);
+            const float magnetRange = CoinLane::BALL_RADIUS + CoinLane::COIN_RADIUS + 0.20f;
+            constexpr float maxTargetSpeed = 2.4f;
+            int nearestIndex = -1;
+            float nearestDistance = magnetRange;
+            for (int i = 0; i < usr->coinLane.activeCount; ++i)
+            {
+                const Coin &coin = usr->coinLane.coins[i];
+                if (coin.state != CoinState::Active)
+                    continue;
+                const float distance = glm::length(glm::vec2(
+                    ballPos.x - coin.position.x, ballPos.z - coin.position.z));
+                if (distance < nearestDistance)
+                {
+                    nearestDistance = distance;
+                    nearestIndex = i;
+                }
+            }
+            if (nearestIndex >= 0 && nearestDistance > 1.0e-4f)
+            {
+                Coin &target = usr->coinLane.coins[nearestIndex];
+                const glm::vec2 towardBall = glm::normalize(glm::vec2(
+                    ballPos.x - target.position.x, ballPos.z - target.position.z));
+                const float proximity = smoothstep(0.0f, 1.0f,
+                                                   1.0f - nearestDistance / magnetRange);
+                const float moveDistance = glm::min(
+                    nearestDistance, maxTargetSpeed * proximity * (float)gameplayDeltaTime);
+                const glm::vec3 offset(towardBall.x * moveDistance, 0.0f,
+                                       towardBall.y * moveDistance);
+                target.position += offset;
+                target.magnetOffset += offset;
+                target.updateTransform();
+            }
+        }
+
                 // 2. Update all flying coin animations
                 int startedCoinFlySfxCount = 0;
                 const float flyAnimationDeltaTime =
@@ -29048,6 +29141,24 @@ END_LINE:
 	                    {
 	                    }
 	                }
+#elif defined(__ANDROID__) || defined(ANDROID)
+                    const float androidTopInset = glm::max(0.0f, ctx->androidSafeAreaTop);
+                    if (androidTopInset > 0.0f)
+                    {
+                        CLAY(
+                            CLAY_ID("AndroidTopSafeAreaSpacer"),
+                            {
+                                .layout = {
+                                    .sizing = {
+                                        .width = CLAY_SIZING_GROW(),
+                                        .height = CLAY_SIZING_FIXED(androidTopInset),
+                                    },
+                                },
+                            }
+                        )
+                        {
+                        }
+                    }
 #endif
 
 #if !defined(TARGET_OS_IOS) || !TARGET_OS_IOS

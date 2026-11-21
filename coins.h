@@ -200,6 +200,7 @@ inline float School_StrikeSwapDelayForZ(float z, float minZ, float maxZ, float m
 struct Coin {
     glm::vec3 position{};        // Current world position (updated by pattern)
     glm::vec3 basePosition{};    // Rest position for pattern calculations
+    glm::vec3 magnetOffset{};    // Persistent displacement from attraction effects
     glm::mat4 transform{1.0f};   // Model matrix for rendering
     CollectableVisualKind visualKind = CollectableVisualKind::Coin;
     int anchorIndex = -1;        // Which gem this coin orbits around (-1 = self / anchor)
@@ -397,6 +398,7 @@ struct CoinLane {
             Coin &c = coins[i];
             c.state = CoinState::Active;
             c.flyTriggered = false;
+            c.magnetOffset = glm::vec3(0.0f);
             c.rotation = 0.0f;
             c.scale = 1.0f;
             c.phaseOffset = 0.628f * static_cast<float>(i + 1);
@@ -439,6 +441,7 @@ struct CoinLane {
         {
             coins[i].state = CoinState::Dead;
             coins[i].flyTriggered = false;
+            coins[i].magnetOffset = glm::vec3(0.0f);
             coins[i].visualKind = CollectableVisualKind::Coin;
             coins[i].anchorIndex = -1;
             coins[i].orbitXRadius = 0.0f;
@@ -466,7 +469,10 @@ struct CoinLane {
             
             // 1️⃣ Apply pattern movement (timestep-independent via globalTime)
             if (moveTargets)
+            {
                 applyPattern(c, globalTime);
+                c.position += c.magnetOffset;
+            }
             if (minTargetAbsX > 0.0f)
                 c.position.x = std::copysign(std::max(std::abs(c.position.x), minTargetAbsX),
                                              c.basePosition.x);

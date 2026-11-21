@@ -39,7 +39,9 @@ struct SchoolMassTuning
 
 struct SchoolSpinTuning
 {
-    static constexpr float BITE_BONUS = 0.05f;
+    // Extra counter-steering bite so the spin lesson makes direction changes clear.
+    static constexpr float BITE_BONUS = 0.40f;
+    static constexpr float SIDE_DRIVE_MULTIPLIER = 1.25f;
     static constexpr float PRESET_SPIN = 0.72f;
     static constexpr float PRESET_FRICTION = 0.59f;
     static constexpr int LEVELS = 2;
@@ -59,7 +61,7 @@ struct SchoolSpinTuning
     static constexpr float PICKUP_RADIUS_SCALE = 0.70f;
 
     static constexpr float LAUNCH_SPEED_SCALE = 0.85f;
-    static constexpr float LAUNCH_SPEED_CAP = 3.8f;
+    static constexpr float LAUNCH_SPEED_CAP = 4.0f;
     static constexpr float THROW_TIMEOUT_S = 45.0f;
     static constexpr float STALLED_BANNER_AT_S = 45.0f;
     static constexpr float TARGET_PIN_MASS_SCALE = 0.25f;
@@ -258,6 +260,7 @@ inline void SchoolSpin_InitCoinsForLevel(School *self, const SchoolServices &svc
 
         c.basePosition = {x, SchoolSpinTuning::COIN_Y, z};
         c.position = c.basePosition;
+        c.magnetOffset = glm::vec3(0.0f);
         c.visualKind = CollectableVisualKind::Coin;
         c.anchorIndex = -1;
         c.orbitXRadius = 0.0f;

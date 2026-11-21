@@ -1383,8 +1383,15 @@ void Physics::set_manual_ball_position(const glm::vec3 &pos, const glm::quat &ro
         // instantaneous velocity
         glm::vec3 v = (pos - g_JoltPhysicsInternal.lastManualPos) / dt_total;
 
-        // exponential smoothing (newer input dominates)
-        const float weight = 0.15f;
+        // Time-based smoothing: a 10 FPS sample should cover six 60 FPS
+        // smoothing intervals instead of applying the same blend once.
+        constexpr float kWeightAt60Hz = 0.15f;
+        constexpr float kReferenceFrameSeconds = 1.0f / 60.0f;
+        const float weight = glm::clamp(
+            1.0f - powf(1.0f - kWeightAt60Hz, dt_total / kReferenceFrameSeconds),
+            0.0f,
+            1.0f
+        );
         if (!g_JoltPhysicsInternal.hasFilteredVelocity)
         {
             g_JoltPhysicsInternal.filteredVelocity = v;
@@ -1398,11 +1405,11 @@ void Physics::set_manual_ball_position(const glm::vec3 &pos, const glm::quat &ro
     }
 
     // Save delta rotation (if dt is sane)
-    if (dt > EPS)
+    if (dt_total > EPS)
     {
         g_JoltPhysicsInternal.lastDeltaQuat =
             rot * glm::inverse(g_JoltPhysicsInternal.lastManualRot);
-        g_JoltPhysicsInternal.lastDeltaTime = dt;
+        g_JoltPhysicsInternal.lastDeltaTime = dt_total;
     }
     else
     {
@@ -1471,6 +1478,21 @@ void Physics::set_ball_hanging(const glm::vec3 pivotPoint, const glm::vec3 ballP
     g_JoltPhysicsInternal.mRopeConstraint = rope.Create(pivotBody, ballBody);
 
     g_JoltPhysicsInternal.mPhysicsSystem->AddConstraint(g_JoltPhysicsInternal.mRopeConstraint);
+}
+
+void Physics::set_ball_position_and_velocity(const glm::vec3 &position, const glm::vec3 &velocity)
+{
+    JPH::BodyInterface &bodyIface = g_JoltPhysicsInternal.mPhysicsSystem->GetBodyInterface();
+    const JPH::Quat rotation = bodyIface.GetRotation(g_JoltPhysicsInternal.mBallID);
+    bodyIface.SetPositionAndRotation(
+        g_JoltPhysicsInternal.mBallID,
+        ToJolt(position),
+        rotation,
+        JPH::EActivation::Activate
+    );
+    bodyIface.SetLinearVelocity(g_JoltPhysicsInternal.mBallID, ToJolt(velocity));
+    bodyIface.ActivateBody(g_JoltPhysicsInternal.mBallID);
+    this->mBallMatrix = ToGlm(bodyIface.GetWorldTransform(g_JoltPhysicsInternal.mBallID));
 }
 
 void Physics::change_pivot_point(glm::vec3 newPivot)

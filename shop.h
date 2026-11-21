@@ -86,69 +86,69 @@ const CatalogItem g_ballCatalog[] = {
     // ═══════════════════════════════════════════════════════════════
     // 🔥 FIRE THEME
     // ═══════════════════════════════════════════════════════════════
-    { .id = kBallEmberStrike, .name = "Ember Strike", .rarity = "COMMON", .theme = "Fire",   .price = 17.0f,  .mass = 0.36f, .radius = 0.49f, .spin = 0.64f, .skid = 0.50f, .bite = 0.55f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.48f },
-    { .id = kBallFlameRoll,   .name = "Flame Roll",   .rarity = "COMMON", .theme = "Fire",   .price = 53.0f,  .mass = 0.55f, .radius = 0.52f, .spin = 0.68f, .skid = 0.47f, .bite = 0.50f, .restitution = 0.02f, .launchBuff = 0.26f, .hitBuff = 0.50f },
-    { .id = kBallBlazeHook,   .name = "Blaze Hook",   .rarity = "RARE",   .theme = "Fire",   .price = 429.0f, .mass = 0.50f, .radius = 0.60f, .spin = 0.72f, .skid = 0.55f, .bite = 0.58f, .restitution = 0.02f, .launchBuff = 0.31f, .hitBuff = 0.60f },
-    { .id = kBallInfernoFury, .name = "Inferno Fury", .rarity = "EPIC",   .theme = "Fire",   .price = 1246.0f,.mass = 0.74f, .radius = 0.77f, .spin = 0.69f, .skid = 0.63f, .bite = 0.76f, .restitution = 0.02f, .launchBuff = 0.41f, .hitBuff = 0.82f },
-    { .id = kBallPhoenixRise, .name = "Phoenix Rise", .rarity = "LEGEND", .theme = "Fire",   .price = 2814.0f,.mass = 0.58f, .radius = 0.86f, .spin = 0.88f, .skid = 0.79f, .bite = 0.72f, .restitution = 0.02f, .launchBuff = 0.47f, .hitBuff = 0.90f },
+    { .id = kBallEmberStrike, .name = "Ember Strike", .rarity = "COMMON", .theme = "Fire",   .price = 17.0f,  .mass = 0.36f, .radius = 0.49f, .spin = 0.64f, .skid = 0.50f, .bite = 0.55f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.584f },
+    { .id = kBallFlameRoll,   .name = "Flame Roll",   .rarity = "COMMON", .theme = "Fire",   .price = 53.0f,  .mass = 0.55f, .radius = 0.52f, .spin = 0.68f, .skid = 0.47f, .bite = 0.50f, .restitution = 0.02f, .launchBuff = 0.26f, .hitBuff = 0.600f },
+    { .id = kBallBlazeHook,   .name = "Blaze Hook",   .rarity = "RARE",   .theme = "Fire",   .price = 429.0f, .mass = 0.50f, .radius = 0.60f, .spin = 0.72f, .skid = 0.55f, .bite = 0.58f, .restitution = 0.02f, .launchBuff = 0.31f, .hitBuff = 0.680f },
+    { .id = kBallInfernoFury, .name = "Inferno Fury", .rarity = "EPIC",   .theme = "Fire",   .price = 1246.0f,.mass = 0.74f, .radius = 0.77f, .spin = 0.69f, .skid = 0.63f, .bite = 0.76f, .restitution = 0.02f, .launchBuff = 0.41f, .hitBuff = 0.856f },
+    { .id = kBallPhoenixRise, .name = "Phoenix Rise", .rarity = "LEGEND", .theme = "Fire",   .price = 2814.0f,.mass = 0.58f, .radius = 0.86f, .spin = 0.88f, .skid = 0.79f, .bite = 0.72f, .restitution = 0.02f, .launchBuff = 0.47f, .hitBuff = 0.920f },
 
     // ═══════════════════════════════════════════════════════════════
     // ❄️ ICE THEME
     // ═══════════════════════════════════════════════════════════════
-    { .id = kBallFrostGlide,   .name = "Frost Glide",  .rarity = "COMMON", .theme = "Ice",    .price = 39.0f,  .mass = 0.38f, .radius = 0.47f, .spin = 0.62f, .skid = 0.67f, .bite = 0.34f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.41f },
-    { .id = kBallChillStrike,  .name = "Chill Strike", .rarity = "COMMON", .theme = "Ice",    .price = 63.0f,  .mass = 0.49f, .radius = 0.50f, .spin = 0.64f, .skid = 0.62f, .bite = 0.39f, .restitution = 0.02f, .launchBuff = 0.27f, .hitBuff = 0.45f },
-    { .id = kBallArcticDrift,  .name = "Arctic Drift", .rarity = "RARE",   .theme = "Ice",    .price = 544.0f, .mass = 0.44f, .radius = 0.58f, .spin = 0.65f, .skid = 0.82f, .bite = 0.43f, .restitution = 0.02f, .launchBuff = 0.33f, .hitBuff = 0.57f },
-    { .id = kBallGlacierBite,  .name = "Glacier Bite", .rarity = "EPIC",   .theme = "Ice",    .price = 1434.0f,.mass = 0.79f, .radius = 0.76f, .spin = 0.61f, .skid = 0.88f, .bite = 0.74f, .restitution = 0.02f, .launchBuff = 0.40f, .hitBuff = 0.80f },
-    { .id = kBallBlizzardKing, .name = "Blizzard King",.rarity = "LEGEND", .theme = "Ice",    .price = 2935.0f,.mass = 0.67f, .radius = 0.92f, .spin = 0.86f, .skid = 0.97f, .bite = 0.69f, .restitution = 0.02f, .launchBuff = 0.48f, .hitBuff = 0.92f },
+    { .id = kBallFrostGlide,   .name = "Frost Glide",  .rarity = "COMMON", .theme = "Ice",    .price = 39.0f,  .mass = 0.38f, .radius = 0.47f, .spin = 0.62f, .skid = 0.67f, .bite = 0.34f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.528f },
+    { .id = kBallChillStrike,  .name = "Chill Strike", .rarity = "COMMON", .theme = "Ice",    .price = 63.0f,  .mass = 0.49f, .radius = 0.50f, .spin = 0.64f, .skid = 0.62f, .bite = 0.39f, .restitution = 0.02f, .launchBuff = 0.27f, .hitBuff = 0.560f },
+    { .id = kBallArcticDrift,  .name = "Arctic Drift", .rarity = "RARE",   .theme = "Ice",    .price = 544.0f, .mass = 0.44f, .radius = 0.58f, .spin = 0.65f, .skid = 0.82f, .bite = 0.43f, .restitution = 0.02f, .launchBuff = 0.33f, .hitBuff = 0.656f },
+    { .id = kBallGlacierBite,  .name = "Glacier Bite", .rarity = "EPIC",   .theme = "Ice",    .price = 1434.0f,.mass = 0.79f, .radius = 0.76f, .spin = 0.61f, .skid = 0.88f, .bite = 0.74f, .restitution = 0.02f, .launchBuff = 0.40f, .hitBuff = 0.840f },
+    { .id = kBallBlizzardKing, .name = "Blizzard King",.rarity = "LEGEND", .theme = "Ice",    .price = 2935.0f,.mass = 0.67f, .radius = 0.92f, .spin = 0.86f, .skid = 0.97f, .bite = 0.69f, .restitution = 0.02f, .launchBuff = 0.48f, .hitBuff = 0.936f },
 
     // ═══════════════════════════════════════════════════════════════
     // 🌌 GALAXY THEME
     // ═══════════════════════════════════════════════════════════════
-    { .id = kBallStarDust,   .name = "Star Dust",    .rarity = "COMMON", .theme = "Galaxy", .price = 78.0f,  .mass = 0.43f, .radius = 0.50f, .spin = 0.62f, .skid = 0.55f, .bite = 0.41f, .restitution = 0.02f, .launchBuff = 0.26f, .hitBuff = 0.44f },
-    { .id = kBallNebulaRoll, .name = "Nebula Roll",  .rarity = "COMMON", .theme = "Galaxy", .price = 98.0f,  .mass = 0.60f, .radius = 0.54f, .spin = 0.61f, .skid = 0.49f, .bite = 0.52f, .restitution = 0.02f, .launchBuff = 0.26f, .hitBuff = 0.52f },
-    { .id = kBallCosmicHook, .name = "Cosmic Hook",  .rarity = "RARE",   .theme = "Galaxy", .price = 624.0f, .mass = 0.47f, .radius = 0.63f, .spin = 0.78f, .skid = 0.57f, .bite = 0.55f, .restitution = 0.02f, .launchBuff = 0.32f, .hitBuff = 0.61f },
-    { .id = kBallVoidStrike, .name = "Void Strike",  .rarity = "EPIC",   .theme = "Galaxy", .price = 1561.0f,.mass = 0.71f, .radius = 0.80f, .spin = 0.74f, .skid = 0.70f, .bite = 0.72f, .restitution = 0.02f, .launchBuff = 0.42f, .hitBuff = 0.84f },
-    { .id = kBallBlackHole,  .name = "Black Hole",   .rarity = "LEGEND", .theme = "Galaxy", .price = 5052.0f,.mass = 0.92f, .radius = 0.97f, .spin = 0.82f, .skid = 0.83f, .bite = 0.91f, .restitution = 0.02f, .launchBuff = 0.50f, .hitBuff = 0.98f },
-    { .id = kBallUfoSpin,    .name = "UFO Spin",     .rarity = "RARE",   .theme = "Galaxy", .price = 728.0f, .mass = 0.40f, .radius = 0.59f, .spin = 0.84f, .skid = 0.63f, .bite = 0.47f, .restitution = 0.02f, .launchBuff = 0.34f, .hitBuff = 0.58f },
-    { .id = kBallXenonBite,  .name = "Xenon Bite",   .rarity = "EPIC",   .theme = "Galaxy", .price = 1481.0f,.mass = 0.63f, .radius = 0.77f, .spin = 0.72f, .skid = 0.73f, .bite = 0.81f, .restitution = 0.02f, .launchBuff = 0.41f, .hitBuff = 0.83f },
+    { .id = kBallStarDust,   .name = "Star Dust",    .rarity = "COMMON", .theme = "Galaxy", .price = 78.0f,  .mass = 0.43f, .radius = 0.50f, .spin = 0.62f, .skid = 0.55f, .bite = 0.41f, .restitution = 0.02f, .launchBuff = 0.26f, .hitBuff = 0.552f },
+    { .id = kBallNebulaRoll, .name = "Nebula Roll",  .rarity = "COMMON", .theme = "Galaxy", .price = 98.0f,  .mass = 0.60f, .radius = 0.54f, .spin = 0.61f, .skid = 0.49f, .bite = 0.52f, .restitution = 0.02f, .launchBuff = 0.26f, .hitBuff = 0.616f },
+    { .id = kBallCosmicHook, .name = "Cosmic Hook",  .rarity = "RARE",   .theme = "Galaxy", .price = 624.0f, .mass = 0.47f, .radius = 0.63f, .spin = 0.78f, .skid = 0.57f, .bite = 0.55f, .restitution = 0.02f, .launchBuff = 0.32f, .hitBuff = 0.688f },
+    { .id = kBallVoidStrike, .name = "Void Strike",  .rarity = "EPIC",   .theme = "Galaxy", .price = 1561.0f,.mass = 0.71f, .radius = 0.80f, .spin = 0.74f, .skid = 0.70f, .bite = 0.72f, .restitution = 0.02f, .launchBuff = 0.42f, .hitBuff = 0.872f },
+    { .id = kBallBlackHole,  .name = "Black Hole",   .rarity = "LEGEND", .theme = "Galaxy", .price = 5052.0f,.mass = 0.92f, .radius = 0.97f, .spin = 0.82f, .skid = 0.83f, .bite = 0.91f, .restitution = 0.02f, .launchBuff = 0.50f, .hitBuff = 0.984f },
+    { .id = kBallUfoSpin,    .name = "UFO Spin",     .rarity = "RARE",   .theme = "Galaxy", .price = 728.0f, .mass = 0.40f, .radius = 0.59f, .spin = 0.84f, .skid = 0.63f, .bite = 0.47f, .restitution = 0.02f, .launchBuff = 0.34f, .hitBuff = 0.664f },
+    { .id = kBallXenonBite,  .name = "Xenon Bite",   .rarity = "EPIC",   .theme = "Galaxy", .price = 1481.0f,.mass = 0.63f, .radius = 0.77f, .spin = 0.72f, .skid = 0.73f, .bite = 0.81f, .restitution = 0.02f, .launchBuff = 0.41f, .hitBuff = 0.864f },
 
     // ═══════════════════════════════════════════════════════════════
     // 🌿 NATURE THEME
     // ═══════════════════════════════════════════════════════════════
-    { .id = kBallForestRoll, .name = "Forest Roll",  .rarity = "COMMON", .theme = "Nature", .price = 45.0f,  .mass = 0.52f, .radius = 0.49f, .spin = 0.65f, .skid = 0.46f, .bite = 0.55f, .restitution = 0.02f, .launchBuff = 0.24f, .hitBuff = 0.48f },
-    { .id = kBallVineStrike, .name = "Vine Strike",  .rarity = "COMMON", .theme = "Nature", .price = 69.0f,  .mass = 0.40f, .radius = 0.50f, .spin = 0.65f, .skid = 0.58f, .bite = 0.38f, .restitution = 0.02f, .launchBuff = 0.28f, .hitBuff = 0.44f },
-    { .id = kBallThunderOak, .name = "Thunder Oak",  .rarity = "RARE",   .theme = "Nature", .price = 498.0f, .mass = 0.82f, .radius = 0.63f, .spin = 0.60f, .skid = 0.42f, .bite = 0.79f, .restitution = 0.02f, .launchBuff = 0.28f, .hitBuff = 0.68f },
-    { .id = kBallTitanRoot,  .name = "Titan Root",   .rarity = "EPIC",   .theme = "Nature", .price = 1374.0f,.mass = 0.91f, .radius = 0.81f, .spin = 0.69f, .skid = 0.51f, .bite = 0.88f, .restitution = 0.02f, .launchBuff = 0.37f, .hitBuff = 0.86f },
-    { .id = kBallWorldTree,  .name = "World Tree",   .rarity = "LEGEND", .theme = "Nature", .price = 2697.0f,.mass = 0.84f, .radius = 0.95f, .spin = 0.77f, .skid = 0.69f, .bite = 0.95f, .restitution = 0.02f, .launchBuff = 0.46f, .hitBuff = 0.94f },
+    { .id = kBallForestRoll, .name = "Forest Roll",  .rarity = "COMMON", .theme = "Nature", .price = 45.0f,  .mass = 0.52f, .radius = 0.49f, .spin = 0.65f, .skid = 0.46f, .bite = 0.55f, .restitution = 0.02f, .launchBuff = 0.24f, .hitBuff = 0.584f },
+    { .id = kBallVineStrike, .name = "Vine Strike",  .rarity = "COMMON", .theme = "Nature", .price = 69.0f,  .mass = 0.40f, .radius = 0.50f, .spin = 0.65f, .skid = 0.58f, .bite = 0.38f, .restitution = 0.02f, .launchBuff = 0.28f, .hitBuff = 0.552f },
+    { .id = kBallThunderOak, .name = "Thunder Oak",  .rarity = "RARE",   .theme = "Nature", .price = 498.0f, .mass = 0.82f, .radius = 0.63f, .spin = 0.60f, .skid = 0.42f, .bite = 0.79f, .restitution = 0.02f, .launchBuff = 0.28f, .hitBuff = 0.744f },
+    { .id = kBallTitanRoot,  .name = "Titan Root",   .rarity = "EPIC",   .theme = "Nature", .price = 1374.0f,.mass = 0.91f, .radius = 0.81f, .spin = 0.69f, .skid = 0.51f, .bite = 0.88f, .restitution = 0.02f, .launchBuff = 0.37f, .hitBuff = 0.888f },
+    { .id = kBallWorldTree,  .name = "World Tree",   .rarity = "LEGEND", .theme = "Nature", .price = 2697.0f,.mass = 0.84f, .radius = 0.95f, .spin = 0.77f, .skid = 0.69f, .bite = 0.95f, .restitution = 0.02f, .launchBuff = 0.46f, .hitBuff = 0.952f },
 
     // ═══════════════════════════════════════════════════════════════
     // 🌀 VOID THEME
     // ═══════════════════════════════════════════════════════════════
-    { .id = kBallShadowDrift, .name = "Shadow Drift", .rarity = "RARE",   .theme = "Void",   .price = 848.0f, .mass = 0.46f, .radius = 0.57f, .spin = 0.80f, .skid = 0.61f, .bite = 0.50f, .restitution = 0.02f, .launchBuff = 0.35f, .hitBuff = 0.63f },
-    { .id = kBallAbyssHook,   .name = "Abyss Hook",   .rarity = "EPIC",   .theme = "Void",   .price = 1869.0f,.mass = 0.69f, .radius = 0.82f, .spin = 0.90f, .skid = 0.68f, .bite = 0.77f, .restitution = 0.02f, .launchBuff = 0.43f, .hitBuff = 0.90f },
-    { .id = kBallNullifier,   .name = "Nullifier",    .rarity = "LEGEND", .theme = "Void",   .price = 4683.0f,.mass = 0.88f, .radius = 0.98f, .spin = 0.87f, .skid = 0.76f, .bite = 0.94f, .restitution = 0.02f, .launchBuff = 0.50f, .hitBuff = 1.00f },
+    { .id = kBallShadowDrift, .name = "Shadow Drift", .rarity = "RARE",   .theme = "Void",   .price = 848.0f, .mass = 0.46f, .radius = 0.57f, .spin = 0.80f, .skid = 0.61f, .bite = 0.50f, .restitution = 0.02f, .launchBuff = 0.35f, .hitBuff = 0.704f },
+    { .id = kBallAbyssHook,   .name = "Abyss Hook",   .rarity = "EPIC",   .theme = "Void",   .price = 1869.0f,.mass = 0.69f, .radius = 0.82f, .spin = 0.90f, .skid = 0.68f, .bite = 0.77f, .restitution = 0.02f, .launchBuff = 0.43f, .hitBuff = 0.920f },
+    { .id = kBallNullifier,   .name = "Nullifier",    .rarity = "LEGEND", .theme = "Void",   .price = 4683.0f,.mass = 0.88f, .radius = 0.98f, .spin = 0.87f, .skid = 0.76f, .bite = 0.94f, .restitution = 0.02f, .launchBuff = 0.50f, .hitBuff = 1.000f },
 
     // ═══════════════════════════════════════════════════════════════
     // ⚙️ TECH THEME
     // ═══════════════════════════════════════════════════════════════
-    { .id = kBallCircuitRoll, .name = "Circuit Roll", .rarity = "COMMON", .theme = "Tech",   .price = 59.0f,  .mass = 0.57f, .radius = 0.50f, .spin = 0.66f, .skid = 0.48f, .bite = 0.51f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.49f },
-    { .id = kBallNeonStrike,  .name = "Neon Strike",  .rarity = "RARE",   .theme = "Tech",   .price = 596.0f, .mass = 0.43f, .radius = 0.61f, .spin = 0.81f, .skid = 0.60f, .bite = 0.49f, .restitution = 0.02f, .launchBuff = 0.34f, .hitBuff = 0.59f },
-    { .id = kBallQuantumHook, .name = "Quantum Hook", .rarity = "EPIC",   .theme = "Tech",   .price = 1327.0f,.mass = 0.68f, .radius = 0.79f, .spin = 0.76f, .skid = 0.67f, .bite = 0.73f, .restitution = 0.02f, .launchBuff = 0.40f, .hitBuff = 0.81f },
-    { .id = kBallSingularity, .name = "Singularity",  .rarity = "LEGEND", .theme = "Tech",   .price = 3427.0f,.mass = 0.74f, .radius = 0.96f, .spin = 0.93f, .skid = 0.85f, .bite = 0.86f, .restitution = 0.02f, .launchBuff = 0.49f, .hitBuff = 0.96f },
+    { .id = kBallCircuitRoll, .name = "Circuit Roll", .rarity = "COMMON", .theme = "Tech",   .price = 59.0f,  .mass = 0.57f, .radius = 0.50f, .spin = 0.66f, .skid = 0.48f, .bite = 0.51f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.592f },
+    { .id = kBallNeonStrike,  .name = "Neon Strike",  .rarity = "RARE",   .theme = "Tech",   .price = 596.0f, .mass = 0.43f, .radius = 0.61f, .spin = 0.81f, .skid = 0.60f, .bite = 0.49f, .restitution = 0.02f, .launchBuff = 0.34f, .hitBuff = 0.672f },
+    { .id = kBallQuantumHook, .name = "Quantum Hook", .rarity = "EPIC",   .theme = "Tech",   .price = 1327.0f,.mass = 0.68f, .radius = 0.79f, .spin = 0.76f, .skid = 0.67f, .bite = 0.73f, .restitution = 0.02f, .launchBuff = 0.40f, .hitBuff = 0.848f },
+    { .id = kBallSingularity, .name = "Singularity",  .rarity = "LEGEND", .theme = "Tech",   .price = 3427.0f,.mass = 0.74f, .radius = 0.96f, .spin = 0.93f, .skid = 0.85f, .bite = 0.86f, .restitution = 0.02f, .launchBuff = 0.49f, .hitBuff = 0.968f },
 
     // ═══════════════════════════════════════════════════════════════
     // 🌊 OCEAN THEME
     // ═══════════════════════════════════════════════════════════════
-    { .id = kBallTideRoll,   .name = "Tide Roll",    .rarity = "COMMON", .theme = "Ocean",  .price = 36.0f,  .mass = 0.47f, .radius = 0.49f, .spin = 0.60f, .skid = 0.59f, .bite = 0.40f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.43f },
-    { .id = kBallReefStrike, .name = "Reef Strike",  .rarity = "RARE",   .theme = "Ocean",  .price = 470.0f, .mass = 0.73f, .radius = 0.61f, .spin = 0.65f, .skid = 0.66f, .bite = 0.67f, .restitution = 0.02f, .launchBuff = 0.29f, .hitBuff = 0.63f },
-    { .id = kBallKrakenBite, .name = "Kraken Bite",  .rarity = "EPIC",   .theme = "Ocean",  .price = 1347.0f,.mass = 0.86f, .radius = 0.78f, .spin = 0.74f, .skid = 0.72f, .bite = 0.82f, .restitution = 0.02f, .launchBuff = 0.38f, .hitBuff = 0.82f },
-    { .id = kBallLeviathan,  .name = "Leviathan",    .rarity = "LEGEND", .theme = "Ocean",  .price = 2606.0f,.mass = 0.98f, .radius = 0.97f, .spin = 0.68f, .skid = 0.78f, .bite = 0.97f, .restitution = 0.02f, .launchBuff = 0.46f, .hitBuff = 0.95f },
+    { .id = kBallTideRoll,   .name = "Tide Roll",    .rarity = "COMMON", .theme = "Ocean",  .price = 36.0f,  .mass = 0.47f, .radius = 0.49f, .spin = 0.60f, .skid = 0.59f, .bite = 0.40f, .restitution = 0.02f, .launchBuff = 0.25f, .hitBuff = 0.544f },
+    { .id = kBallReefStrike, .name = "Reef Strike",  .rarity = "RARE",   .theme = "Ocean",  .price = 470.0f, .mass = 0.73f, .radius = 0.61f, .spin = 0.65f, .skid = 0.66f, .bite = 0.67f, .restitution = 0.02f, .launchBuff = 0.29f, .hitBuff = 0.704f },
+    { .id = kBallKrakenBite, .name = "Kraken Bite",  .rarity = "EPIC",   .theme = "Ocean",  .price = 1347.0f,.mass = 0.86f, .radius = 0.78f, .spin = 0.74f, .skid = 0.72f, .bite = 0.82f, .restitution = 0.02f, .launchBuff = 0.38f, .hitBuff = 0.856f },
+    { .id = kBallLeviathan,  .name = "Leviathan",    .rarity = "LEGEND", .theme = "Ocean",  .price = 2606.0f,.mass = 0.98f, .radius = 0.97f, .spin = 0.68f, .skid = 0.78f, .bite = 0.97f, .restitution = 0.02f, .launchBuff = 0.46f, .hitBuff = 0.960f },
     
     // ═══════════════════════════════════════════════════════════════
     // ✨ MYSTIC THEME
     // ═══════════════════════════════════════════════════════════════
-    { .id = kBallRuneBall,     .name = "Rune Ball",    .rarity = "EPIC",   .theme = "Mystic", .price = 1658.0f,.mass = 0.56f, .radius = 0.83f, .spin = 0.85f, .skid = 0.71f, .bite = 0.63f, .restitution = 0.02f, .launchBuff = 0.44f, .hitBuff = 0.85f },
-    { .id = kBallOracleStrike, .name = "Oracle Strike",.rarity = "LEGEND", .theme = "Mystic", .price = 4509.0f,.mass = 0.72f, .radius = 0.97f, .spin = 0.90f, .skid = 0.87f, .bite = 0.89f, .restitution = 0.02f, .launchBuff = 0.50f, .hitBuff = 0.99f }
+    { .id = kBallRuneBall,     .name = "Rune Ball",    .rarity = "EPIC",   .theme = "Mystic", .price = 1658.0f,.mass = 0.56f, .radius = 0.83f, .spin = 0.85f, .skid = 0.71f, .bite = 0.63f, .restitution = 0.02f, .launchBuff = 0.44f, .hitBuff = 0.880f },
+    { .id = kBallOracleStrike, .name = "Oracle Strike",.rarity = "LEGEND", .theme = "Mystic", .price = 4509.0f,.mass = 0.72f, .radius = 0.97f, .spin = 0.90f, .skid = 0.87f, .bite = 0.89f, .restitution = 0.02f, .launchBuff = 0.50f, .hitBuff = 0.992f }
 };
 
 const size_t g_ballCatalogCount = sizeof(g_ballCatalog) / sizeof(g_ballCatalog[0]);
